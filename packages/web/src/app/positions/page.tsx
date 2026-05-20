@@ -56,10 +56,10 @@ function Body({
 function NeedVault() {
   return (
     <section className="hairline-t pt-10">
-      <div className="t-eyebrow text-[var(--color-warning)]">No vault</div>
+      <div className="t-eyebrow text-[var(--color-warning)]">No wallet</div>
       <h2 className="mt-3 t-h2">Set up your bot wallet first.</h2>
       <p className="mt-3 max-w-md t-body text-[var(--color-text-muted)]">
-        Without a vault the server has no key to read positions or sign closes.
+        Without a wallet the server has no key to read positions or sign closes.
       </p>
       <div className="mt-6">
         <Link href="/wallet">
@@ -73,11 +73,11 @@ function NeedVault() {
 function NeedUnlock() {
   return (
     <section className="hairline-t pt-10">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">Vault is locked</div>
+      <div className="t-eyebrow text-[var(--color-text-muted)]">Wallet is locked</div>
       <h2 className="mt-3 t-h2">Unlock to list your positions.</h2>
       <div className="mt-6">
         <Link href="/wallet">
-          <Button>Unlock vault →</Button>
+          <Button>Unlock wallet →</Button>
         </Link>
       </div>
     </section>

@@ -85,14 +85,14 @@ function NeedWallet({ hasVault }: { hasVault: boolean }) {
   return (
     <section className="hairline-t pt-10">
       <div className="t-eyebrow text-[var(--color-warning)]">
-        {hasVault ? "Vault is locked" : "No vault"}
+        {hasVault ? "Wallet is locked" : "No wallet"}
       </div>
       <h2 className="mt-3 t-h2">
         {hasVault ? "Unlock to configure." : "Set up your wallet first."}
       </h2>
       <div className="mt-6">
         <Link href="/wallet">
-          <Button>{hasVault ? "Unlock vault →" : "Go to wallet →"}</Button>
+          <Button>{hasVault ? "Unlock wallet →" : "Go to wallet →"}</Button>
         </Link>
       </div>
     </section>

@@ -21,13 +21,13 @@ export default function WalletPage() {
       <PageHeader
         eyebrow="Wallet"
         title="The keypair that signs your closes."
-        description="Encrypted at rest with scrypt + AES-256-GCM. Decrypted in memory only while the vault is unlocked."
+        description="Encrypted at rest with scrypt + AES-256-GCM. Decrypted in memory only while the wallet is unlocked."
         back={{ href: "/", label: "Home" }}
       />
 
       {status.isLoading ? (
         <p className="t-small text-[var(--color-text-muted)]">
-          Loading vault status…
+          Loading wallet status…
         </p>
       ) : status.error ? (
         <p className="t-small text-[var(--color-danger)]">
@@ -241,7 +241,7 @@ function UnlockSection({
     <div className="space-y-12">
       <section>
         <div className="t-eyebrow text-[var(--color-text-muted)]">
-          Vault is locked
+          Wallet is locked
         </div>
         <p className="mt-3 max-w-lg t-body text-[var(--color-text-muted)]">
           A keypair is encrypted on disk
@@ -308,7 +308,7 @@ function UnlockedSection({
     <div className="space-y-12">
       <section>
         <div className="t-eyebrow text-[var(--color-positive)]">
-          Vault unlocked
+          Wallet unlocked
         </div>
         <h2 className="mt-3 t-h2 break-all t-num">{address}</h2>
         <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
@@ -349,8 +349,8 @@ function DangerZone({
 
   const explanation =
     reason === "reset"
-      ? "Permanently delete the encrypted vault file. The wallet itself is not affected — it lives on-chain — but the server forgets it."
-      : "If you don't remember the passphrase, deleting the vault is the only way out. The wallet itself stays safe on-chain; you just lose this server's encrypted copy.";
+      ? "Permanently delete the encrypted wallet file. The wallet on-chain is not affected — only this server's encrypted copy is removed."
+      : "If you don't remember the passphrase, deleting the encrypted file is the only way out. The wallet on-chain stays safe; you just lose this server's encrypted copy.";
 
   return (
     <section className="hairline-t pt-8">
@@ -362,7 +362,7 @@ function DangerZone({
       {confirmingDelete ? (
         <div className="mt-6 flex items-center gap-3">
           <span className="t-small text-[var(--color-danger)]">
-            Delete the encrypted vault file?
+            Delete the encrypted wallet file?
           </span>
           <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
             Cancel
@@ -378,7 +378,7 @@ function DangerZone({
             size="sm"
             onClick={() => setConfirmingDelete(true)}
           >
-            Delete vault
+            Delete wallet
           </Button>
         </div>
       )}

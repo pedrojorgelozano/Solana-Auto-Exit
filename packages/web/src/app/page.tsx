@@ -90,8 +90,8 @@ function Hero({
           </span>
         </div>
         <p className="mt-6 max-w-xs t-small text-[var(--color-text-dim)]">
-          All transactions stay on this machine. The vault decrypts in memory
-          only while open; nothing leaves your localhost.
+          All transactions stay on this machine. Your wallet key is decrypted
+          in memory only while unlocked; nothing leaves your localhost.
         </p>
       </aside>
     </section>
@@ -117,7 +117,27 @@ function NowWatching({ tasks }: { tasks: TaskRow[] }) {
   return (
     <section className="hairline-t pt-10">
       <SectionHeader eyebrow="Now watching" title="Armed watchers" />
-      <ul className="mt-6 divide-y divide-[var(--color-hairline)]">
+
+      {/* Column headers — visible solo en md+ porque en mobile la fila se apila */}
+      <div className="mt-8 hidden hairline-b pb-3 md:grid md:grid-cols-12 md:gap-4">
+        <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
+          Status
+        </div>
+        <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
+          Position
+        </div>
+        <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
+          Target price
+        </div>
+        <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)]">
+          Current price
+        </div>
+        <div className="md:col-span-1 t-eyebrow text-[var(--color-text-dim)] md:text-right">
+          Distance
+        </div>
+      </div>
+
+      <ul className="divide-y divide-[var(--color-hairline)]">
         {tasks.map((t) => (
           <ActiveTaskRow key={t.id} task={t} />
         ))}
@@ -158,17 +178,26 @@ function ActiveTaskRow({ task }: { task: TaskRow }) {
           {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
         </div>
         <div className="mt-1 t-num text-[var(--color-text-muted)] md:col-span-3 md:mt-0">
+          <span className="t-eyebrow mr-2 text-[var(--color-text-dim)] md:hidden">
+            target
+          </span>
           {task.direction === "above" ? "≥" : "≤"}{" "}
           <span className="text-[var(--color-text)]">
             {formatPrice(task.targetPrice, 4)}
           </span>
         </div>
         <div className="mt-1 t-num text-[var(--color-text)] md:col-span-2 md:mt-0">
+          <span className="t-eyebrow mr-2 text-[var(--color-text-dim)] md:hidden">
+            current
+          </span>
           {task.runtime.lastPrice !== null
             ? formatPrice(task.runtime.lastPrice, 4)
             : "—"}
         </div>
         <div className="t-num text-[var(--color-text-muted)] md:col-span-1 md:text-right">
+          <span className="t-eyebrow mr-2 text-[var(--color-text-dim)] md:hidden">
+            distance
+          </span>
           {distance.pct !== null ? distance.text : "—"}
         </div>
       </Link>

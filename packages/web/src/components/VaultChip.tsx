@@ -5,9 +5,9 @@ import { trpc } from "@/lib/trpc";
 import { truncateAddress } from "@/lib/format";
 
 /**
- * Indicador del vault en el header global. Funciona como pestillo / cerrojo:
- * candado cerrado → locked / no vault; candado abierto → unlocked.
- * Click → /wallet (donde se gestiona create / unlock / lock / delete).
+ * Indicador del wallet en el header global. Candado cerrado → locked /
+ * no wallet; candado abierto → unlocked. Click → /wallet (donde se
+ * gestiona create / unlock / lock / delete).
  */
 export function VaultChip() {
   const status = trpc.wallet.status.useQuery(undefined, {
@@ -17,7 +17,7 @@ export function VaultChip() {
   if (status.isLoading) {
     return (
       <ChipLink href="/wallet" tone="neutral">
-        <Lock /> vault
+        <Lock /> wallet
       </ChipLink>
     );
   }
@@ -25,7 +25,7 @@ export function VaultChip() {
   if (!status.data?.hasVault) {
     return (
       <ChipLink href="/wallet" tone="warning">
-        <Lock /> no vault
+        <Lock /> no wallet
       </ChipLink>
     );
   }
@@ -34,7 +34,7 @@ export function VaultChip() {
     return (
       <ChipLink href="/wallet" tone="neutral">
         <Lock />
-        vault locked
+        wallet locked
         {status.data.address ? (
           <span className="ml-2 t-num text-[var(--color-text-dim)]">
             {truncateAddress(status.data.address, 4, 4)}
@@ -47,7 +47,7 @@ export function VaultChip() {
   return (
     <ChipLink href="/wallet" tone="active">
       <Unlock />
-      vault unlocked
+      wallet unlocked
       {status.data.address ? (
         <span className="ml-2 t-num text-[var(--color-text)]">
           {truncateAddress(status.data.address, 4, 4)}
