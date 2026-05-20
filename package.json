@@ -8,8 +8,10 @@
     "start": "tsx packages/cli/src/main.ts",
     "dev:server": "pnpm --filter @solana-auto-exit/server dev",
     "start:server": "pnpm --filter @solana-auto-exit/server start",
+    "dev:web": "pnpm --filter @solana-auto-exit/web dev",
+    "build:web": "pnpm --filter @solana-auto-exit/web build",
     "db:generate": "pnpm --filter @solana-auto-exit/server exec drizzle-kit generate",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && pnpm --filter @solana-auto-exit/web typecheck",
     "gen-wallet": "tsx scripts/gen-wallet.ts",
     "export-base58": "tsx scripts/export-base58.ts",
     "inspect-pool": "tsx scripts/inspect-pool.ts"

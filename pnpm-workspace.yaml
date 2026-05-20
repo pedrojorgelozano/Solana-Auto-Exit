@@ -6,6 +6,8 @@ packages:
 allowBuilds:
   better-sqlite3: true
   esbuild: true
+  # sharp lo usa Next.js para optimización de imágenes (build nativo opcional).
+  sharp: true
 
 # pnpm tiene un "minimum release age" de seguridad para deps recientes;
 # excluimos tsx para que la versión instalada arranque sin esperas.

@@ -15,3 +15,13 @@ Thumbs.db
 # El esquema vive en packages/server/drizzle/ y SÍ se versiona.
 packages/server/data/
 
+# Next.js artifacts
+.next/
+packages/web/.next/
+packages/web/next-env.d.ts
+next-env.d.ts
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+**/*.tsbuildinfo
+
