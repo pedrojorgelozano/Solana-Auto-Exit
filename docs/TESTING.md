@@ -64,16 +64,30 @@ Segundo run:
   - `getTransaction(sig)` → `err: null`, 6 instrucciones (compute budget + decrease liq + collect fees + collect rewards + close position), signer correcto.
 - Balance: 1.388 → 1.4979 SOL (+0.11 = liquidez + rent del NFT - fees). ✅
 
-### 5. Auto-swap (`EXIT_TOKEN_MINT`) — pendiente
+### 5. Auto-swap (`EXIT_TOKEN_MINT`)
 
-**No validado end-to-end aún** (la posición se cerró antes de implementar la feature). La implementación está en `src/protocols/orca/adapter.ts::swapToExit` y typecheck pasa.
+Validado end-to-end en devnet el 2026-05-20.
 
-Plan reproducible (también en [TODO.md](TODO.md)):
-1. Reabrir posición SOL/devUSDC out-of-range (mismo patrón que (3)).
-2. Editar `.env`: `EXIT_TOKEN_MINT=BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k` (devUSDC).
-3. Primera pasada con `DRY_RUN=true` para ver el quote del swap (`fromMint`, `inputAmount`, `estimatedOutput`, `minimumOutput`).
-4. Segunda pasada con `DRY_RUN=false` para cerrar + swapear de verdad.
-5. Verificar por RPC que el ATA de devUSDC tiene balance positivo y el saldo SOL refleja el coste de fees.
+Setup:
+- Posición nueva (NFT `G1b6Sp1UWC8YoKgWDfkspM7t6t9m4XpFbjb3dtNPJnCz`) en el mismo pool `3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt`, mismo patrón out-of-range 25–30, depósito 0.05 SOL.
+- `.env`: `EXIT_TOKEN_MINT=BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k` (devUSDC), `EXIT_SWAP_SLIPPAGE_BPS=100`, `DIRECTION=above TARGET_PRICE=20`.
+
+Pasada 1 (`DRY_RUN=true`):
+- Close quote: `tokenEstA=49999999` (~0.05 SOL), `tokenEstB=0`.
+- Swap quote: `fromMint=SOL`, `in=49999999`, `estOut=1116296`, `minOut=1105133` (slippage 100bps aplicado).
+- Sanity: 0.05 SOL × precio 22.37 ≈ 1.118 USDC; quote 1.116 (fee 0.2% del pool restado). ✅
+
+Pasada 2 (`DRY_RUN=false`):
+- **Close tx**: `3GBgdoBvbjG34iV7b5bv6FgmAnyvYAqcVo6J3YN44k7sCh23czKaFCBAeRnLD1a5Hma24kxxTDPxnMZ17SXCdpK8`.
+- **Swap tx**: `4q4Xi2UGF19UFu13sU4QooLGaC8gY9syNJrufguFS1DLsu7N3pUkvpJK3mBytuxBhe5WZXFMaTMDhzo5u8AKcBS3`.
+- Ambas exitosas a la primera, sin retries.
+
+Verificación on-chain post:
+- `getAccountInfo(G1b6Sp1…JnCz)` → `value: null` (NFT quemado).
+- ATA devUSDC `FPHgMGrNDGbnjjuhfimS2WFVkbDnC6TReXgrvhNKsHJ6` → balance `1.116296` devUSDC (`1116296` raw, **exacto** al `estimatedOutput`).
+- Saldo SOL: 1.4378 → 1.4479 (+0.0101 por rent NFT + leftover del wrap; los 0.05 SOL del close acabaron en devUSDC).
+
+Coste total del experimento (open + close + swap + fees): ~0.005 SOL. ✅
 
 ## Patrón "posición out-of-range con un solo token"
 

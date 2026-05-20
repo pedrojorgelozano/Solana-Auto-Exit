@@ -2,12 +2,7 @@
 
 ## En curso
 
-- [ ] Validar end-to-end la feature `EXIT_TOKEN_MINT` en devnet. Pasos:
-  1. Reabrir posición SOL/devUSDC out-of-range (mismo patrón: rango 25–30, 0.1 SOL).
-  2. Editar `.env`: `EXIT_TOKEN_MINT=BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k` (devUSDC).
-  3. Primera pasada con `DRY_RUN=true` para ver el quote del swap.
-  4. Segunda pasada con `DRY_RUN=false` para cerrar + swapear de verdad.
-  5. Verificar por RPC que el ATA de devUSDC tiene balance positivo y el saldo SOL refleja fees.
+(nada activo)
 
 ## Próximo
 
@@ -27,4 +22,8 @@
 
 ## Hecho recientemente
 
-Ver [PROGRESS.md](PROGRESS.md). Fase 1 completa, feature auto-swap implementada (typecheck OK, sin validación E2E aún).
+Ver [PROGRESS.md](PROGRESS.md).
+
+- Fase 1 completa (núcleo + adapter Orca v8, validada E2E en devnet).
+- Feature `EXIT_TOKEN_MINT` implementada y **validada E2E** en devnet con dos txs reales (close + swap, ver entrada del 2026-05-20).
+- Script `scripts/inspect-pool.ts` para consultar mints y parámetros de un pool Whirlpool.
