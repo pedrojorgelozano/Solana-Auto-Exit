@@ -3,61 +3,53 @@
 import { trpc } from "@/lib/trpc";
 
 /**
- * Pequeño badge que muestra el estado de conexión con el backend tRPC.
- * Si el server está vivo → punto verde + versión.
- * Si no → punto rojo + mensaje.
+ * Indicador discreto del estado del backend. Texto mono pequeño con
+ * un dot. Sin pill ni borde — encaja en cualquier header.
  */
 export function ServerStatus() {
-  const health = trpc.health.useQuery(undefined, {
-    refetchInterval: 10_000,
-  });
+  const health = trpc.health.useQuery(undefined, { refetchInterval: 10_000 });
 
   if (health.isLoading) {
-    return <Pill color="muted">connecting…</Pill>;
+    return <Inline tone="neutral">connecting</Inline>;
   }
 
   if (health.error) {
     return (
-      <Pill color="danger" title={health.error.message}>
+      <Inline tone="danger" title={health.error.message}>
         server unreachable
-      </Pill>
+      </Inline>
     );
   }
 
   if (!health.data) {
-    return <Pill color="muted">no data</Pill>;
+    return <Inline tone="neutral">no data</Inline>;
   }
 
-  return (
-    <Pill color="success">
-      server v{health.data.version} ·{" "}
-      {new Date(health.data.time).toLocaleTimeString()}
-    </Pill>
-  );
+  return <Inline tone="positive">server online · v{health.data.version}</Inline>;
 }
 
-function Pill({
-  color,
+function Inline({
   children,
+  tone,
   title,
 }: {
-  color: "success" | "danger" | "muted";
   children: React.ReactNode;
+  tone: "positive" | "neutral" | "danger";
   title?: string;
 }) {
   const dotColor =
-    color === "success"
-      ? "bg-[var(--color-success)]"
-      : color === "danger"
+    tone === "positive"
+      ? "bg-[var(--color-positive)]"
+      : tone === "danger"
         ? "bg-[var(--color-danger)]"
         : "bg-[var(--color-text-muted)]";
   return (
-    <div
+    <span
       title={title}
-      className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-bg-elevated)] px-3 py-1 text-xs text-[var(--color-text-muted)]"
+      className="inline-flex items-center gap-2 t-eyebrow text-[var(--color-text-muted)]"
     >
-      <span className={`h-1.5 w-1.5 rounded-full ${dotColor}`} />
+      <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotColor}`} />
       {children}
-    </div>
+    </span>
   );
 }
