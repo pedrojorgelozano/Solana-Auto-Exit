@@ -1,24 +1,34 @@
 "use client";
 
 import Link from "next/link";
+import type { inferRouterOutputs } from "@trpc/server";
+import type { AppRouter } from "@solana-auto-exit/server/api";
+
 import { PageHeader } from "@/components/PageHeader";
-import { PositionCard } from "@/components/PositionCard";
-import { Card, CardLabel } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
 import { NETWORK, PROTOCOL, RPC_URL } from "@/lib/constants";
+import { formatPrice, formatRangeStatus, formatTokenAmount } from "@/lib/format";
+import { tokenSymbol } from "@/lib/tokens";
+
+type PositionRef = inferRouterOutputs<AppRouter>["positions"]["listOwned"][number];
 
 export default function PositionsPage() {
   const status = trpc.wallet.status.useQuery();
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
+    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12">
       <PageHeader
-        title="Positions"
-        description="Liquidity positions owned by your bot wallet. Pick one to configure an auto-exit."
+        eyebrow="Positions"
+        title="Open liquidity positions."
+        description="Owned by your unlocked bot wallet. Pick one to set an exit trigger."
         back={{ href: "/", label: "Home" }}
       />
-      <Body status={status.data} loading={status.isLoading} error={status.error?.message ?? null} />
+      <Body
+        status={status.data}
+        loading={status.isLoading}
+        error={status.error?.message ?? null}
+      />
     </main>
   );
 }
@@ -33,61 +43,44 @@ function Body({
   error: string | null;
 }) {
   if (loading) {
-    return (
-      <Card>
-        <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
-      </Card>
-    );
+    return <p className="t-small text-[var(--color-text-muted)]">Loading…</p>;
   }
   if (error) {
-    return (
-      <Card variant="danger">
-        <p className="text-sm text-[var(--color-danger)]">{error}</p>
-      </Card>
-    );
+    return <p className="t-small text-[var(--color-danger)]">{error}</p>;
   }
-  if (!status?.hasVault) {
-    return <NoVaultState />;
-  }
-  if (!status.unlocked) {
-    return <LockedState address={status.address} />;
-  }
+  if (!status?.hasVault) return <NeedVault />;
+  if (!status.unlocked) return <NeedUnlock />;
   return <OwnedList owner={status.address!} />;
 }
 
-function NoVaultState() {
+function NeedVault() {
   return (
-    <Card>
-      <CardLabel>No vault yet</CardLabel>
-      <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-        Create your encrypted wallet vault before listing positions.
+    <section className="hairline-t pt-10">
+      <div className="t-eyebrow text-[var(--color-warning)]">No vault</div>
+      <h2 className="mt-3 t-h2">Set up your bot wallet first.</h2>
+      <p className="mt-3 max-w-md t-body text-[var(--color-text-muted)]">
+        Without a vault the server has no key to read positions or sign closes.
       </p>
-      <div className="mt-4">
+      <div className="mt-6">
         <Link href="/wallet">
-          <Button variant="primary">Go to Wallet →</Button>
+          <Button>Go to wallet →</Button>
         </Link>
       </div>
-    </Card>
+    </section>
   );
 }
 
-function LockedState({ address }: { address: string | null }) {
+function NeedUnlock() {
   return (
-    <Card>
-      <CardLabel>Vault is locked</CardLabel>
-      <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-        Unlock your vault to list positions owned by{" "}
-        <code className="text-[var(--color-text)]">
-          {address ?? "(unknown)"}
-        </code>
-        .
-      </p>
-      <div className="mt-4">
+    <section className="hairline-t pt-10">
+      <div className="t-eyebrow text-[var(--color-text-muted)]">Vault is locked</div>
+      <h2 className="mt-3 t-h2">Unlock to list your positions.</h2>
+      <div className="mt-6">
         <Link href="/wallet">
-          <Button variant="primary">Unlock vault →</Button>
+          <Button>Unlock vault →</Button>
         </Link>
       </div>
-    </Card>
+    </section>
   );
 }
 
@@ -101,61 +94,145 @@ function OwnedList({ owner }: { owner: string }) {
 
   if (list.isLoading) {
     return (
-      <Card>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          Querying RPC for {PROTOCOL} positions of{" "}
-          <code className="text-[var(--color-text)]">{owner}</code>…
-        </p>
-      </Card>
+      <p className="t-small text-[var(--color-text-muted)]">
+        Querying the chain for {PROTOCOL} positions of this wallet…
+      </p>
     );
   }
-
   if (list.error) {
     return (
-      <Card variant="danger">
-        <p className="text-sm text-[var(--color-danger)]">{list.error.message}</p>
+      <div>
+        <p className="t-small text-[var(--color-danger)]">{list.error.message}</p>
         <div className="mt-4">
           <Button variant="secondary" onClick={() => list.refetch()}>
             Retry
           </Button>
         </div>
-      </Card>
+      </div>
     );
   }
-
   if (!list.data || list.data.length === 0) {
     return (
-      <Card>
-        <CardLabel>No positions found</CardLabel>
-        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-          The bot wallet ({owner}) has no open {PROTOCOL} positions on{" "}
-          {NETWORK}. Open one in the protocol&apos;s UI (Orca on devnet:
-          custom range out-of-range, ~0.1 SOL) and refresh.
+      <section className="hairline-t pt-10">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">Empty</div>
+        <h2 className="mt-3 t-h2">No positions in this wallet.</h2>
+        <p className="mt-3 max-w-md t-body text-[var(--color-text-muted)]">
+          Open one in the protocol&apos;s UI ({PROTOCOL} on {NETWORK}: custom
+          range out-of-range, 0.1 SOL) and refresh.
         </p>
-        <div className="mt-4">
+        <div className="mt-6">
           <Button variant="secondary" onClick={() => list.refetch()}>
             Refresh
           </Button>
         </div>
-      </Card>
+      </section>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-[var(--color-text-muted)]">
-          {list.data.length} position{list.data.length === 1 ? "" : "s"} ·{" "}
-          {PROTOCOL} · {NETWORK}
-        </p>
-        <Button variant="ghost" onClick={() => list.refetch()}>
-          Refresh
-        </Button>
+    <div>
+      <div className="flex items-baseline justify-between hairline-b pb-4">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          {list.data.length} {list.data.length === 1 ? "position" : "positions"}
+        </div>
+        <button
+          onClick={() => list.refetch()}
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+        >
+          refresh
+        </button>
       </div>
-
-      {list.data.map((posRef) => (
-        <PositionCard key={posRef.id} posRef={posRef} />
-      ))}
+      <ul className="divide-y divide-[var(--color-hairline)]">
+        {list.data.map((ref) => (
+          <PositionRow key={ref.id} posRef={ref} />
+        ))}
+      </ul>
     </div>
+  );
+}
+
+function PositionRow({ posRef }: { posRef: PositionRef }) {
+  const summary = trpc.positions.getSummary.useQuery({
+    protocol: PROTOCOL,
+    network: NETWORK,
+    rpcUrl: RPC_URL,
+    ref: posRef,
+  });
+
+  return (
+    <li>
+      <Link
+        href={`/positions/${posRef.id}`}
+        className="block py-6 transition-colors hover:bg-white/[0.02]"
+      >
+        {summary.data ? (
+          <div className="grid grid-cols-12 items-baseline gap-4">
+            <div className="col-span-4">
+              <div className="t-h2">
+                {tokenSymbol(summary.data.tokenA.mint)}
+                <span className="text-[var(--color-text-muted)]"> / </span>
+                {tokenSymbol(summary.data.tokenB.mint)}
+              </div>
+              <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
+                {posRef.protocol} · {posRef.label.split(" ").slice(-1)[0]}
+              </div>
+            </div>
+            <div className="col-span-3">
+              <div className="t-eyebrow text-[var(--color-text-muted)]">
+                Price
+              </div>
+              <div className="mt-1 t-num text-[var(--color-text)]">
+                {formatPrice(summary.data.currentPrice, 4)}
+              </div>
+            </div>
+            <div className="col-span-3">
+              <div className="t-eyebrow text-[var(--color-text-muted)]">
+                Range
+              </div>
+              <div className="mt-1 t-num text-[var(--color-text)]">
+                {formatPrice(summary.data.range.min, 2)} –{" "}
+                {formatPrice(summary.data.range.max, 2)}
+              </div>
+              <div
+                className={`mt-1 t-eyebrow ${
+                  summary.data.isInRange
+                    ? "text-[var(--color-positive)]"
+                    : "text-[var(--color-warning)]"
+                }`}
+              >
+                {formatRangeStatus(summary.data.isInRange)}
+              </div>
+            </div>
+            <div className="col-span-2 text-right">
+              <div className="t-eyebrow text-[var(--color-text-muted)]">
+                Holdings
+              </div>
+              <div className="mt-1 t-num text-[var(--color-text)]">
+                {formatTokenAmount(
+                  summary.data.liquidity.tokenA,
+                  summary.data.tokenA.decimals,
+                  4,
+                )}{" "}
+                {tokenSymbol(summary.data.tokenA.mint)}
+              </div>
+              <div className="t-num text-[var(--color-text-muted)]">
+                {formatTokenAmount(
+                  summary.data.liquidity.tokenB,
+                  summary.data.tokenB.decimals,
+                  4,
+                )}{" "}
+                {tokenSymbol(summary.data.tokenB.mint)}
+              </div>
+            </div>
+          </div>
+        ) : summary.error ? (
+          <p className="t-small text-[var(--color-danger)]">
+            {summary.error.message}
+          </p>
+        ) : (
+          <p className="t-small text-[var(--color-text-dim)]">Loading…</p>
+        )}
+      </Link>
+    </li>
   );
 }
