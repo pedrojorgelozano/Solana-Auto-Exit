@@ -21,7 +21,11 @@ import {
 
 import type {
   BaseConfig,
+  BaseReadOnlyConfig,
   CloseResult,
+  ConfigSchema,
+  PositionRef,
+  PositionSummary,
   ProtocolAdapter,
   ResolvedPosition,
   SwapExitResult,
@@ -36,13 +40,96 @@ interface OrcaRawPosition {
   decimalsB: number;
 }
 
+const ORCA_CONFIG_SCHEMA: ConfigSchema = {
+  protocol: "orca",
+  fields: [
+    {
+      key: "ORCA_POSITION_MINT",
+      label: "Position NFT mint",
+      type: "address",
+      required: true,
+      description:
+        "Mint of the Whirlpool position NFT (Token-2022). You can find it in your wallet or by inspecting the open-position transaction on Solscan.",
+      group: "Position",
+    },
+    {
+      key: "ORCA_DECIMALS_A",
+      label: "Token A decimals",
+      type: "integer",
+      required: true,
+      description:
+        "Decimals of the first token in the pool (SOL = 9, USDC = 6).",
+      min: 0,
+      max: 18,
+      defaultValue: 9,
+      group: "Position",
+    },
+    {
+      key: "ORCA_DECIMALS_B",
+      label: "Token B decimals",
+      type: "integer",
+      required: true,
+      description: "Decimals of the second token in the pool.",
+      min: 0,
+      max: 18,
+      defaultValue: 6,
+      group: "Position",
+    },
+  ],
+};
+
 export class OrcaAdapter implements ProtocolAdapter {
   readonly name = "orca";
+  readonly displayName = "Orca Whirlpools";
 
-  private rpc!: Rpc<SolanaRpcApi>;
-  private wallet!: KeyPairSigner;
-  private deployment!: typeof WhirlpoolDeployment.devnet;
-  private orcaConfig!: OrcaConfig;
+  private rpc?: Rpc<SolanaRpcApi>;
+  private wallet?: KeyPairSigner;
+  private deployment?: typeof WhirlpoolDeployment.devnet;
+  private orcaConfig?: OrcaConfig;
+
+  // ---------------------------------------------------------------------------
+  // Schema + setup
+  // ---------------------------------------------------------------------------
+
+  getConfigSchema(): ConfigSchema {
+    return ORCA_CONFIG_SCHEMA;
+  }
+
+  async setupRpc(common: BaseReadOnlyConfig): Promise<void> {
+    // v8 del SDK: el RPC es estado global. setupRpc puede llamarse varias veces
+    // (idempotente para la misma URL/red).
+    this.rpc = await setRpc(common.rpcUrl);
+    this.deployment =
+      common.network === "mainnet"
+        ? WhirlpoolDeployment.mainnet
+        : WhirlpoolDeployment.devnet;
+  }
+
+  attachWallet(wallet: KeyPairSigner): void {
+    if (!this.rpc) {
+      throw new Error("OrcaAdapter: attachWallet() called before setupRpc().");
+    }
+    this.wallet = wallet;
+    setDefaultFunder(wallet);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Discovery (read-only) — implementaciones reales en F0.3
+  // ---------------------------------------------------------------------------
+
+  async listOwnedPositions(_owner: string): Promise<PositionRef[]> {
+    this.getRpc(); // valida que setupRpc se ha llamado
+    throw new Error("OrcaAdapter.listOwnedPositions: implementado en F0.3.");
+  }
+
+  async getPositionSummary(_ref: PositionRef): Promise<PositionSummary> {
+    this.getRpc();
+    throw new Error("OrcaAdapter.getPositionSummary: implementado en F0.3.");
+  }
+
+  // ---------------------------------------------------------------------------
+  // CLI-style lifecycle
+  // ---------------------------------------------------------------------------
 
   loadProtocolConfig(env: NodeJS.ProcessEnv): OrcaConfig {
     return loadOrcaConfig(env);
@@ -53,21 +140,21 @@ export class OrcaAdapter implements ProtocolAdapter {
     protocolConfig: unknown,
     wallet: KeyPairSigner,
   ): Promise<void> {
+    await this.setupRpc(common);
+    this.attachWallet(wallet);
     this.orcaConfig = protocolConfig as OrcaConfig;
-    // v8 del SDK: el RPC y el funder son estado global; el payer se pasa al callback.
-    this.rpc = await setRpc(common.rpcUrl);
-    setDefaultFunder(wallet);
-    this.wallet = wallet;
-    this.deployment =
-      common.network === "mainnet"
-        ? WhirlpoolDeployment.mainnet
-        : WhirlpoolDeployment.devnet;
   }
 
   async resolvePosition(): Promise<ResolvedPosition> {
+    const rpc = this.getRpc();
+    if (!this.orcaConfig) {
+      throw new Error(
+        "OrcaAdapter.resolvePosition: protocolConfig no cargado. Llama init() o pasa la config por otro camino.",
+      );
+    }
     const positionMint = address(this.orcaConfig.positionMint);
     const [positionAddress] = await getPositionAddress(positionMint);
-    const position = await fetchPosition(this.rpc, positionAddress);
+    const position = await fetchPosition(rpc, positionAddress);
     const poolAddress = position.data.whirlpool;
 
     const raw: OrcaRawPosition = {
@@ -85,9 +172,14 @@ export class OrcaAdapter implements ProtocolAdapter {
     };
   }
 
+  // ---------------------------------------------------------------------------
+  // Watcher operations
+  // ---------------------------------------------------------------------------
+
   async getPrice(position: ResolvedPosition): Promise<number> {
+    const rpc = this.getRpc();
     const raw = position.raw as OrcaRawPosition;
-    const pool = await fetchWhirlpool(this.rpc, raw.poolAddress);
+    const pool = await fetchWhirlpool(rpc, raw.poolAddress);
     return sqrtPriceToPrice(
       pool.data.sqrtPrice,
       raw.decimalsA,
@@ -100,11 +192,13 @@ export class OrcaAdapter implements ProtocolAdapter {
     slippageBps: number,
     dryRun: boolean,
   ): Promise<CloseResult> {
+    const wallet = this.getWallet();
+    const deployment = this.getDeployment();
     const raw = position.raw as OrcaRawPosition;
 
     const result = await closePosition(raw.positionMint, {
       slippageToleranceBps: slippageBps,
-      whirlpoolDeployment: this.deployment,
+      whirlpoolDeployment: deployment,
     });
 
     const common = {
@@ -122,7 +216,7 @@ export class OrcaAdapter implements ProtocolAdapter {
       };
     }
 
-    const txId = await result.callback(this.wallet);
+    const txId = await result.callback(wallet);
     return {
       dryRun: false,
       txId,
@@ -137,8 +231,11 @@ export class OrcaAdapter implements ProtocolAdapter {
     slippageBps: number,
     dryRun: boolean,
   ): Promise<SwapExitResult> {
+    const wallet = this.getWallet();
+    const deployment = this.getDeployment();
+    const rpc = this.getRpc();
     const raw = position.raw as OrcaRawPosition;
-    const pool = await fetchWhirlpool(this.rpc, raw.poolAddress);
+    const pool = await fetchWhirlpool(rpc, raw.poolAddress);
     const mintA = pool.data.tokenMintA;
     const mintB = pool.data.tokenMintB;
 
@@ -172,8 +269,8 @@ export class OrcaAdapter implements ProtocolAdapter {
       raw.poolAddress,
       {
         slippageToleranceBps: slippageBps,
-        signer: this.wallet,
-        whirlpoolDeployment: this.deployment,
+        signer: wallet,
+        whirlpoolDeployment: deployment,
       },
     );
 
@@ -199,12 +296,43 @@ export class OrcaAdapter implements ProtocolAdapter {
       };
     }
 
-    const txId = await swapResult.callback(this.wallet);
+    const txId = await swapResult.callback(wallet);
     return {
       dryRun: false,
       skipped: false,
       txId,
       ...quoteFields,
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Guards (getters que lanzan si no está inicializado)
+  // ---------------------------------------------------------------------------
+
+  private getRpc(): Rpc<SolanaRpcApi> {
+    if (!this.rpc) {
+      throw new Error(
+        "OrcaAdapter: setupRpc() no se ha llamado. Llama setupRpc(common) primero.",
+      );
+    }
+    return this.rpc;
+  }
+
+  private getDeployment(): typeof WhirlpoolDeployment.devnet {
+    if (!this.deployment) {
+      throw new Error(
+        "OrcaAdapter: setupRpc() no se ha llamado. Llama setupRpc(common) primero.",
+      );
+    }
+    return this.deployment;
+  }
+
+  private getWallet(): KeyPairSigner {
+    if (!this.wallet) {
+      throw new Error(
+        "OrcaAdapter: wallet no asociada. Llama attachWallet(wallet) primero.",
+      );
+    }
+    return this.wallet;
   }
 }
