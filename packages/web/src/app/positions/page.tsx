@@ -17,7 +17,7 @@ export default function PositionsPage() {
   const status = trpc.wallet.status.useQuery();
 
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12">
+    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow="Positions"
         title="Open liquidity positions."

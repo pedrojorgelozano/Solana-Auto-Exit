@@ -28,7 +28,7 @@ export default function Home() {
   );
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-32 pt-16">
+    <main className="mx-auto max-w-6xl px-6 pb-32 pt-16 fade-in">
       <Hero activeCount={active.length} totalCount={tasks.data?.length ?? 0} />
 
       <NowWatching tasks={active} />
@@ -139,9 +139,9 @@ function ActiveTaskRow({ task }: { task: TaskRow }) {
     <li>
       <Link
         href={`/tasks/${task.id}`}
-        className="grid grid-cols-12 items-baseline gap-4 py-5 transition-colors hover:bg-white/[0.02]"
+        className="block py-5 transition-colors hover:bg-white/[0.02] md:grid md:grid-cols-12 md:items-baseline md:gap-4"
       >
-        <div className="col-span-3 flex items-center gap-2">
+        <div className="flex items-center gap-2 md:col-span-3">
           <span
             className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot} ${
               view.pulsing ? "pulse-soft" : ""
@@ -149,24 +149,26 @@ function ActiveTaskRow({ task }: { task: TaskRow }) {
           />
           <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
           {task.dryRun ? (
-            <span className="t-eyebrow text-[var(--color-warning)]">· simulation</span>
+            <span className="t-eyebrow text-[var(--color-warning)]">
+              · simulation
+            </span>
           ) : null}
         </div>
-        <div className="col-span-3 t-small text-[var(--color-text-muted)]">
+        <div className="mt-1 t-small text-[var(--color-text-muted)] md:col-span-3 md:mt-0">
           {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
         </div>
-        <div className="col-span-3 t-num text-[var(--color-text-muted)]">
+        <div className="mt-1 t-num text-[var(--color-text-muted)] md:col-span-3 md:mt-0">
           {task.direction === "above" ? "≥" : "≤"}{" "}
           <span className="text-[var(--color-text)]">
             {formatPrice(task.targetPrice, 4)}
           </span>
         </div>
-        <div className="col-span-2 t-num text-[var(--color-text)]">
+        <div className="mt-1 t-num text-[var(--color-text)] md:col-span-2 md:mt-0">
           {task.runtime.lastPrice !== null
             ? formatPrice(task.runtime.lastPrice, 4)
             : "—"}
         </div>
-        <div className="col-span-1 t-num text-right text-[var(--color-text-muted)]">
+        <div className="t-num text-[var(--color-text-muted)] md:col-span-1 md:text-right">
           {distance.pct !== null ? distance.text : "—"}
         </div>
       </Link>

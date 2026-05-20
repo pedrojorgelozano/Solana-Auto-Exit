@@ -17,7 +17,7 @@ export default function WalletPage() {
   });
 
   return (
-    <main className="mx-auto max-w-3xl px-6 pb-32 pt-12">
+    <main className="mx-auto max-w-3xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow="Wallet"
         title="The keypair that signs your closes."

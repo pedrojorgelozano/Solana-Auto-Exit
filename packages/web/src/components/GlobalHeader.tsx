@@ -10,9 +10,9 @@ import { VaultChip } from "./VaultChip";
 export function GlobalHeader() {
   return (
     <header className="hairline-b">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-6 px-6 py-5">
-        <Link href="/" className="group">
-          <div className="t-eyebrow text-[var(--color-text-dim)]">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-5">
+        <Link href="/" className="group shrink-0">
+          <div className="t-eyebrow hidden text-[var(--color-text-dim)] sm:block">
             devnet · 127.0.0.1
           </div>
           <div className="t-h2 leading-none text-[var(--color-text)] group-hover:text-[var(--color-accent-bright)] transition-colors">
@@ -20,8 +20,10 @@ export function GlobalHeader() {
           </div>
         </Link>
 
-        <div className="flex items-center gap-4">
-          <ServerStatus />
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+          <div className="hidden md:block">
+            <ServerStatus />
+          </div>
           <VaultChip />
         </div>
       </div>

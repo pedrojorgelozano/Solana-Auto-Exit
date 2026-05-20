@@ -53,7 +53,7 @@ export default function PositionPage() {
   );
 
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12">
+    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow="Position"
         title="Configure the exit."

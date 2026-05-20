@@ -57,7 +57,7 @@ export default function TaskPage() {
   const refresh = () => utils.tasks.get.invalidate({ id });
 
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12">
+    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow="Watcher"
         title="Live status"
