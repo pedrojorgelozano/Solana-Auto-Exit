@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ServerStatus } from "@/components/ServerStatus";
 
 export default function Home() {
@@ -22,18 +23,30 @@ export default function Home() {
         stable token.
       </p>
 
-      <div className="mt-12 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-6">
-        <div className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
-          F1.2 status
+      <nav className="mt-12 grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/wallet"
+          className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5 transition-colors hover:border-[var(--color-accent)]/60"
+        >
+          <div className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
+            Step 1
+          </div>
+          <div className="mt-2 text-lg font-medium">Wallet</div>
+          <div className="mt-1 text-sm text-[var(--color-text-muted)]">
+            Create or unlock your encrypted vault.
+          </div>
+        </Link>
+
+        <div className="rounded-xl border border-dashed border-[var(--color-border)] p-5 opacity-50">
+          <div className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
+            Step 2
+          </div>
+          <div className="mt-2 text-lg font-medium">Positions</div>
+          <div className="mt-1 text-sm text-[var(--color-text-muted)]">
+            Coming in F1.4.
+          </div>
         </div>
-        <div className="mt-2 text-lg">
-          tRPC client wired to the backend. The badge above polls{" "}
-          <code className="text-[var(--color-accent)]">health</code> every 10s.
-        </div>
-        <div className="mt-4 text-sm text-[var(--color-text-muted)]">
-          Next: wallet management screens (F1.3).
-        </div>
-      </div>
+      </nav>
     </main>
   );
 }
