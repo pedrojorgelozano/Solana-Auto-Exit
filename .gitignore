@@ -10,3 +10,8 @@ Thumbs.db
 
 # Claude Code: ajustes locales y skills personales
 .claude/
+
+# Server runtime data: SQLite DB, WAL files, wallet vault encriptado (futuro).
+# El esquema vive en packages/server/drizzle/ y SÍ se versiona.
+packages/server/data/
+

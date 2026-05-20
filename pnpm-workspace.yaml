@@ -4,6 +4,7 @@ packages:
 # esbuild (dependencia transitiva de tsx) necesita un postinstall para descargar
 # su binario nativo. Lo aprobamos explícitamente.
 allowBuilds:
+  better-sqlite3: true
   esbuild: true
 
 # pnpm tiene un "minimum release age" de seguridad para deps recientes;
