@@ -37,15 +37,18 @@ export default function Home() {
           </div>
         </Link>
 
-        <div className="rounded-xl border border-dashed border-[var(--color-border)] p-5 opacity-50">
+        <Link
+          href="/positions"
+          className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5 transition-colors hover:border-[var(--color-accent)]/60"
+        >
           <div className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
             Step 2
           </div>
           <div className="mt-2 text-lg font-medium">Positions</div>
           <div className="mt-1 text-sm text-[var(--color-text-muted)]">
-            Coming in F1.4.
+            See the liquidity positions owned by your bot wallet.
           </div>
-        </div>
+        </Link>
       </nav>
     </main>
   );
