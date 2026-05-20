@@ -4,11 +4,10 @@ import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input, Textarea, Label } from "@/components/ui/Input";
+import { Input, Label } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
+import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress } from "@/lib/format";
-
-type SourceType = "base58" | "jsonArray";
 
 export default function WalletPage() {
   const utils = trpc.useUtils();
@@ -50,147 +49,33 @@ function Panel({
   state: { hasVault: boolean; unlocked: boolean; address: string | null };
   refresh: () => void;
 }) {
-  if (!state.hasVault) return <Onboard refresh={refresh} />;
+  if (!state.hasVault) return <ConnectCta />;
   if (!state.unlocked) return <UnlockSection address={state.address} refresh={refresh} />;
   return <UnlockedSection address={state.address!} refresh={refresh} />;
 }
 
 // ============================================================================
-// 1. No vault yet → onboarding
+// 1. No vault → CTA al modal
 // ============================================================================
 
-function Onboard({ refresh }: { refresh: () => void }) {
-  const [sourceType, setSourceType] = useState<SourceType>("base58");
-  const [secret, setSecret] = useState("");
-  const [passphrase, setPassphrase] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const create = trpc.wallet.create.useMutation();
-  const unlock = trpc.wallet.unlock.useMutation();
-  const busy = create.isPending || unlock.isPending;
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (passphrase.length < 8) {
-      setError("Passphrase must be at least 8 characters.");
-      return;
-    }
-    if (passphrase !== confirm) {
-      setError("Passphrases don't match.");
-      return;
-    }
-    try {
-      await create.mutateAsync({
-        passphrase,
-        source: { type: sourceType, value: secret },
-      });
-      await unlock.mutateAsync({ passphrase });
-      setSecret("");
-      setPassphrase("");
-      setConfirm("");
-      refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
+function ConnectCta() {
+  const connect = useConnectWallet();
   return (
-    <div className="space-y-12">
+    <div className="space-y-10">
       <Recommendation />
 
-      <form onSubmit={submit} className="space-y-10">
-        <fieldset className="hairline-t pt-8">
-          <legend className="t-eyebrow mb-4">1 — Paste the secret key</legend>
-
-          <Segmented
-            value={sourceType}
-            onChange={(v) => setSourceType(v)}
-            options={[
-              { value: "base58", label: "Base58 — Phantom / Backpack" },
-              { value: "jsonArray", label: "JSON array — Solana CLI" },
-            ]}
-          />
-
-          <div className="mt-6">
-            <Label
-              htmlFor="secret"
-              hint={
-                sourceType === "base58"
-                  ? "≈ 88 base58 characters"
-                  : "[12, 34, 56, …]  · 64 integers"
-              }
-            >
-              Secret key
-            </Label>
-            {sourceType === "base58" ? (
-              <Input
-                id="secret"
-                type="password"
-                autoComplete="off"
-                spellCheck={false}
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-                placeholder="3suF5rw3…"
-                required
-                className="t-num"
-              />
-            ) : (
-              <Textarea
-                id="secret"
-                rows={4}
-                autoComplete="off"
-                spellCheck={false}
-                value={secret}
-                onChange={(e) => setSecret(e.target.value)}
-                placeholder="[12, 45, 200, …, 8]"
-                required
-              />
-            )}
-          </div>
-        </fieldset>
-
-        <fieldset className="hairline-t pt-8">
-          <legend className="t-eyebrow mb-4">2 — Pick a passphrase</legend>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="passphrase" hint="≥ 8 characters">
-                Passphrase
-              </Label>
-              <Input
-                id="passphrase"
-                type="password"
-                autoComplete="new-password"
-                value={passphrase}
-                onChange={(e) => setPassphrase(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
-            <div>
-              <Label htmlFor="confirm">Confirm</Label>
-              <Input
-                id="confirm"
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-                minLength={8}
-              />
-            </div>
-          </div>
-        </fieldset>
-
-        {error ? <FieldError>{error}</FieldError> : null}
-
-        <div className="flex items-center justify-end">
-          <Button type="submit" disabled={busy}>
-            {busy ? "Encrypting…" : "Encrypt and unlock"}
-          </Button>
+      <section className="hairline-t pt-10">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">No wallet</div>
+        <h2 className="mt-3 t-h2">Connect your bot wallet to begin.</h2>
+        <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+          Generate a fresh one (recommended) or import an existing key. The
+          server encrypts it with a passphrase and uses it only to sign the
+          closes you configure.
+        </p>
+        <div className="mt-6">
+          <Button onClick={connect.open}>Connect bot wallet →</Button>
         </div>
-      </form>
+      </section>
     </div>
   );
 }
@@ -313,7 +198,7 @@ function UnlockedSection({
         <h2 className="mt-3 t-h2 break-all t-num">{address}</h2>
         <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
           The keypair is in memory. It will be used to sign close and swap
-          transactions for armed tasks. Lock when you&apos;re done.
+          transactions for armed auto-exits. Lock when you&apos;re done.
         </p>
         <div className="mt-6 flex items-center justify-end">
           <Button variant="secondary" onClick={onLock} disabled={lock.isPending}>
@@ -328,7 +213,7 @@ function UnlockedSection({
 }
 
 // ============================================================================
-// Danger zone (compartido)
+// Danger zone
 // ============================================================================
 
 function DangerZone({
@@ -383,41 +268,5 @@ function DangerZone({
         </div>
       )}
     </section>
-  );
-}
-
-// ============================================================================
-// Segmented control
-// ============================================================================
-
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <div className="inline-flex border border-[var(--color-hairline)] rounded-[2px]">
-      {options.map((opt) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={`px-4 py-2 t-eyebrow transition-colors ${
-              active
-                ? "bg-[var(--color-accent-dim)] text-[var(--color-text)]"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            }`}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
   );
 }

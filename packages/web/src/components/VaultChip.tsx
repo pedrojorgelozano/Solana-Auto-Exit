@@ -3,36 +3,42 @@
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { truncateAddress } from "@/lib/format";
+import { useConnectWallet } from "@/lib/connect-wallet";
 
 /**
- * Indicador del wallet en el header global. Candado cerrado → locked /
- * no wallet; candado abierto → unlocked. Click → /wallet (donde se
- * gestiona create / unlock / lock / delete).
+ * Indicador del wallet en el header global. Cuando NO hay wallet (estado
+ * de onboarding) actúa como botón "connect wallet" y abre el modal. Cuando
+ * sí hay wallet (locked/unlocked) es un link a /wallet para gestionarla.
  */
 export function VaultChip() {
   const status = trpc.wallet.status.useQuery(undefined, {
     refetchInterval: 5_000,
   });
+  const connect = useConnectWallet();
 
   if (status.isLoading) {
     return (
-      <ChipLink href="/wallet" tone="neutral">
+      <ChipFrame tone="neutral">
         <Lock /> wallet
-      </ChipLink>
+      </ChipFrame>
     );
   }
 
   if (!status.data?.hasVault) {
     return (
-      <ChipLink href="/wallet" tone="warning">
-        <Lock /> no wallet
-      </ChipLink>
+      <button
+        type="button"
+        onClick={connect.open}
+        className={chipClass("accent")}
+      >
+        <Lock /> connect wallet
+      </button>
     );
   }
 
   if (!status.data.unlocked) {
     return (
-      <ChipLink href="/wallet" tone="neutral">
+      <Link href="/wallet" className={chipClass("neutral")}>
         <Lock />
         wallet locked
         {status.data.address ? (
@@ -40,12 +46,12 @@ export function VaultChip() {
             {truncateAddress(status.data.address, 4, 4)}
           </span>
         ) : null}
-      </ChipLink>
+      </Link>
     );
   }
 
   return (
-    <ChipLink href="/wallet" tone="active">
+    <Link href="/wallet" className={chipClass("active")}>
       <Unlock />
       wallet unlocked
       {status.data.address ? (
@@ -53,34 +59,28 @@ export function VaultChip() {
           {truncateAddress(status.data.address, 4, 4)}
         </span>
       ) : null}
-    </ChipLink>
+    </Link>
   );
 }
 
-function ChipLink({
-  href,
-  tone,
-  children,
-}: {
-  href: string;
-  tone: "active" | "warning" | "neutral";
-  children: React.ReactNode;
-}) {
+function chipClass(tone: "active" | "accent" | "neutral"): string {
   const toneClass =
     tone === "active"
       ? "border-[var(--color-positive)]/40 text-[var(--color-positive)] hover:bg-[var(--color-positive-bg)]"
-      : tone === "warning"
-        ? "border-[var(--color-warning)]/40 text-[var(--color-warning)] hover:bg-[var(--color-warning-bg)]"
+      : tone === "accent"
+        ? "border-[var(--color-accent)] text-[var(--color-accent-bright)] hover:bg-[var(--color-accent-dim)]"
         : "border-[var(--color-hairline)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-border-strong)]";
+  return `inline-flex h-8 items-center gap-2 border px-3 t-eyebrow transition-colors rounded-[2px] ${toneClass}`;
+}
 
-  return (
-    <Link
-      href={href}
-      className={`inline-flex h-8 items-center gap-2 border px-3 t-eyebrow transition-colors rounded-[2px] ${toneClass}`}
-    >
-      {children}
-    </Link>
-  );
+function ChipFrame({
+  tone,
+  children,
+}: {
+  tone: "active" | "accent" | "neutral";
+  children: React.ReactNode;
+}) {
+  return <span className={chipClass(tone)}>{children}</span>;
 }
 
 // Glyph icons inline (no librería)

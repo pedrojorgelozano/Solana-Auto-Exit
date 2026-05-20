@@ -1,4 +1,7 @@
+import { generateKeyPairSync } from "node:crypto";
 import { z } from "zod";
+import { getBase58Codec } from "@solana/kit";
+
 import { router, publicProcedure, TRPCError } from "../init.js";
 import {
   bytesFromBase58,
@@ -13,6 +16,38 @@ const sourceSchema = z.discriminatedUnion("type", [
 export const walletRouter = router({
   /** Estado del vault. Llamable siempre. */
   status: publicProcedure.query(({ ctx }) => ctx.vault.status()),
+
+  /**
+   * Genera una keypair Solana nueva, la cifra con la passphrase, persiste
+   * el vault y devuelve el secret en base58 UNA SOLA VEZ para que el
+   * usuario lo guarde en su gestor de contraseñas. Tras esto el vault
+   * queda desbloqueado.
+   *
+   * Es el flujo "Generate new bot wallet" del onboarding.
+   */
+  generate: publicProcedure
+    .input(z.object({ passphrase: z.string().min(8) }))
+    .mutation(async ({ ctx, input }) => {
+      // ed25519 vía node:crypto (zero deps). PKCS8 DER de la priv termina
+      // con los 32 bytes del seed; SPKI DER de la pub termina con los 32
+      // bytes del raw pub. El secret de Solana son los 64 bytes seed+pub.
+      const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+      const privDer = privateKey.export({ format: "der", type: "pkcs8" });
+      const seed = privDer.subarray(privDer.length - 32);
+      const pubDer = publicKey.export({ format: "der", type: "spki" });
+      const pubRaw = pubDer.subarray(pubDer.length - 32);
+      const secretKey = new Uint8Array(Buffer.concat([seed, pubRaw]));
+
+      const created = await ctx.vault.create(input.passphrase, secretKey);
+      // Auto-unlock para que el usuario salga del modal listo para operar.
+      await ctx.vault.unlock(input.passphrase);
+
+      const secretBase58 = getBase58Codec().decode(secretKey);
+      return {
+        address: created.address,
+        secretBase58,
+      };
+    }),
 
   /**
    * Crea un vault nuevo a partir de una clave privada (base58 estilo

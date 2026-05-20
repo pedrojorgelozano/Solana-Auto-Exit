@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink } from "@trpc/client";
 
 import { trpc, TRPC_URL } from "./trpc";
+import { ConnectWalletProvider } from "./connect-wallet";
+import { ConnectWalletModal } from "@/components/ConnectWalletModal";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -34,7 +36,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <ConnectWalletProvider>
+          {children}
+          <ConnectWalletModal />
+        </ConnectWalletProvider>
+      </QueryClientProvider>
     </trpc.Provider>
   );
 }

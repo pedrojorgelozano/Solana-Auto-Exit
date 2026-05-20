@@ -6,6 +6,7 @@ import type { AppRouter } from "@solana-auto-exit/server/api";
 
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
+import { useConnectWallet } from "@/lib/connect-wallet";
 import { statusView, TONE_CLASSES } from "@/lib/status";
 import {
   formatNearestDistance,
@@ -20,6 +21,9 @@ type TaskRow = inferRouterOutputs<AppRouter>["tasks"]["list"][number];
 
 export default function Home() {
   const tasks = trpc.tasks.list.useQuery(undefined, { refetchInterval: 3_000 });
+  const walletStatus = trpc.wallet.status.useQuery(undefined, {
+    refetchInterval: 5_000,
+  });
 
   const active = (tasks.data ?? []).filter((t) =>
     ["armed", "triggered", "closing", "idle"].includes(t.status),
@@ -28,9 +32,15 @@ export default function Home() {
     ["done", "error", "stopped", "paused"].includes(t.status),
   );
 
+  const hasWallet = walletStatus.data?.hasVault ?? false;
+
   return (
     <main className="mx-auto max-w-6xl px-6 pb-32 pt-16 fade-in">
-      <Hero activeCount={active.length} totalCount={tasks.data?.length ?? 0} />
+      <Hero
+        activeCount={active.length}
+        totalCount={tasks.data?.length ?? 0}
+        hasWallet={hasWallet}
+      />
 
       <NowWatching tasks={active} />
 
@@ -46,10 +56,13 @@ export default function Home() {
 function Hero({
   activeCount,
   totalCount,
+  hasWallet,
 }: {
   activeCount: number;
   totalCount: number;
+  hasWallet: boolean;
 }) {
+  const connect = useConnectWallet();
   return (
     <section className="grid gap-10 pb-16 md:grid-cols-12">
       <div className="md:col-span-7">
@@ -73,12 +86,23 @@ function Hero({
         </p>
 
         <div className="mt-10 flex flex-wrap items-center gap-3">
-          <Link href="/positions">
-            <Button>Set up an auto-exit →</Button>
-          </Link>
-          <Link href="/tasks">
-            <Button variant="ghost">All auto-exits ({totalCount})</Button>
-          </Link>
+          {hasWallet ? (
+            <>
+              <Link href="/positions">
+                <Button>Set up an auto-exit →</Button>
+              </Link>
+              <Link href="/tasks">
+                <Button variant="ghost">All auto-exits ({totalCount})</Button>
+              </Link>
+            </>
+          ) : (
+            <>
+              <Button onClick={connect.open}>Connect bot wallet →</Button>
+              <span className="t-small text-[var(--color-text-muted)]">
+                Step 1 — set up the wallet that signs your closes.
+              </span>
+            </>
+          )}
         </div>
       </div>
 
