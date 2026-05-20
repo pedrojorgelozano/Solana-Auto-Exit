@@ -64,7 +64,49 @@ Segundo run:
   - `getTransaction(sig)` → `err: null`, 6 instrucciones (compute budget + decrease liq + collect fees + collect rewards + close position), signer correcto.
 - Balance: 1.388 → 1.4979 SOL (+0.11 = liquidez + rent del NFT - fees). ✅
 
-### 5. Auto-swap (`EXIT_TOKEN_MINT`)
+### 6. E2E end-to-end via tRPC (server + adapters + vault + TaskManager)
+
+Validado el 2026-05-20 con el script `scripts/probe-e2e.ts`. Flujo completo:
+
+1. Spawn del server con `WALLET_VAULT_PATH` apuntando a `probe-vault.json` (aislado del vault de producción).
+2. `wallet.create` con `wallet.json` parseado como JSON array.
+3. `wallet.unlock` con passphrase.
+4. `positions.listOwned` para la wallet → encontró 1 posición devnet.
+5. `positions.getSummary` → precio actual, range, decimals.
+6. `tasks.create` con `target = currentPrice - 0.01` (trigger inmediato), `direction=above`, `EXIT_TOKEN_MINT=devUSDC`, `dryRun=false`, `exitSwapSlippageBps=100`.
+7. `tasks.start`.
+8. Poll de `tasks.get` hasta `status=done` (transiciones `armed → closing → done` capturadas en el log).
+9. `tasks.delete` + cleanup del vault.
+
+Resultado real on-chain:
+- **Close tx**: `5xgbNPTFmZmuvy7pkqYsbBcrDvKWxY5u3pPc662R9dMBfcWeE5AkgruqVa8Eq5qSmk5daFZgZv6ZV2zpUmjtibXT`.
+- **Swap tx**: `4u7gPeB1e5ECzKsVqnWtScauY46VawzqXXKNRHYzhTJsJw6iwjJm76eEUJf14Yufi4vgNAxYtszYti2gu5i1KDuT`.
+- NFT `GjsxHFmpYuhVBDhgoxXBGrmprWufCdmdGC89Fr5oPgcn` → `null` (quemado).
+- devUSDC ATA: +2.232531 (= `estimatedOutput` exacto al lamport).
+- SOL: +0.0101 (rent NFT recuperado - fees de las 2 txs).
+
+Esto valida que vault + TaskManager + adapters + tRPC funcionan integrados, no solo aisladamente. ✅
+
+### 7. Docker
+
+Validado el 2026-05-20:
+- `docker compose build` → OK (Alpine + compilación nativa de better-sqlite3 con node-gyp, ~117s primera vez).
+- `docker compose up -d` → arranca, migraciones aplicadas, `/trpc/health` responde.
+- `curl http://127.0.0.1:7777/trpc/wallet.status` → lee el vault desde el volumen montado (`./packages/server/data:/app/data`), demuestra persistencia.
+- `netstat`: el host muestra `127.0.0.1:7777 LISTENING`, NO `0.0.0.0:7777` → bind localhost-only confirmado.
+- `docker compose down` → container, network y puerto liberados limpios.
+
+### 8. Frontend scaffolding (F1.1)
+
+Validado el 2026-05-20:
+- `pnpm dev:web` arranca Next.js 15.5 en `127.0.0.1:3000` (no expone a LAN).
+- `curl http://127.0.0.1:3000/` → HTTP 200, body con `solana-auto-exit` + clases Tailwind aplicadas.
+- `pnpm typecheck` (root + web) pasa.
+- Sin lógica de negocio aún; valida que el toolchain está bien conectado.
+
+---
+
+## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)
 
 Validado end-to-end en devnet el 2026-05-20.
 
