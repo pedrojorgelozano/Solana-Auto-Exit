@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Providers } from "@/lib/providers";
+import { GlobalHeader } from "@/components/GlobalHeader";
 import { fraunces, instrumentSans, jetbrainsMono } from "./fonts";
 
 export const metadata: Metadata = {
@@ -20,7 +21,10 @@ export default function RootLayout({
       className={`${fraunces.variable} ${instrumentSans.variable} ${jetbrainsMono.variable}`}
     >
       <body className="grain-overlay min-h-screen antialiased">
-        <Providers>{children}</Providers>
+        <Providers>
+          <GlobalHeader />
+          {children}
+        </Providers>
       </body>
     </html>
   );
