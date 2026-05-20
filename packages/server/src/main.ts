@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { trpcServer } from "@hono/trpc-server";
@@ -5,12 +7,22 @@ import { trpcServer } from "@hono/trpc-server";
 import { db, runMigrations, closeDb } from "./db/client.js";
 import { appRouter } from "./trpc/router.js";
 import type { AppContext } from "./trpc/context.js";
+import { WalletVault } from "./wallet/vault.js";
+import { TaskManager } from "./tasks/manager.js";
 
 // =============================================================================
 // Bootstrap
 // =============================================================================
 
 runMigrations();
+
+const VAULT_PATH =
+  process.env.WALLET_VAULT_PATH ??
+  path.resolve(process.cwd(), "data", "wallet.vault");
+const vault = new WalletVault(VAULT_PATH);
+
+const taskManager = new TaskManager(db, vault);
+await taskManager.boot();
 
 const app = new Hono();
 
@@ -22,7 +34,7 @@ app.use(
   "/trpc/*",
   trpcServer({
     router: appRouter,
-    createContext: (): AppContext => ({ db }),
+    createContext: (): AppContext => ({ db, vault, taskManager }),
   }),
 );
 
@@ -43,6 +55,7 @@ const server = serve(
     console.log(
       `[server] listening on http://${info.address}:${info.port} (host=${host})`,
     );
+    console.log(`[server] vault path: ${VAULT_PATH}`);
   },
 );
 
@@ -52,6 +65,7 @@ const server = serve(
 
 function shutdown(signal: string): void {
   console.log(`\n[server] ${signal} received, shutting down...`);
+  taskManager.shutdown();
   server.close(() => {
     closeDb();
     process.exit(0);
