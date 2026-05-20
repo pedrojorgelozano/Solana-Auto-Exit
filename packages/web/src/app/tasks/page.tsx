@@ -31,8 +31,8 @@ export default function TasksListPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
-        eyebrow="Ledger"
-        title="All watchers."
+        eyebrow="History"
+        title="All auto-exits."
         description="Active, paused, completed and errored — everything this server knows about."
         back={{ href: "/", label: "Home" }}
       />
@@ -48,7 +48,7 @@ export default function TasksListPage() {
           <Filters value={filter} onChange={setFilter} counts={counts} />
           {filtered.length === 0 ? (
             <p className="mt-10 t-small text-[var(--color-text-muted)]">
-              No watchers match this filter.
+              No auto-exits match this filter.
             </p>
           ) : (
             <Ledger rows={filtered} />
@@ -63,9 +63,9 @@ function EmptyState() {
   return (
     <section className="hairline-t pt-10">
       <div className="t-eyebrow text-[var(--color-text-muted)]">Empty</div>
-      <h2 className="mt-3 t-h2">No watchers yet.</h2>
+      <h2 className="mt-3 t-h2">No auto-exits yet.</h2>
       <p className="mt-3 max-w-md t-body text-[var(--color-text-muted)]">
-        Pick a position and set an exit trigger; it will show up here from
+        Pick a position and set up an auto-exit; it will show up here from
         creation through completion.
       </p>
       <div className="mt-6">

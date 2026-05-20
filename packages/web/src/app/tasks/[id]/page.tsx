@@ -59,9 +59,9 @@ export default function TaskPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
-        eyebrow="Watcher"
+        eyebrow="Auto-exit"
         title="Live status"
-        back={{ href: "/tasks", label: "All tasks" }}
+        back={{ href: "/tasks", label: "All auto-exits" }}
       />
 
       {task.isLoading ? (

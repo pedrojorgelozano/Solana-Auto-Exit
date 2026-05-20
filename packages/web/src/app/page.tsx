@@ -73,10 +73,10 @@ function Hero({
 
         <div className="mt-10 flex flex-wrap items-center gap-3">
           <Link href="/positions">
-            <Button>Watch a position →</Button>
+            <Button>Set up an auto-exit →</Button>
           </Link>
           <Link href="/tasks">
-            <Button variant="ghost">All tasks ({totalCount})</Button>
+            <Button variant="ghost">All auto-exits ({totalCount})</Button>
           </Link>
         </div>
       </div>
@@ -86,7 +86,7 @@ function Hero({
         <div className="mt-3 flex items-baseline gap-4">
           <span className="t-num-display tabular-nums">{activeCount}</span>
           <span className="t-body text-[var(--color-text-muted)]">
-            {activeCount === 1 ? "task watching" : "tasks watching"}
+            {activeCount === 1 ? "auto-exit watching" : "auto-exits watching"}
           </span>
         </div>
         <p className="mt-6 max-w-xs t-small text-[var(--color-text-dim)]">
@@ -107,8 +107,8 @@ function NowWatching({ tasks }: { tasks: TaskRow[] }) {
     return (
       <section className="hairline-t pt-10">
         <SectionHeader eyebrow="Now watching" title="Nothing armed">
-          You haven&apos;t armed any watchers yet. Open a position in Orca,
-          then configure a trigger from this dashboard.
+          You haven&apos;t set up any auto-exits yet. Open a position in
+          Orca, then set one up from this dashboard.
         </SectionHeader>
       </section>
     );
@@ -116,7 +116,7 @@ function NowWatching({ tasks }: { tasks: TaskRow[] }) {
 
   return (
     <section className="hairline-t pt-10">
-      <SectionHeader eyebrow="Now watching" title="Armed watchers" />
+      <SectionHeader eyebrow="Now watching" title="Active auto-exits" />
 
       {/* Column headers — visible solo en md+ porque en mobile la fila se apila */}
       <div className="mt-8 hidden hairline-b pb-3 md:grid md:grid-cols-12 md:gap-4">
@@ -218,7 +218,7 @@ function Recent({
 }) {
   return (
     <section className="hairline-t mt-10 pt-10">
-      <SectionHeader eyebrow="Ledger" title="Recent activity" />
+      <SectionHeader eyebrow="History" title="Recent activity" />
       {loading ? (
         <p className="mt-6 t-small text-[var(--color-text-dim)]">Loading…</p>
       ) : tasks.length === 0 ? (

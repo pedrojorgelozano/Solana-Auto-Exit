@@ -92,6 +92,16 @@ function OwnedList({ owner }: { owner: string }) {
     owner,
   });
 
+  // Tasks activas indexadas por positionId — para señalar cuáles posiciones
+  // ya tienen un auto-exit configurado.
+  const tasks = trpc.tasks.list.useQuery(undefined, { refetchInterval: 5_000 });
+  const activeByPosition = new Map<string, string>();
+  for (const t of tasks.data ?? []) {
+    if (["idle", "armed", "triggered", "closing", "paused"].includes(t.status)) {
+      activeByPosition.set(t.positionId, t.id);
+    }
+  }
+
   if (list.isLoading) {
     return (
       <p className="t-small text-[var(--color-text-muted)]">
@@ -144,14 +154,24 @@ function OwnedList({ owner }: { owner: string }) {
       </div>
       <ul className="divide-y divide-[var(--color-hairline)]">
         {list.data.map((ref) => (
-          <PositionRow key={ref.id} posRef={ref} />
+          <PositionRow
+            key={ref.id}
+            posRef={ref}
+            activeTaskId={activeByPosition.get(ref.id) ?? null}
+          />
         ))}
       </ul>
     </div>
   );
 }
 
-function PositionRow({ posRef }: { posRef: PositionRef }) {
+function PositionRow({
+  posRef,
+  activeTaskId,
+}: {
+  posRef: PositionRef;
+  activeTaskId: string | null;
+}) {
   const summary = trpc.positions.getSummary.useQuery({
     protocol: PROTOCOL,
     network: NETWORK,
@@ -168,10 +188,18 @@ function PositionRow({ posRef }: { posRef: PositionRef }) {
         {summary.data ? (
           <div className="grid grid-cols-12 items-baseline gap-4">
             <div className="col-span-4">
-              <div className="t-h2">
-                {tokenSymbol(summary.data.tokenA.mint)}
-                <span className="text-[var(--color-text-muted)]"> / </span>
-                {tokenSymbol(summary.data.tokenB.mint)}
+              <div className="flex items-baseline gap-3">
+                <div className="t-h2">
+                  {tokenSymbol(summary.data.tokenA.mint)}
+                  <span className="text-[var(--color-text-muted)]"> / </span>
+                  {tokenSymbol(summary.data.tokenB.mint)}
+                </div>
+                {activeTaskId ? (
+                  <span className="inline-flex items-center gap-1 t-eyebrow text-[var(--color-positive)]">
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)] pulse-soft" />
+                    auto-exit set
+                  </span>
+                ) : null}
               </div>
               <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
                 {posRef.protocol} · {posRef.label.split(" ").slice(-1)[0]}

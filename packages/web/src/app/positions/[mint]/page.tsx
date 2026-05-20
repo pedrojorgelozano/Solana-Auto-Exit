@@ -21,6 +21,7 @@ import {
   formatTriggerSentence,
   truncateAddress,
 } from "@/lib/format";
+import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import { tokenSymbol } from "@/lib/tokens";
 
 type Direction = "above" | "below";
@@ -126,18 +127,144 @@ function Editor({
     ref: posRef,
   });
 
+  // Listamos tasks y filtramos por positionId para detectar si esta posición
+  // ya tiene un auto-exit activo. Una posición = un auto-exit activo a la vez.
+  const tasks = trpc.tasks.list.useQuery(undefined, { refetchInterval: 5_000 });
+  const activeTask = tasks.data?.find(
+    (t) =>
+      t.positionId === mint &&
+      ["idle", "armed", "triggered", "closing", "paused"].includes(t.status),
+  );
+
   return (
     <div className="space-y-12">
-      <PositionRecap posRef={posRef} summary={summary.data} loading={summary.isLoading} error={summary.error?.message ?? null} />
+      <PositionRecap
+        posRef={posRef}
+        summary={summary.data}
+        loading={summary.isLoading}
+        error={summary.error?.message ?? null}
+      />
 
-      {summary.data ? (
-        <ConfigureForm
-          mint={mint}
-          summary={summary.data}
-          router={router}
-        />
+      {activeTask ? (
+        <ExistingWatcher task={activeTask} />
+      ) : summary.data ? (
+        <ConfigureForm mint={mint} summary={summary.data} router={router} />
       ) : null}
     </div>
+  );
+}
+
+// ============================================================================
+// Existing watcher panel — sustituye al form cuando ya hay un auto-exit activo
+// ============================================================================
+
+function ExistingWatcher({
+  task,
+}: {
+  task: inferRouterOutputs<AppRouter>["tasks"]["list"][number];
+}) {
+  const view = statusView(task.status as BackendStatus);
+  const tone = TONE_CLASSES[view.tone];
+  const distance = formatDistance(
+    task.runtime.lastPrice,
+    task.targetPrice,
+    task.direction,
+  );
+
+  const utils = trpc.useUtils();
+  const del = trpc.tasks.delete.useMutation({
+    onSuccess: () => utils.tasks.list.invalidate(),
+  });
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <section className="hairline-t pt-8">
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot} ${
+            view.pulsing ? "pulse-soft" : ""
+          }`}
+        />
+        <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
+        {task.dryRun ? (
+          <span className="t-eyebrow text-[var(--color-warning)]">
+            · simulation
+          </span>
+        ) : null}
+      </div>
+
+      <h2 className="mt-3 t-h2">
+        This position already has an auto-exit.
+      </h2>
+      <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+        One auto-exit per position. Open it to see its live status, pause
+        or stop it. If you want different settings, delete the current one
+        and set up a new one.
+      </p>
+
+      <div className="mt-8 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+        <Field label="Direction">
+          {task.direction === "above" ? "Take profit" : "Stop loss"}
+        </Field>
+        <Field label="Target">
+          <span className="t-num">
+            {task.direction === "above" ? "≥ " : "≤ "}
+            {formatPrice(task.targetPrice, 6)}
+          </span>
+        </Field>
+        <Field label="Last price">
+          <span className="t-num">
+            {task.runtime.lastPrice !== null
+              ? formatPrice(task.runtime.lastPrice, 6)
+              : "—"}
+          </span>
+        </Field>
+        <Field label="Distance">
+          <span
+            className={`t-num ${
+              distance.reached
+                ? "text-[var(--color-warning)]"
+                : "text-[var(--color-text-muted)]"
+            }`}
+          >
+            {distance.text}
+          </span>
+        </Field>
+      </div>
+
+      <div className="mt-10 flex flex-wrap items-center justify-end gap-3 hairline-t pt-6">
+        {confirming ? (
+          <>
+            <span className="t-small text-[var(--color-danger)]">
+              Delete the current auto-exit?
+            </span>
+            <Button variant="ghost" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => del.mutate({ id: task.id })}
+              disabled={del.isPending}
+            >
+              {del.isPending ? "Deleting…" : "Yes, delete"}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setConfirming(true)}
+            >
+              Delete auto-exit
+            </Button>
+            <Link href={`/tasks/${task.id}`}>
+              <Button>Open auto-exit →</Button>
+            </Link>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
