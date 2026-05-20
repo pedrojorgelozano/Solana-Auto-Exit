@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardLabel, FieldError } from "@/components/ui/Card";
+import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Label } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
+import { truncateAddress } from "@/lib/format";
 
 type SourceType = "base58" | "jsonArray";
 
@@ -16,25 +17,24 @@ export default function WalletPage() {
   });
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-16">
+    <main className="mx-auto max-w-3xl px-6 pb-32 pt-12">
       <PageHeader
-        title="Wallet"
-        description="Encrypted in-server. The key is decrypted only in memory while the vault is unlocked."
+        eyebrow="Wallet"
+        title="The keypair that signs your closes."
+        description="Encrypted at rest with scrypt + AES-256-GCM. Decrypted in memory only while the vault is unlocked."
         back={{ href: "/", label: "Home" }}
       />
 
       {status.isLoading ? (
-        <Card>
-          <p className="text-sm text-[var(--color-text-muted)]">Loading status…</p>
-        </Card>
+        <p className="t-small text-[var(--color-text-muted)]">
+          Loading vault status…
+        </p>
       ) : status.error ? (
-        <Card variant="danger">
-          <p className="text-sm text-[var(--color-danger)]">
-            Cannot reach the backend: {status.error.message}
-          </p>
-        </Card>
+        <p className="t-small text-[var(--color-danger)]">
+          Cannot reach the backend: {status.error.message}
+        </p>
       ) : !status.data ? null : (
-        <VaultPanel
+        <Panel
           state={status.data}
           refresh={() => utils.wallet.status.invalidate()}
         />
@@ -43,28 +43,23 @@ export default function WalletPage() {
   );
 }
 
-// ============================================================================
-// State panel — routes to the right form/actions
-// ============================================================================
-
-function VaultPanel({
+function Panel({
   state,
   refresh,
 }: {
   state: { hasVault: boolean; unlocked: boolean; address: string | null };
   refresh: () => void;
 }) {
-  if (!state.hasVault) return <CreateForm refresh={refresh} />;
-  if (!state.unlocked)
-    return <UnlockForm address={state.address} refresh={refresh} />;
-  return <UnlockedPanel address={state.address!} refresh={refresh} />;
+  if (!state.hasVault) return <Onboard refresh={refresh} />;
+  if (!state.unlocked) return <UnlockSection address={state.address} refresh={refresh} />;
+  return <UnlockedSection address={state.address!} refresh={refresh} />;
 }
 
 // ============================================================================
-// 1. No vault yet → create
+// 1. No vault yet → onboarding
 // ============================================================================
 
-function CreateForm({ refresh }: { refresh: () => void }) {
+function Onboard({ refresh }: { refresh: () => void }) {
   const [sourceType, setSourceType] = useState<SourceType>("base58");
   const [secret, setSecret] = useState("");
   const [passphrase, setPassphrase] = useState("");
@@ -73,6 +68,7 @@ function CreateForm({ refresh }: { refresh: () => void }) {
 
   const create = trpc.wallet.create.useMutation();
   const unlock = trpc.wallet.unlock.useMutation();
+  const busy = create.isPending || unlock.isPending;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +86,6 @@ function CreateForm({ refresh }: { refresh: () => void }) {
         passphrase,
         source: { type: sourceType, value: secret },
       });
-      // Auto-unlock so the user lands in the "unlocked" state in one step.
       await unlock.mutateAsync({ passphrase });
       setSecret("");
       setPassphrase("");
@@ -101,137 +96,117 @@ function CreateForm({ refresh }: { refresh: () => void }) {
     }
   };
 
-  const busy = create.isPending || unlock.isPending;
-
   return (
-    <Card>
-      <CardLabel>Create vault</CardLabel>
-      <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-        Paste your Solana secret key. It will be encrypted at rest with your
-        passphrase (scrypt + AES-256-GCM) and only decrypted in memory while
-        you keep the vault unlocked.
-      </p>
+    <div className="space-y-12">
+      <Recommendation />
 
-      <form onSubmit={submit} className="mt-6 space-y-5">
-        <div>
-          <Label>Secret key format</Label>
-          <div className="flex gap-2">
-            <FormatOption
-              label="Base58 (Phantom/Backpack)"
-              active={sourceType === "base58"}
-              onClick={() => setSourceType("base58")}
-            />
-            <FormatOption
-              label="JSON array (Solana CLI)"
-              active={sourceType === "jsonArray"}
-              onClick={() => setSourceType("jsonArray")}
-            />
-          </div>
-        </div>
+      <form onSubmit={submit} className="space-y-10">
+        <fieldset className="hairline-t pt-8">
+          <legend className="t-eyebrow mb-4">1 — Paste the secret key</legend>
 
-        <div>
-          <Label
-            htmlFor="secret"
-            hint={
-              sourceType === "base58"
-                ? "88-char base58 string"
-                : "[12, 34, 56, …]  (64 integers)"
-            }
-          >
-            Secret key
-          </Label>
-          {sourceType === "base58" ? (
-            <Input
-              id="secret"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder="3suF5rw3…"
-              required
-            />
-          ) : (
-            <Textarea
-              id="secret"
-              rows={4}
-              autoComplete="off"
-              spellCheck={false}
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              placeholder="[12, 45, 200, …, 8]"
-              required
-            />
-          )}
-        </div>
+          <Segmented
+            value={sourceType}
+            onChange={(v) => setSourceType(v)}
+            options={[
+              { value: "base58", label: "Base58 — Phantom / Backpack" },
+              { value: "jsonArray", label: "JSON array — Solana CLI" },
+            ]}
+          />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="passphrase">Passphrase</Label>
-            <Input
-              id="passphrase"
-              type="password"
-              autoComplete="new-password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
-              required
-              minLength={8}
-            />
+          <div className="mt-6">
+            <Label
+              htmlFor="secret"
+              hint={
+                sourceType === "base58"
+                  ? "≈ 88 base58 characters"
+                  : "[12, 34, 56, …]  · 64 integers"
+              }
+            >
+              Secret key
+            </Label>
+            {sourceType === "base58" ? (
+              <Input
+                id="secret"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder="3suF5rw3…"
+                required
+                className="t-num"
+              />
+            ) : (
+              <Textarea
+                id="secret"
+                rows={4}
+                autoComplete="off"
+                spellCheck={false}
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder="[12, 45, 200, …, 8]"
+                required
+              />
+            )}
           </div>
-          <div>
-            <Label htmlFor="confirm">Confirm</Label>
-            <Input
-              id="confirm"
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              required
-              minLength={8}
-            />
+        </fieldset>
+
+        <fieldset className="hairline-t pt-8">
+          <legend className="t-eyebrow mb-4">2 — Pick a passphrase</legend>
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="passphrase" hint="≥ 8 characters">
+                Passphrase
+              </Label>
+              <Input
+                id="passphrase"
+                type="password"
+                autoComplete="new-password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
+            <div>
+              <Label htmlFor="confirm">Confirm</Label>
+              <Input
+                id="confirm"
+                type="password"
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
           </div>
-        </div>
+        </fieldset>
 
         {error ? <FieldError>{error}</FieldError> : null}
 
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex items-center justify-end">
           <Button type="submit" disabled={busy}>
-            {busy ? "Creating…" : "Create vault"}
+            {busy ? "Encrypting…" : "Encrypt and unlock"}
           </Button>
         </div>
       </form>
-
-      <hr className="my-6 border-[var(--color-border)]" />
-      <p className="text-xs text-[var(--color-text-muted)]">
-        Recommended: use a <strong>dedicated bot wallet</strong> with only the
-        funds you want the bot to manage. If this machine is compromised, the
-        blast radius is limited.
-      </p>
-    </Card>
+    </div>
   );
 }
 
-function FormatOption({
-  label,
-  active,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
+function Recommendation() {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex-1 rounded-lg border px-3 py-2 text-xs transition-colors ${
-        active
-          ? "border-[var(--color-accent)] bg-[var(--color-accent)]/10 text-[var(--color-text)]"
-          : "border-[var(--color-border)] bg-[var(--color-bg)] text-[var(--color-text-muted)] hover:bg-white/5"
-      }`}
-    >
-      {label}
-    </button>
+    <aside className="border-l-2 border-[var(--color-accent)] pl-5">
+      <div className="t-eyebrow text-[var(--color-accent-bright)]">
+        Recommended
+      </div>
+      <p className="mt-2 max-w-xl t-body text-[var(--color-text)]">
+        Use a <em>dedicated bot wallet</em>, not your main one. Move only the
+        funds you want this server to manage. If your machine is compromised,
+        the blast radius stays small.
+      </p>
+    </aside>
   );
 }
 
@@ -239,7 +214,7 @@ function FormatOption({
 // 2. Vault exists but locked → unlock
 // ============================================================================
 
-function UnlockForm({
+function UnlockSection({
   address,
   refresh,
 }: {
@@ -249,7 +224,6 @@ function UnlockForm({
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const unlock = trpc.wallet.unlock.useMutation();
-  const del = trpc.wallet.delete.useMutation();
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,61 +237,60 @@ function UnlockForm({
     }
   };
 
-  const deleteVault = async () => {
-    if (
-      !confirm(
-        "Delete the encrypted vault from disk? This is irreversible. The wallet itself is not affected.",
-      )
-    )
-      return;
-    await del.mutateAsync();
-    refresh();
-  };
-
   return (
-    <Card>
-      <CardLabel>Locked vault</CardLabel>
-      <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-        Address:{" "}
-        <code className="text-[var(--color-text)]">{address ?? "(unknown)"}</code>
-      </p>
+    <div className="space-y-12">
+      <section>
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          Vault is locked
+        </div>
+        <p className="mt-3 max-w-lg t-body text-[var(--color-text-muted)]">
+          A keypair is encrypted on disk
+          {address ? (
+            <>
+              {" "}
+              for{" "}
+              <span className="t-num text-[var(--color-text)]">
+                {truncateAddress(address, 6, 6)}
+              </span>
+              .
+            </>
+          ) : (
+            "."
+          )}{" "}
+          Enter the passphrase to load it into memory.
+        </p>
 
-      <form onSubmit={submit} className="mt-6 space-y-4">
-        <div>
-          <Label htmlFor="passphrase">Passphrase</Label>
-          <Input
-            id="passphrase"
-            type="password"
-            autoComplete="current-password"
-            value={passphrase}
-            onChange={(e) => setPassphrase(e.target.value)}
-            required
-          />
-        </div>
-        {error ? <FieldError>{error}</FieldError> : null}
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={deleteVault}
-            disabled={del.isPending}
-          >
-            Delete vault
-          </Button>
-          <Button type="submit" disabled={unlock.isPending}>
-            {unlock.isPending ? "Unlocking…" : "Unlock"}
-          </Button>
-        </div>
-      </form>
-    </Card>
+        <form onSubmit={submit} className="mt-8 max-w-md space-y-6">
+          <div>
+            <Label htmlFor="passphrase">Passphrase</Label>
+            <Input
+              id="passphrase"
+              type="password"
+              autoComplete="current-password"
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+              required
+            />
+          </div>
+          {error ? <FieldError>{error}</FieldError> : null}
+          <div className="flex items-center justify-end">
+            <Button type="submit" disabled={unlock.isPending}>
+              {unlock.isPending ? "Unlocking…" : "Unlock"}
+            </Button>
+          </div>
+        </form>
+      </section>
+
+      <DangerZone reason="lost-passphrase" refresh={refresh} />
+    </div>
   );
 }
 
 // ============================================================================
-// 3. Unlocked → show actions
+// 3. Unlocked → status + lock + danger zone
 // ============================================================================
 
-function UnlockedPanel({
+function UnlockedSection({
   address,
   refresh,
 }: {
@@ -325,63 +298,126 @@ function UnlockedPanel({
   refresh: () => void;
 }) {
   const lock = trpc.wallet.lock.useMutation();
-  const del = trpc.wallet.delete.useMutation();
 
   const onLock = async () => {
     await lock.mutateAsync();
     refresh();
   };
 
-  const onDelete = async () => {
-    if (
-      !confirm(
-        "Delete the encrypted vault from disk? This is irreversible. The wallet itself is not affected.",
-      )
-    )
-      return;
-    await del.mutateAsync();
-    refresh();
-  };
-
   return (
-    <div className="space-y-4">
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardLabel>Vault unlocked</CardLabel>
-            <p className="mt-2 break-all font-mono text-sm text-[var(--color-text)]">
-              {address}
-            </p>
-            <p className="mt-2 text-xs text-[var(--color-text-muted)]">
-              The keypair is in memory. It will be used to sign close + swap
-              transactions for armed tasks. Lock when done.
-            </p>
-          </div>
-          <span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[var(--color-success)]/40 bg-[var(--color-success)]/10 px-3 py-1 text-xs text-[var(--color-success)]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-            unlocked
-          </span>
+    <div className="space-y-12">
+      <section>
+        <div className="t-eyebrow text-[var(--color-positive)]">
+          Vault unlocked
         </div>
-        <div className="mt-6 flex items-center justify-end gap-3">
+        <h2 className="mt-3 t-h2 break-all t-num">{address}</h2>
+        <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+          The keypair is in memory. It will be used to sign close and swap
+          transactions for armed tasks. Lock when you&apos;re done.
+        </p>
+        <div className="mt-6 flex items-center justify-end">
           <Button variant="secondary" onClick={onLock} disabled={lock.isPending}>
             {lock.isPending ? "Locking…" : "Lock"}
           </Button>
         </div>
-      </Card>
+      </section>
 
-      <Card variant="danger">
-        <CardLabel>Danger zone</CardLabel>
-        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
-          Delete the encrypted vault file from disk. The wallet itself is not
-          touched (it lives only on-chain). You'll need to re-create the vault
-          to operate this server again.
-        </p>
-        <div className="mt-4 flex items-center justify-end">
+      <DangerZone reason="reset" refresh={refresh} />
+    </div>
+  );
+}
+
+// ============================================================================
+// Danger zone (compartido)
+// ============================================================================
+
+function DangerZone({
+  reason,
+  refresh,
+}: {
+  reason: "reset" | "lost-passphrase";
+  refresh: () => void;
+}) {
+  const del = trpc.wallet.delete.useMutation();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  const onDelete = async () => {
+    await del.mutateAsync();
+    setConfirmingDelete(false);
+    refresh();
+  };
+
+  const explanation =
+    reason === "reset"
+      ? "Permanently delete the encrypted vault file. The wallet itself is not affected — it lives on-chain — but the server forgets it."
+      : "If you don't remember the passphrase, deleting the vault is the only way out. The wallet itself stays safe on-chain; you just lose this server's encrypted copy.";
+
+  return (
+    <section className="hairline-t pt-8">
+      <div className="t-eyebrow text-[var(--color-danger)]">Danger zone</div>
+      <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+        {explanation}
+      </p>
+
+      {confirmingDelete ? (
+        <div className="mt-6 flex items-center gap-3">
+          <span className="t-small text-[var(--color-danger)]">
+            Delete the encrypted vault file?
+          </span>
+          <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
+            Cancel
+          </Button>
           <Button variant="danger" onClick={onDelete} disabled={del.isPending}>
-            {del.isPending ? "Deleting…" : "Delete vault"}
+            {del.isPending ? "Deleting…" : "Yes, delete"}
           </Button>
         </div>
-      </Card>
+      ) : (
+        <div className="mt-6 flex items-center justify-end">
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setConfirmingDelete(true)}
+          >
+            Delete vault
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ============================================================================
+// Segmented control
+// ============================================================================
+
+function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div className="inline-flex border border-[var(--color-hairline)] rounded-[2px]">
+      {options.map((opt) => {
+        const active = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={`px-4 py-2 t-eyebrow transition-colors ${
+              active
+                ? "bg-[var(--color-accent-dim)] text-[var(--color-text)]"
+                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+            }`}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
