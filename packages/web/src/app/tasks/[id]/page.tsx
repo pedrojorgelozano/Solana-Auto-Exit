@@ -6,271 +6,21 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@solana-auto-exit/server/api";
 
 import { PageHeader } from "@/components/PageHeader";
-import { Card, CardLabel, FieldError } from "@/components/ui/Card";
+import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
-import { formatPrice, formatTokenAmount, truncateAddress } from "@/lib/format";
+import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
+import {
+  formatAmountWithSymbol,
+  formatDistance,
+  formatPollInterval,
+  formatPrice,
+  formatSlippage,
+  truncateAddress,
+} from "@/lib/format";
+import { tokenSymbol } from "@/lib/tokens";
 
 type TaskData = inferRouterOutputs<AppRouter>["tasks"]["get"];
-
-type TaskStatus =
-  | "idle"
-  | "armed"
-  | "triggered"
-  | "closing"
-  | "done"
-  | "error"
-  | "paused"
-  | "stopped";
-
-const STATUS_COLOR: Record<TaskStatus, { dot: string; text: string; bg: string }> = {
-  idle: {
-    dot: "bg-[var(--color-text-muted)]",
-    text: "text-[var(--color-text-muted)]",
-    bg: "bg-[var(--color-text-muted)]/10",
-  },
-  armed: {
-    dot: "bg-[var(--color-success)] animate-pulse",
-    text: "text-[var(--color-success)]",
-    bg: "bg-[var(--color-success)]/10",
-  },
-  triggered: {
-    dot: "bg-[var(--color-warning)] animate-pulse",
-    text: "text-[var(--color-warning)]",
-    bg: "bg-[var(--color-warning)]/10",
-  },
-  closing: {
-    dot: "bg-[var(--color-warning)] animate-pulse",
-    text: "text-[var(--color-warning)]",
-    bg: "bg-[var(--color-warning)]/10",
-  },
-  done: {
-    dot: "bg-[var(--color-success)]",
-    text: "text-[var(--color-success)]",
-    bg: "bg-[var(--color-success)]/10",
-  },
-  error: {
-    dot: "bg-[var(--color-danger)]",
-    text: "text-[var(--color-danger)]",
-    bg: "bg-[var(--color-danger)]/10",
-  },
-  paused: {
-    dot: "bg-[var(--color-text-muted)]",
-    text: "text-[var(--color-text-muted)]",
-    bg: "bg-[var(--color-text-muted)]/10",
-  },
-  stopped: {
-    dot: "bg-[var(--color-text-muted)]",
-    text: "text-[var(--color-text-muted)]",
-    bg: "bg-[var(--color-text-muted)]/10",
-  },
-};
-
-export default function TaskPage() {
-  const params = useParams<{ id: string }>();
-  const id = params.id;
-  const utils = trpc.useUtils();
-  const task = trpc.tasks.get.useQuery({ id }, { refetchInterval: 2_000 });
-
-  const refresh = () => utils.tasks.get.invalidate({ id });
-
-  return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <PageHeader
-        title="Task"
-        description="Live status of your auto-exit watcher."
-        back={{ href: "/tasks", label: "All tasks" }}
-      />
-
-      {task.isLoading ? (
-        <Card>
-          <p className="text-sm text-[var(--color-text-muted)]">Loading…</p>
-        </Card>
-      ) : task.error ? (
-        <Card variant="danger">
-          <p className="text-sm text-[var(--color-danger)]">
-            {task.error.message}
-          </p>
-        </Card>
-      ) : task.data ? (
-        <Dashboard task={task.data} refresh={refresh} />
-      ) : null}
-    </main>
-  );
-}
-
-// ============================================================================
-// Dashboard
-// ============================================================================
-
-function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
-  const status = task.status as TaskStatus;
-  const palette = STATUS_COLOR[status] ?? STATUS_COLOR.idle;
-
-  const protocolConfig = task.protocolConfig as
-    | { positionMint?: string; decimalsA?: number; decimalsB?: number }
-    | null;
-  const decimalsA = protocolConfig?.decimalsA ?? 9;
-  const decimalsB = protocolConfig?.decimalsB ?? 6;
-
-  return (
-    <div className="space-y-4">
-      {/* Status header */}
-      <Card>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardLabel>Auto-exit · {task.protocol}</CardLabel>
-            <div className="mt-1 font-mono text-xs text-[var(--color-text-muted)]">
-              position {truncateAddress(task.positionId, 6, 6)}
-            </div>
-          </div>
-          <span
-            className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-1 text-xs font-medium ${palette.bg} ${palette.text}`}
-          >
-            <span className={`h-1.5 w-1.5 rounded-full ${palette.dot}`} />
-            {status}
-            {task.dryRun ? (
-              <span className="ml-1 rounded bg-[var(--color-warning)]/20 px-1.5 py-0.5 text-[10px] uppercase tracking-wider text-[var(--color-warning)]">
-                dry-run
-              </span>
-            ) : null}
-          </span>
-        </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
-          <Field label="Direction">{task.direction}</Field>
-          <Field label="Target price">{formatPrice(task.targetPrice, 6)}</Field>
-          <Field label="Current price">
-            {task.runtime.lastPrice !== null
-              ? formatPrice(task.runtime.lastPrice, 6)
-              : "—"}
-          </Field>
-          <Field label="Distance to target">
-            <DistanceCell
-              current={task.runtime.lastPrice}
-              target={task.targetPrice}
-              direction={task.direction}
-            />
-          </Field>
-          <Field label="Last tick">
-            {task.runtime.lastTickAt
-              ? new Date(task.runtime.lastTickAt).toLocaleTimeString()
-              : "—"}
-          </Field>
-          <Field label="Poll interval">{task.pollMs} ms</Field>
-        </div>
-
-        <Controls task={task} status={status} refresh={refresh} />
-      </Card>
-
-      {task.lastError ? (
-        <Card variant="danger">
-          <CardLabel>Last error</CardLabel>
-          <p className="mt-2 break-words text-sm text-[var(--color-danger)]">
-            {task.lastError}
-          </p>
-        </Card>
-      ) : null}
-
-      {task.closeResult ? (
-        <CloseResultCard
-          data={task.closeResult as CloseResultShape}
-          decimalsA={decimalsA}
-          decimalsB={decimalsB}
-        />
-      ) : null}
-
-      {task.swapResult ? (
-        <SwapResultCard
-          data={task.swapResult as SwapResultShape}
-          exitTokenMint={task.exitTokenMint}
-          decimalsA={decimalsA}
-          decimalsB={decimalsB}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-// ============================================================================
-// Controls (pause / stop / delete / start)
-// ============================================================================
-
-function Controls({
-  task,
-  status,
-  refresh,
-}: {
-  task: TaskData;
-  status: TaskStatus;
-  refresh: () => void;
-}) {
-  const start = trpc.tasks.start.useMutation({ onSuccess: refresh });
-  const pause = trpc.tasks.pause.useMutation({ onSuccess: refresh });
-  const stop = trpc.tasks.stop.useMutation({ onSuccess: refresh });
-  const del = trpc.tasks.delete.useMutation({ onSuccess: refresh });
-
-  const busy =
-    start.isPending || pause.isPending || stop.isPending || del.isPending;
-  const err =
-    start.error?.message ??
-    pause.error?.message ??
-    stop.error?.message ??
-    del.error?.message ??
-    null;
-
-  const isActive =
-    status === "armed" || status === "triggered" || status === "closing";
-  const canStart = status === "paused" || status === "idle" || status === "error";
-
-  return (
-    <div className="mt-6 space-y-3">
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {canStart ? (
-          <Button onClick={() => start.mutate({ id: task.id })} disabled={busy}>
-            {status === "error" ? "Restart" : "Start"}
-          </Button>
-        ) : null}
-        {isActive ? (
-          <Button
-            variant="secondary"
-            onClick={() => pause.mutate({ id: task.id })}
-            disabled={busy}
-          >
-            Pause
-          </Button>
-        ) : null}
-        {status !== "done" && status !== "stopped" ? (
-          <Button
-            variant="secondary"
-            onClick={() => stop.mutate({ id: task.id })}
-            disabled={busy}
-          >
-            Stop
-          </Button>
-        ) : null}
-        <Button
-          variant="danger"
-          onClick={() => {
-            if (
-              confirm("Delete this task? History row is removed too.")
-            ) {
-              del.mutate({ id: task.id });
-            }
-          }}
-          disabled={busy}
-        >
-          Delete
-        </Button>
-      </div>
-      {err ? <FieldError>{err}</FieldError> : null}
-    </div>
-  );
-}
-
-// ============================================================================
-// Result cards
-// ============================================================================
 
 interface CloseResultShape {
   dryRun: boolean;
@@ -293,45 +43,331 @@ interface SwapResultShape {
   notes?: string;
 }
 
-function CloseResultCard({
+interface ProtocolConfigShape {
+  positionMint?: string;
+  decimalsA?: number;
+  decimalsB?: number;
+}
+
+export default function TaskPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
+  const utils = trpc.useUtils();
+  const task = trpc.tasks.get.useQuery({ id }, { refetchInterval: 2_000 });
+  const refresh = () => utils.tasks.get.invalidate({ id });
+
+  return (
+    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12">
+      <PageHeader
+        eyebrow="Watcher"
+        title="Live status"
+        back={{ href: "/tasks", label: "All tasks" }}
+      />
+
+      {task.isLoading ? (
+        <p className="t-small text-[var(--color-text-muted)]">Loading…</p>
+      ) : task.error ? (
+        <p className="t-small text-[var(--color-danger)]">{task.error.message}</p>
+      ) : task.data ? (
+        <Dashboard task={task.data} refresh={refresh} />
+      ) : null}
+    </main>
+  );
+}
+
+// ============================================================================
+// Dashboard
+// ============================================================================
+
+function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
+  const view = statusView(task.status as BackendStatus);
+  const tone = TONE_CLASSES[view.tone];
+
+  const protocolConfig = task.protocolConfig as ProtocolConfigShape | null;
+  const decimalsA = protocolConfig?.decimalsA ?? 9;
+  const decimalsB = protocolConfig?.decimalsB ?? 6;
+  // En el server no guardamos los mints A/B del pool por task; usamos heurística:
+  // SOL para A, devUSDC para B. F2 puede mejorarlo si añadimos los mints al task row.
+  const mintA = "So11111111111111111111111111111111111111112";
+  const mintB = task.exitTokenMint ?? "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k";
+
+  const distance = formatDistance(
+    task.runtime.lastPrice,
+    task.targetPrice,
+    task.direction,
+  );
+
+  return (
+    <div className="space-y-16">
+      {/* === Hero === */}
+      <section>
+        <div className="flex items-center gap-3">
+          <span
+            className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot} ${
+              view.pulsing ? "pulse-soft" : ""
+            }`}
+          />
+          <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
+          {task.dryRun ? (
+            <span className="t-eyebrow text-[var(--color-warning)]">
+              · simulation
+            </span>
+          ) : null}
+        </div>
+        <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+          {view.description}
+        </p>
+
+        {/* Big number: current price */}
+        <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-12">
+          <div className="md:col-span-7">
+            <div className="t-eyebrow text-[var(--color-text-muted)]">
+              Current price
+            </div>
+            <div className="mt-3 t-num-display tabular-nums">
+              {task.runtime.lastPrice !== null
+                ? formatPrice(task.runtime.lastPrice, 6)
+                : "—"}
+            </div>
+            <div className="mt-3 t-small text-[var(--color-text-muted)]">
+              {task.runtime.lastTickAt
+                ? `last tick ${new Date(task.runtime.lastTickAt).toLocaleTimeString()}`
+                : "no ticks yet"}
+            </div>
+          </div>
+
+          <div className="md:col-span-5 md:border-l md:border-[var(--color-hairline)] md:pl-10">
+            <div className="t-eyebrow text-[var(--color-text-muted)]">Target</div>
+            <div className="mt-3 t-num text-2xl text-[var(--color-text)]">
+              {task.direction === "above" ? "≥ " : "≤ "}
+              {formatPrice(task.targetPrice, 6)}
+            </div>
+            {distance.pct !== null ? (
+              <div
+                className={`mt-2 t-eyebrow ${
+                  distance.reached
+                    ? "text-[var(--color-warning)]"
+                    : "text-[var(--color-text-muted)]"
+                }`}
+              >
+                {distance.text}
+                {distance.reached ? " · trigger met" : " from current"}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        <Controls task={task} status={task.status as BackendStatus} refresh={refresh} />
+      </section>
+
+      {/* === Trigger details === */}
+      <TriggerDetails task={task} />
+
+      {/* === Last error === */}
+      {task.lastError ? (
+        <section className="border-l-2 border-[var(--color-danger)] pl-5">
+          <div className="t-eyebrow text-[var(--color-danger)]">Last error</div>
+          <p className="mt-2 break-words t-small text-[var(--color-text)]">
+            {task.lastError}
+          </p>
+        </section>
+      ) : null}
+
+      {/* === Close result === */}
+      {task.closeResult ? (
+        <CloseReceipt
+          data={task.closeResult as unknown as CloseResultShape}
+          decimalsA={decimalsA}
+          decimalsB={decimalsB}
+          mintA={mintA}
+          mintB={mintB}
+        />
+      ) : null}
+
+      {/* === Swap result === */}
+      {task.swapResult ? (
+        <SwapReceipt
+          data={task.swapResult as unknown as SwapResultShape}
+          exitTokenMint={task.exitTokenMint}
+          decimalsA={decimalsA}
+          decimalsB={decimalsB}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+// ============================================================================
+// Controls
+// ============================================================================
+
+function Controls({
+  task,
+  status,
+  refresh,
+}: {
+  task: TaskData;
+  status: BackendStatus;
+  refresh: () => void;
+}) {
+  const start = trpc.tasks.start.useMutation({ onSuccess: refresh });
+  const pause = trpc.tasks.pause.useMutation({ onSuccess: refresh });
+  const stop = trpc.tasks.stop.useMutation({ onSuccess: refresh });
+  const del = trpc.tasks.delete.useMutation({ onSuccess: refresh });
+
+  const busy =
+    start.isPending || pause.isPending || stop.isPending || del.isPending;
+  const err =
+    start.error?.message ??
+    pause.error?.message ??
+    stop.error?.message ??
+    del.error?.message ??
+    null;
+
+  const isActive =
+    status === "armed" || status === "triggered" || status === "closing";
+  const canStart =
+    status === "paused" || status === "idle" || status === "error";
+
+  return (
+    <div className="mt-10 flex flex-wrap items-center justify-end gap-2 hairline-t pt-6">
+      {canStart ? (
+        <Button onClick={() => start.mutate({ id: task.id })} disabled={busy}>
+          {status === "error" ? "Restart" : "Resume"}
+        </Button>
+      ) : null}
+      {isActive ? (
+        <Button
+          variant="secondary"
+          onClick={() => pause.mutate({ id: task.id })}
+          disabled={busy}
+        >
+          Pause
+        </Button>
+      ) : null}
+      {status !== "done" && status !== "stopped" ? (
+        <Button
+          variant="secondary"
+          onClick={() => stop.mutate({ id: task.id })}
+          disabled={busy}
+        >
+          Stop
+        </Button>
+      ) : null}
+      <Button
+        variant="danger"
+        size="sm"
+        onClick={() => {
+          if (confirm("Delete this watcher? Its history goes with it.")) {
+            del.mutate({ id: task.id });
+          }
+        }}
+        disabled={busy}
+      >
+        Delete
+      </Button>
+      {err ? (
+        <div className="basis-full">
+          <FieldError>{err}</FieldError>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+// ============================================================================
+// Trigger details strip
+// ============================================================================
+
+function TriggerDetails({ task }: { task: TaskData }) {
+  return (
+    <section className="hairline-t pt-8">
+      <div className="t-eyebrow text-[var(--color-text-muted)]">Configuration</div>
+      <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
+        <Field label="Position">
+          <span className="t-num text-[var(--color-text)]">
+            {truncateAddress(task.positionId, 6, 6)}
+          </span>
+        </Field>
+        <Field label="Direction">
+          {task.direction === "above" ? "Take profit" : "Stop loss"}
+        </Field>
+        <Field label="Poll interval">{formatPollInterval(task.pollMs)}</Field>
+        <Field label="Close slippage">{formatSlippage(task.slippageBps)}</Field>
+        {task.exitTokenMint ? (
+          <>
+            <Field label="Exit token">{tokenSymbol(task.exitTokenMint)}</Field>
+            <Field label="Exit slippage">
+              {formatSlippage(task.exitSwapSlippageBps)}
+            </Field>
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="t-eyebrow text-[var(--color-text-muted)]">{label}</div>
+      <div className="mt-2 t-body text-[var(--color-text)]">{children}</div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Receipts — close + swap como "recibo editorial"
+// ============================================================================
+
+function CloseReceipt({
   data,
   decimalsA,
   decimalsB,
+  mintA,
+  mintB,
 }: {
   data: CloseResultShape;
   decimalsA: number;
   decimalsB: number;
+  mintA: string;
+  mintB: string;
 }) {
   return (
-    <Card>
-      <div className="flex items-center justify-between gap-3">
-        <CardLabel>Close result {data.dryRun ? "· dry-run" : ""}</CardLabel>
+    <section className="hairline-t pt-8">
+      <div className="flex items-baseline justify-between">
+        <div>
+          <div className="t-eyebrow text-[var(--color-positive)]">
+            Position closed {data.dryRun ? "· simulated" : ""}
+          </div>
+          <h3 className="mt-2 t-h2">Recovered from pool</h3>
+        </div>
         {data.txId ? <SolscanLink sig={data.txId} /> : null}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <Field label="Token A received">
-          {formatTokenAmount(data.estimatedTokenA, decimalsA)}
-        </Field>
-        <Field label="Token B received">
-          {formatTokenAmount(data.estimatedTokenB, decimalsB)}
-        </Field>
-        <Field label="Fees A">
-          {formatTokenAmount(data.feesTokenA, decimalsA)}
-        </Field>
-        <Field label="Fees B">
-          {formatTokenAmount(data.feesTokenB, decimalsB)}
-        </Field>
-      </div>
+
+      <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
+        <Receipt label={`Received ${tokenSymbol(mintA)}`}>
+          {formatAmountWithSymbol(data.estimatedTokenA, mintA, decimalsA, 6)}
+        </Receipt>
+        <Receipt label={`Received ${tokenSymbol(mintB)}`}>
+          {formatAmountWithSymbol(data.estimatedTokenB, mintB, decimalsB, 6)}
+        </Receipt>
+        <Receipt label="Fees A">
+          {formatAmountWithSymbol(data.feesTokenA, mintA, decimalsA, 6)}
+        </Receipt>
+        <Receipt label="Fees B">
+          {formatAmountWithSymbol(data.feesTokenB, mintB, decimalsB, 6)}
+        </Receipt>
+      </dl>
+
       {data.notes ? (
-        <p className="mt-3 text-xs text-[var(--color-text-muted)]">
-          {data.notes}
-        </p>
+        <p className="mt-6 t-small text-[var(--color-text-muted)]">{data.notes}</p>
       ) : null}
-    </Card>
+    </section>
   );
 }
 
-function SwapResultCard({
+function SwapReceipt({
   data,
   exitTokenMint,
   decimalsA,
@@ -344,60 +380,81 @@ function SwapResultCard({
 }) {
   if (data.skipped) {
     return (
-      <Card>
-        <CardLabel>Exit swap · skipped</CardLabel>
-        <p className="mt-2 text-sm text-[var(--color-text-muted)]">
+      <section className="hairline-t pt-8">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          Exit swap · skipped
+        </div>
+        <p className="mt-2 t-small text-[var(--color-text-muted)]">
           {data.notes ?? "Nothing to swap."}
         </p>
-      </Card>
+      </section>
     );
   }
-  // Las cantidades del swap están en los decimales del fromMint/exitMint. Sin
-  // saber cuál es cuál con certeza, usamos decimalsA como heurística — ambos
-  // decimals suelen ser similares (SOL=9, USDC=6); el usuario ve raw + decimal
-  // best-effort. F2 hará el lookup correcto.
+
+  const fromSym = data.fromMint ? tokenSymbol(data.fromMint) : "?";
+  const toSym = exitTokenMint ? tokenSymbol(exitTokenMint) : "?";
+  // Aproximación: decimalsA si fromMint == mint A, decimalsB en otro caso.
+  const isFromA =
+    data.fromMint === "So11111111111111111111111111111111111111112";
+  const fromDecimals = isFromA ? decimalsA : decimalsB;
+  const toDecimals = isFromA ? decimalsB : decimalsA;
+
   return (
-    <Card>
-      <div className="flex items-center justify-between gap-3">
-        <CardLabel>Exit swap {data.dryRun ? "· dry-run" : ""}</CardLabel>
+    <section className="hairline-t pt-8">
+      <div className="flex items-baseline justify-between">
+        <div>
+          <div className="t-eyebrow text-[var(--color-positive)]">
+            Swapped {data.dryRun ? "· simulated" : ""}
+          </div>
+          <h3 className="mt-2 t-h2">
+            {fromSym} <span className="text-[var(--color-text-muted)]">→</span>{" "}
+            {toSym}
+          </h3>
+        </div>
         {data.txId ? <SolscanLink sig={data.txId} /> : null}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <Field label="From mint">
-          {data.fromMint ? truncateAddress(data.fromMint, 6, 6) : "—"}
-        </Field>
-        <Field label="To mint">
-          {exitTokenMint ? truncateAddress(exitTokenMint, 6, 6) : "—"}
-        </Field>
-        <Field label="Input (raw)">{data.inputAmount ?? "—"}</Field>
-        <Field label="Estimated output (raw)">
-          {data.estimatedOutput ?? "—"}
-        </Field>
-        <Field label="Input (approx)">
+
+      <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3">
+        <Receipt label="Input">
           {data.inputAmount
-            ? formatTokenAmount(data.inputAmount, decimalsA)
+            ? formatAmountWithSymbol(
+                data.inputAmount,
+                data.fromMint ?? "",
+                fromDecimals,
+                6,
+              )
             : "—"}
-        </Field>
-        <Field label="Output (approx)">
+        </Receipt>
+        <Receipt label="Output (estimated)">
           {data.estimatedOutput
-            ? formatTokenAmount(data.estimatedOutput, decimalsB)
+            ? formatAmountWithSymbol(
+                data.estimatedOutput,
+                exitTokenMint ?? "",
+                toDecimals,
+                6,
+              )
             : "—"}
-        </Field>
-      </div>
+        </Receipt>
+        <Receipt label="Output (minimum)">
+          {data.minimumOutput
+            ? formatAmountWithSymbol(
+                data.minimumOutput,
+                exitTokenMint ?? "",
+                toDecimals,
+                6,
+              )
+            : "—"}
+        </Receipt>
+      </dl>
+
       {data.notes ? (
-        <p className="mt-3 text-xs text-[var(--color-text-muted)]">
-          {data.notes}
-        </p>
+        <p className="mt-6 t-small text-[var(--color-text-muted)]">{data.notes}</p>
       ) : null}
-    </Card>
+    </section>
   );
 }
 
-// ============================================================================
-// Small helpers
-// ============================================================================
-
-function Field({
+function Receipt({
   label,
   children,
 }: {
@@ -406,32 +463,9 @@ function Field({
 }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
-        {label}
-      </div>
-      <div className="mt-0.5 font-mono">{children}</div>
+      <dt className="t-eyebrow text-[var(--color-text-muted)]">{label}</dt>
+      <dd className="mt-2 t-num text-lg text-[var(--color-text)]">{children}</dd>
     </div>
-  );
-}
-
-function DistanceCell({
-  current,
-  target,
-  direction,
-}: {
-  current: number | null;
-  target: number;
-  direction: string;
-}) {
-  if (current === null) return <>—</>;
-  const distancePct = ((target - current) / current) * 100;
-  const sign = distancePct >= 0 ? "+" : "";
-  const reached = direction === "above" ? current >= target : current <= target;
-  return (
-    <span className={reached ? "text-[var(--color-warning)]" : ""}>
-      {sign}
-      {distancePct.toFixed(2)}%{reached ? " · triggered" : ""}
-    </span>
   );
 }
 
@@ -440,9 +474,10 @@ function SolscanLink({ sig }: { sig: string }) {
     <Link
       href={`https://solscan.io/tx/${sig}?cluster=devnet`}
       target="_blank"
-      className="text-xs text-[var(--color-accent)] hover:underline"
+      rel="noopener noreferrer"
+      className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
     >
-      {truncateAddress(sig, 6, 6)} ↗
+      tx {truncateAddress(sig, 6, 6)} ↗
     </Link>
   );
 }
