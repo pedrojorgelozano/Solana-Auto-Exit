@@ -1,11 +1,12 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Providers } from "@/lib/providers";
+import { fraunces, instrumentSans, jetbrainsMono } from "./fonts";
 
 export const metadata: Metadata = {
-  title: "solana-auto-exit",
+  title: "Auto-exit · Solana",
   description:
-    "Auto-exit framework for Solana DeFi liquidity positions (Orca, Meteora).",
+    "Watch concentrated liquidity positions on Solana and exit on a price trigger. Take-profit, stop-loss, optional swap to a stable.",
 };
 
 export default function RootLayout({
@@ -14,8 +15,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen antialiased">
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${instrumentSans.variable} ${jetbrainsMono.variable}`}
+    >
+      <body className="grain-overlay min-h-screen antialiased">
         <Providers>{children}</Providers>
       </body>
     </html>

@@ -1,20 +1,235 @@
 @import "tailwindcss";
 
+/* ============================================================================
+ * Design tokens — "trading desk editorial"
+ * ----------------------------------------------------------------------------
+ * Paleta: ink negro cálido + crema + un único acento oxblood. Sin verdes/rojos
+ * de bandera; estados con cobre y tinta-azul para que tengan personalidad.
+ * ========================================================================== */
+
 @theme {
-  --color-bg: #0a0a0b;
-  --color-bg-elevated: #131316;
-  --color-border: #26262b;
-  --color-text: #f5f5f7;
-  --color-text-muted: #8a8a92;
-  --color-accent: #7c5cff;
-  --color-accent-fg: #ffffff;
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
+  /* Fonts inyectadas por next/font (ver app/fonts.ts) */
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+
+  /* Surface */
+  --color-bg: #0c0a08;          /* ink cálido, NO #000 */
+  --color-bg-elevated: #15120e; /* elevación apenas perceptible */
+  --color-paper: #1c1814;       /* "panel" para zonas dense-data */
+
+  /* Type */
+  --color-text: #f0e7d4;        /* crema cálida — la "tinta" del periódico */
+  --color-text-muted: #857c6a;  /* metadata, ejes */
+  --color-text-dim: #5e574a;    /* casi inaudible */
+
+  /* Líneas */
+  --color-hairline: rgba(240, 231, 212, 0.10);
+  --color-rule: rgba(240, 231, 212, 0.22);
+  --color-border-strong: rgba(240, 231, 212, 0.32);
+
+  /* Acento único: oxblood */
+  --color-accent: #8b1e1e;
+  --color-accent-fg: #f0e7d4;
+  --color-accent-bright: #b13838;
+  --color-accent-dim: rgba(139, 30, 30, 0.18);
+
+  /* Estados — sin verdes/rojos genéricos */
+  --color-positive: #6890a8;    /* tinta-azul para "completed" / "in range" */
+  --color-positive-bg: rgba(104, 144, 168, 0.12);
+  --color-warning: #b88746;     /* cobre quemado */
+  --color-warning-bg: rgba(184, 135, 70, 0.12);
+  --color-danger: #b13838;      /* oxblood-light para errores */
+  --color-danger-bg: rgba(177, 56, 56, 0.12);
 }
 
+/* ============================================================================
+ * Base
+ * ========================================================================== */
+
+html,
 body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-feature-settings: "ss01", "cv11";
+  font-family: var(--font-body), system-ui, sans-serif;
+  font-feature-settings: "ss01" on, "cv11" on;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Headings con la display font */
+h1, h2, h3, h4 {
+  font-family: var(--font-display), Georgia, serif;
+  font-feature-settings: "ss01" on, "cv11" on;
+  letter-spacing: -0.01em;
+  /* Fraunces variable axes: opsz para optical sizing, SOFT para sutil quirky */
+  font-variation-settings: "opsz" 60, "SOFT" 30, "WONK" 0;
+}
+
+/* Mono: tabular nums activos siempre */
+code,
+pre,
+.t-mono,
+[data-mono] {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-feature-settings: "tnum" on, "calt" off, "zero" on;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+
+/* Focus visible: outline en oxblood, no el azul del navegador */
+:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+}
+
+/* ============================================================================
+ * Typography utilities
+ * ========================================================================== */
+
+.t-display {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 100, "SOFT" 40, "WONK" 0;
+  font-weight: 300;
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.t-h1 {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 48, "SOFT" 30, "WONK" 0;
+  font-weight: 400;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+
+.t-h2 {
+  font-family: var(--font-display);
+  font-variation-settings: "opsz" 24, "SOFT" 20, "WONK" 0;
+  font-weight: 500;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.t-eyebrow {
+  font-family: var(--font-body);
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.t-body {
+  font-family: var(--font-body);
+  font-size: 0.9375rem; /* 15px */
+  line-height: 1.55;
+}
+
+.t-small {
+  font-size: 0.8125rem; /* 13px */
+  line-height: 1.5;
+}
+
+.t-num {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" on, "zero" on, "calt" off;
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+
+.t-num-display {
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum" on, "zero" on;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* ============================================================================
+ * Rule lines — la composición se sustenta en hairlines, no en cards
+ * ========================================================================== */
+
+.rule-t {
+  border-top: 1px solid var(--color-rule);
+}
+.rule-b {
+  border-bottom: 1px solid var(--color-rule);
+}
+.hairline-t {
+  border-top: 1px solid var(--color-hairline);
+}
+.hairline-b {
+  border-bottom: 1px solid var(--color-hairline);
+}
+
+/* ============================================================================
+ * Grain overlay — atmósfera sutil sobre el fondo
+ * ========================================================================== */
+
+.grain-overlay {
+  position: relative;
+}
+
+.grain-overlay::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.06;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 0.95 0 0 0 0 0.85 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+/* ============================================================================
+ * Motion — restringido pero con personalidad
+ * ========================================================================== */
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.65; }
+  50% { opacity: 1; }
+}
+
+.pulse-soft {
+  animation: pulse-soft 1.8s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+/* ============================================================================
+ * Reset on dialogs/inputs to keep editorial feel
+ * ========================================================================== */
+
+input,
+textarea,
+button,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
 }
