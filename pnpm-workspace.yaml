@@ -1,0 +1,12 @@
+packages:
+  - "packages/*"
+
+# esbuild (dependencia transitiva de tsx) necesita un postinstall para descargar
+# su binario nativo. Lo aprobamos explícitamente.
+allowBuilds:
+  esbuild: true
+
+# pnpm tiene un "minimum release age" de seguridad para deps recientes;
+# excluimos tsx para que la versión instalada arranque sin esperas.
+minimumReleaseAgeExclude:
+  - tsx@4.22.3

@@ -1,10 +1,13 @@
 import fs from "node:fs";
 import { createKeyPairSignerFromBytes } from "@solana/kit";
 
-import { loadBaseConfig } from "./config/env.js";
-import { runRunner } from "./core/runner.js";
-import { log, logError } from "./core/logger.js";
-import { makeAdapter } from "./protocols/registry.js";
+import {
+  loadBaseConfig,
+  makeAdapter,
+  runRunner,
+  log,
+  logError,
+} from "@solana-auto-exit/engine";
 
 async function main(): Promise<void> {
   const base = loadBaseConfig();

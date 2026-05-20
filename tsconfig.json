@@ -10,7 +10,6 @@
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    "exactOptionalPropertyTypes": false,
 
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
@@ -18,9 +17,16 @@
     "isolatedModules": true,
     "skipLibCheck": true,
 
-    "outDir": "dist",
-    "rootDir": "src"
+    "noEmit": true,
+    "allowImportingTsExtensions": false
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "orca-auto-exit.ts"]
+  "include": [
+    "packages/*/src/**/*",
+    "scripts/**/*"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/dist",
+    "orca-auto-exit.ts"
+  ]
 }

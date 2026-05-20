@@ -1,0 +1,11 @@
+{
+  "name": "@solana-auto-exit/cli",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/main.ts",
+  "dependencies": {
+    "@solana-auto-exit/engine": "workspace:*",
+    "@solana/kit": "^5.5.1"
+  }
+}
