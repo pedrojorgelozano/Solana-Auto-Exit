@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { serve } from "@hono/node-server";
 import { trpcServer } from "@hono/trpc-server";
 
@@ -25,6 +26,29 @@ const taskManager = new TaskManager(db, vault);
 await taskManager.boot();
 
 const app = new Hono();
+
+// -----------------------------------------------------------------------------
+// CORS: solo se permiten orígenes del frontend local (Next dev + Next prod
+// servido localmente). Cualquier otro origen recibe 403/no-Access-Control-Allow.
+// Para acceso remoto vía VPS (F3+), añadir el host configurado por env.
+// -----------------------------------------------------------------------------
+const corsOrigins = (
+  process.env.CORS_ORIGINS ?? "http://127.0.0.1:3000,http://localhost:3000"
+)
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(
+  "/trpc/*",
+  cors({
+    origin: corsOrigins,
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    credentials: false,
+    maxAge: 86400,
+  }),
+);
 
 app.get("/", (c) =>
   c.text("solana-auto-exit server. tRPC endpoint at /trpc/*"),
