@@ -3,14 +3,22 @@ import {
   setDefaultFunder,
   closePosition,
   swap,
+  fetchPositionsForOwner,
+  type HydratedPosition,
+  type HydratedPositionBundle,
 } from "@orca-so/whirlpools";
 import {
   getPositionAddress,
   fetchPosition,
   fetchWhirlpool,
   WhirlpoolDeployment,
+  type Position,
 } from "@orca-so/whirlpools-client";
-import { sqrtPriceToPrice } from "@orca-so/whirlpools-core";
+import {
+  sqrtPriceToPrice,
+  tickIndexToPrice,
+  decreaseLiquidityQuote,
+} from "@orca-so/whirlpools-core";
 import {
   address,
   type Address,
@@ -29,6 +37,7 @@ import type {
   ProtocolAdapter,
   ResolvedPosition,
   SwapExitResult,
+  TokenInfo,
 } from "../types.js";
 import { loadOrcaConfig, type OrcaConfig } from "./config.js";
 
@@ -114,17 +123,143 @@ export class OrcaAdapter implements ProtocolAdapter {
   }
 
   // ---------------------------------------------------------------------------
-  // Discovery (read-only) — implementaciones reales en F0.3
+  // Discovery (read-only)
   // ---------------------------------------------------------------------------
 
-  async listOwnedPositions(_owner: string): Promise<PositionRef[]> {
-    this.getRpc(); // valida que setupRpc se ha llamado
-    throw new Error("OrcaAdapter.listOwnedPositions: implementado en F0.3.");
+  async listOwnedPositions(owner: string): Promise<PositionRef[]> {
+    const rpc = this.getRpc();
+    const deployment = this.getDeployment();
+
+    const positions = await fetchPositionsForOwner(
+      rpc,
+      address(owner),
+      deployment,
+    );
+
+    const refs: PositionRef[] = [];
+    for (const p of positions) {
+      if (p.isPositionBundle) {
+        // Position bundles agrupan varias posiciones bajo un solo NFT.
+        // Las iteramos como posiciones independientes; usamos la address del
+        // PDA como id (no hay positionMint per-inner-position en bundles).
+        const bundle = p as HydratedPositionBundle;
+        for (const inner of bundle.positions) {
+          refs.push(await this.buildPositionRef(inner.data));
+        }
+      } else {
+        const hp = p as HydratedPosition;
+        refs.push(await this.buildPositionRef(hp.data));
+      }
+    }
+    return refs;
   }
 
-  async getPositionSummary(_ref: PositionRef): Promise<PositionSummary> {
-    this.getRpc();
-    throw new Error("OrcaAdapter.getPositionSummary: implementado en F0.3.");
+  private async buildPositionRef(position: Position): Promise<PositionRef> {
+    const rpc = this.getRpc();
+    const pool = await fetchWhirlpool(rpc, position.whirlpool);
+    return {
+      protocol: "orca",
+      id: String(position.positionMint),
+      label: formatPoolLabel(
+        pool.data.tokenMintA,
+        pool.data.tokenMintB,
+        pool.data.feeRate,
+      ),
+      poolId: String(position.whirlpool),
+    };
+  }
+
+  async getPositionSummary(ref: PositionRef): Promise<PositionSummary> {
+    const rpc = this.getRpc();
+
+    const positionMint = address(ref.id);
+    const [positionAddress] = await getPositionAddress(positionMint);
+    const positionAcc = await fetchPosition(rpc, positionAddress);
+    const pool = await fetchWhirlpool(rpc, positionAcc.data.whirlpool);
+
+    const [tokenA, tokenB] = await Promise.all([
+      this.fetchTokenInfo(pool.data.tokenMintA),
+      this.fetchTokenInfo(pool.data.tokenMintB),
+    ]);
+
+    const currentPrice = sqrtPriceToPrice(
+      pool.data.sqrtPrice,
+      tokenA.decimals,
+      tokenB.decimals,
+    );
+
+    const minPrice = tickIndexToPrice(
+      positionAcc.data.tickLowerIndex,
+      tokenA.decimals,
+      tokenB.decimals,
+    );
+    const maxPrice = tickIndexToPrice(
+      positionAcc.data.tickUpperIndex,
+      tokenA.decimals,
+      tokenB.decimals,
+    );
+
+    const isInRange =
+      pool.data.tickCurrentIndex >= positionAcc.data.tickLowerIndex &&
+      pool.data.tickCurrentIndex < positionAcc.data.tickUpperIndex;
+
+    // Estimación del valor en tokens si se cerrara ahora (slippage 0 para preview).
+    const quote = decreaseLiquidityQuote(
+      positionAcc.data.liquidity,
+      0,
+      pool.data.sqrtPrice,
+      positionAcc.data.tickLowerIndex,
+      positionAcc.data.tickUpperIndex,
+    );
+
+    return {
+      ref,
+      tokenA,
+      tokenB,
+      currentPrice,
+      range: { min: minPrice, max: maxPrice },
+      isInRange,
+      liquidity: {
+        tokenA: quote.tokenEstA.toString(),
+        tokenB: quote.tokenEstB.toString(),
+      },
+      feesPending: {
+        tokenA: positionAcc.data.feeOwedA.toString(),
+        tokenB: positionAcc.data.feeOwedB.toString(),
+      },
+    };
+  }
+
+  private async fetchTokenInfo(mint: Address): Promise<TokenInfo> {
+    const rpc = this.getRpc();
+    const info = await rpc
+      .getAccountInfo(mint, { encoding: "jsonParsed" })
+      .send();
+    const value = info.value;
+    if (!value) {
+      throw new Error(`Mint account not found: ${mint}`);
+    }
+    const data = value.data as
+      | {
+          program?: string;
+          parsed?: { type?: string; info?: { decimals?: number } };
+        }
+      | unknown;
+    if (
+      typeof data !== "object" ||
+      data === null ||
+      !("parsed" in data) ||
+      typeof (data as { parsed?: unknown }).parsed !== "object"
+    ) {
+      throw new Error(`Mint ${mint} did not return jsonParsed data.`);
+    }
+    const parsed = (data as { parsed: { info?: { decimals?: number } } })
+      .parsed;
+    const decimals = parsed.info?.decimals;
+    if (typeof decimals !== "number") {
+      throw new Error(`Mint ${mint} parsed data missing decimals.`);
+    }
+    return { mint: String(mint), decimals };
   }
 
   // ---------------------------------------------------------------------------
@@ -335,4 +470,27 @@ export class OrcaAdapter implements ProtocolAdapter {
     }
     return this.wallet;
   }
+}
+
+// =============================================================================
+// Helpers de módulo
+// =============================================================================
+
+function truncateAddress(addr: Address): string {
+  const s = String(addr);
+  return `${s.slice(0, 4)}…${s.slice(-4)}`;
+}
+
+/**
+ * Formatea una etiqueta legible del pool sin depender de un registry de tokens
+ * (no disponible en devnet de forma fiable). Ejemplo: "So11…1112/BRjp…ok1k 0.2%".
+ */
+function formatPoolLabel(
+  tokenMintA: Address,
+  tokenMintB: Address,
+  feeRate: number,
+): string {
+  // feeRate está en centésimas de basis point: 2000 = 0.2%.
+  const feePct = (feeRate / 10000).toFixed(2);
+  return `${truncateAddress(tokenMintA)}/${truncateAddress(tokenMintB)} ${feePct}%`;
 }
