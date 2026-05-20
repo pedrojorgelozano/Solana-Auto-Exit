@@ -104,6 +104,47 @@ Validado el 2026-05-20:
 - `pnpm typecheck` (root + web) pasa.
 - Sin lógica de negocio aún; valida que el toolchain está bien conectado.
 
+### 9. Frontend F1 completa (F1.2–F1.6)
+
+Validado el 2026-05-20 con servidor + web corriendo:
+- tRPC client tipado: la home muestra el badge `server v0.1.0 · HH:MM:SS` actualizándose cada 10s vía `health.useQuery` (F1.2).
+- `/wallet` (F1.3): los tres estados (no-vault / locked / unlocked) responden y permiten el flujo create → unlock → lock → delete con confirm inline.
+- `/positions` (F1.4): `positions.listOwned` devuelve las posiciones del wallet desbloqueado; PositionCard llama `getSummary` con dedup de React Query.
+- `/positions/[mint]/configure` (F1.5, pre-redesign) → tras R5 fusionada en `/positions/[mint]`: form con TP/SL crea task + start + navega a `/tasks/[id]`.
+- `/tasks/[id]` (F1.6): polling cada 2s, controles condicionales por status, receipts con SolscanLink en oxblood-bright.
+
+Las URLs probadas con `curl -o /dev/null -w "%{http_code}"`: `/`, `/wallet`, `/positions`, `/tasks` → todas HTTP 200. `/missing-page` → HTTP 404 con not-found.tsx editorial (post R8).
+
+### 10. UI redesign R1–R8 (trading desk editorial)
+
+Validado el 2026-05-20:
+- Fonts cargadas vía next/font (Fraunces, Instrument Sans, JetBrains Mono).
+- Paleta oxblood/crema/ink visible en todo el árbol.
+- Grain overlay aplicado (mix-blend overlay, 6% opacity).
+- Tipografía editorial (`.t-display`, `.t-h1`, etc) en headlines.
+- `fade-in` al cargar cada main; `pulse-soft` en dots de estados activos.
+- `not-found.tsx` y `error.tsx` editoriales responden con HTTP 404/500 según corresponde.
+
+Las páginas existentes pasaron a renderizar con la nueva estética sin nuevos errores. Typecheck pasa tras cada commit R1–R8.
+
+### 11. Take-profit + Stop-loss simultáneos
+
+Validado el 2026-05-20:
+- Migración 0000 regenerada limpia (DB de dev wipeada).
+- `pnpm typecheck` pasa con el nuevo schema y los nuevos campos en la API tRPC.
+- Server arranca, aplica migración, `/trpc/health` responde.
+- Form `/positions/[mint]`: dos `TriggerInput` apilados, ambos toggleables, presets aplicables. Validación zod rechaza `{tp: null, sl: null}` y `{tp <= sl}`.
+- **No validado E2E on-chain** todavía con un cierre real disparado por SL. Pendiente cuando haya una posición que cruce el SL en devnet.
+
+### 12. Connect-wallet modal Orca-style
+
+Validado el 2026-05-20:
+- `pnpm typecheck` pasa.
+- Home renderiza con CTA "Connect bot wallet" cuando no hay vault.
+- Modal abre con tabs Generate / Import base58 / Import JSON. Backdrop blur, escape-to-close, body-scroll lock.
+- `wallet.generate` mutation produce keypair válida (probado vía round-trip: address devuelta = address derivada del secret base58).
+- Vista de éxito requiere checkbox "I've saved this" para habilitar Continue.
+
 ---
 
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)

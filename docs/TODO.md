@@ -2,40 +2,77 @@
 
 ## En curso
 
-- [ ] **F1 — Front-office Next.js**. Pantallas mínimas (connect/vault → positions → configure → confirm → watching). Devnet only, Orca only. Tauri viene en F4-F5.
-  - [x] F1.1 — Scaffolding Next.js + Tailwind 4.
-  - [ ] F1.2 — tRPC client tipado + CORS en el server Hono.
-  - [ ] F1.3 — Pantalla vault (status / create base58 o JSON / unlock / lock / delete).
-  - [ ] F1.4 — Pantalla positions (lista de owned + card con summary + selección).
-  - [ ] F1.5 — Configure + confirm task (form con preview del quote en vivo).
-  - [ ] F1.6 — Dashboard watching (live status, último precio, log de eventos).
+(nada activo)
 
-## Próximo (orden sugerido tras F1)
+## Próximo (orden sugerido)
 
-- [ ] **F2** — Pulir el flujo de close real + Result con on-chain verification + History persistido y visible.
-- [ ] **F3** — Settings, hot-wallet onboarding ("create dedicated bot wallet" como step amigable), notificaciones Telegram opcionales. Decidir si guía de VPS+Tailscale/Cloudflare Tunnel entra aquí o se difiere.
-- [ ] **F4** — Tauri wrapper (`packages/desktop/`), auto-update, builds firmados Win/Mac/Linux. SECURITY.md publicado. Gate de Mainnet activado tras audit visual.
-- [ ] **F5** — LAN access para móvil (opcional, token de pareja). Service-of-OS sidecar (launchd/systemd/Windows Service) para 24/7. Posiblemente Telegram bot.
-- [ ] **F6** — Adapter de Meteora DLMM. Antes de tocar código, verificar SDK actual en `https://docs.meteora.ag/` y `https://github.com/MeteoraAg/dlmm-sdk`. Confirmar compatibilidad con `@solana/kit@^5` o decidir cómo conviven los stacks.
+- [ ] **F2** — Verificación on-chain del Result + History persistida visible.
+  Tras un cierre real, refrescar balances on-chain via RPC y compararlos con
+  el quote del closeResult/swapResult; mostrar diff en la UI. History
+  detallada por task con eventos timestamped (created, started, ticked,
+  triggered, closed, swapped, error, paused, resumed, stopped).
+- [ ] **F3** — Settings page + onboarding pulido.
+  RPC URL configurable (mainnet/devnet/custom), slippage por defecto,
+  intervalo de poll por defecto. Onboarding más amable post-Generate
+  ("send funds here" con QR del address, link a faucet devnet, etc.).
+- [ ] **F4** — Tauri wrapper. Build firmado para Win/Mac/Linux,
+  auto-update vía GitHub Releases, SECURITY.md publicado, repo público,
+  gate de Mainnet activado tras audit visual.
+- [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
+  (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
+  Notificaciones Telegram opcional.
+- [ ] **F6** — Adapter Meteora DLMM. Verificar SDK actual antes de tocar
+  código; confirmar compatibilidad con `@solana/kit@^5` o decidir el shim.
 
 ## Backlog (sin orden)
 
-- [ ] Cierre + swap atómico en una sola tx (combinar `closePositionInstructions` + `swapInstructions` + `buildAndSendTransaction` de `@orca-so/tx-sender`). Elimina el riesgo de slippage entre las dos tx.
-- [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar (evita disparos por ticks ruidosos).
-- [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet, multi-hop). Hoy solo mismo pool (ADR-008).
-- [ ] Tests automatizados: hoy 0. Empezar por `env.ts`, `retry.ts`, `loop.ts`, `wallet/vault.ts`, `tasks/manager.ts` con `node:test` o `vitest`.
-- [ ] Manejo explícito de buffer de fees al swapear SOL nativo (hoy delegamos al `nativeMintWrappingStrategy` por defecto del SDK; revisar edge case con balances muy justos).
-- [ ] Métricas/observabilidad: logs estructurados (JSON), exportar a fichero rotado o Prometheus.
-- [ ] Auto-update del Tauri app vía GitHub Releases (F5).
-- [ ] Sustituir el spawn `shell: true` del probe por `cross-spawn` o invocación directa de `node + tsx` para evitar el DEP0190.
-- [ ] Sustituir el orphan vault que arrastramos en `packages/server/data/wallet.vault` (timestamp pre-probe) por uno limpio cuando arranquemos a usar el server "de verdad".
+- [ ] Persistir `tokenMintA` y `tokenMintB` del pool en el task row para
+  no usar la heurística "SOL en A, devUSDC en B" en `/tasks/[id]`. Esto
+  exige resolverlo en `tasks.create` (fetch del pool y serializar mints en
+  el row) o en el adapter al `resolvePosition`.
+- [ ] Expandir el token registry de `packages/web/src/lib/tokens.ts` con
+  más mints conocidos (devnet Orca pools varios, mainnet USDT, mSOL, JitoSOL,
+  bonk, etc.). Posiblemente cargar de Jupiter token list en background.
+- [ ] Cierre + swap atómico en una sola tx (combinar `closePositionInstructions`
+  + `swapInstructions` + `buildAndSendTransaction` de `@orca-so/tx-sender`).
+  Elimina el riesgo de slippage entre las dos tx.
+- [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar.
+- [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet,
+  multi-hop). Hoy solo mismo pool (ADR-008).
+- [ ] Tests automatizados (hoy 0): empezar por `engine/config/env.ts`,
+  `engine/core/retry.ts`, `engine/core/loop.ts`, `server/wallet/vault.ts`,
+  `server/tasks/manager.ts` con `node:test` o `vitest`. Incluir un test
+  de la lógica TP/SL del watcher.
+- [ ] Auto-lock del wallet por inactividad (configurable; default 30 min sin
+  operaciones). Hoy no hay timeout.
+- [ ] Sustituir el spawn `shell: true` del probe-e2e por `cross-spawn` o
+  invocación directa de `node + tsx` para evitar DEP0190.
+- [ ] Cifrado opcional del SQLite del server (SQLCipher) para entornos donde
+  el disco no esté full-disk-encrypted.
+- [ ] Auto-update de Tauri vía GitHub Releases (F5).
+- [ ] Validación en backend de "un auto-exit activo por posición" (hoy solo
+  en UI). Es espejo de la regla — añadir refine en `tasks.create` o
+  check explícito en `TaskManager.createTask`.
+- [ ] Manejo explícito de buffer de fees al swapear SOL nativo (hoy delegamos
+  al `nativeMintWrappingStrategy` del SDK).
+- [ ] Métricas / observabilidad: logs estructurados (JSON), opción de
+  exportar a fichero rotado o Prometheus.
 
 ## Hecho recientemente
 
 Ver [PROGRESS.md](PROGRESS.md).
 
-- **F0 cerrada al 100%** (8 sub-commits independientes): monorepo pnpm + contrato ampliado + Orca discovery + server tRPC/SQLite + WalletVault + TaskManager + endpoints + Docker. Validada end-to-end on-chain via tRPC.
-- **F1.1**: scaffolding Next.js 15 + Tailwind 4 listo, dev server renderiza en `127.0.0.1:3000`.
-- Fase 1 anterior (núcleo + adapter Orca v8) y feature `EXIT_TOKEN_MINT` siguen vigentes.
-- Script `scripts/inspect-pool.ts` para consultar mints y parámetros de un pool Whirlpool.
-- Scripts nuevos: `scripts/probe-vault.ts`, `scripts/probe-discovery.ts`, `scripts/probe-e2e.ts`.
+- **F1 cerrada al 100%** (F1.1 a F1.6): scaffolding Next.js + tRPC client +
+  CORS + pantallas /wallet, /positions, /positions/[mint]/configure,
+  /tasks, /tasks/[id].
+- **UI redesign R1–R8**: foundations editoriales, lenguaje (token registry +
+  status mapper), home dashboard, wallet UX, positions+configure fusionadas,
+  task dashboard, ledger /tasks, pulido (not-found, error boundary, mobile,
+  fade-in).
+- **UI tweaks v1 + v2**: logo expandido, VAULT→WALLET en copy, column headers,
+  history rename, auto-exit verb, one-watcher-per-position rule.
+- **Take-profit + Stop-loss simultáneos**: schema, watcher dual-check, tRPC
+  refine, UI con dos TriggerInput, displays con formatTriggers + formatNearestDistance.
+- **Connect-wallet modal Orca-style**: server-side keypair generation,
+  ConnectWalletProvider, modal con 3 tabs, success view con secret revealable
+  + checkbox obligatorio.

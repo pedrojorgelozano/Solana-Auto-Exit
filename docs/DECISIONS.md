@@ -286,3 +286,94 @@ En el primer intento solo configuré funder y el cierre falló con `Payer not se
 **Consecuencias**:
 - (+) Cero superficie de ataque por defecto.
 - (−) Para acceso desde el móvil del propio usuario hace falta opt-in explícito (LAN access con token de pareja, F5).
+
+---
+
+## ADR-017 — Dirección estética "trading desk editorial" para la UI
+
+**Fecha**: 2026-05-20
+**Estado**: Aceptada
+
+**Contexto**: La primera iteración del frontend (F1.1–F1.6) usó la paleta default que cualquier modelo genera para una "dashboard cripto": near-black `#0a0a0b` + acento morado `#7c5cff` + fonts del sistema + cards anidadas. Feedback explícito del usuario: "muy fea, poco intuitiva, cosas que no entiendo ni yo". Es exactamente el patrón que el skill `frontend-design` describe como "AI slop" — la convergencia visual que se repite en Vercel/Linear/Railway y cualquier producto crypto de los últimos tres años.
+
+**Decisión**: Comprometerse con una dirección estética concreta y opuesta a esa convergencia: **trading desk editorial**.
+
+- **Paleta**: ink negro cálido (`#0c0a08`, no `#000`) + crema (`#f0e7d4`) + **un único acento** oxblood/burdeos (`#8b1e1e`, hover `#b13838`). Estados con cobre (`#b88746`) y tinta-azul (`#6890a8`) en lugar de verde/rojo bandera.
+- **Tipografía**: Fraunces variable serif (display + headings con axes ops + SOFT + WONK para carácter editorial) + Instrument Sans (body) + JetBrains Mono (números con tabular nums + slashed zero). Cero Inter, Arial, ni sans genéricos.
+- **Composición**: hairlines en lugar de cards apiladas. Asimetría (grid 12-col con splits 7/5). Densidad alta en data (tablas tipo statement bancario). Espacio generoso en decisiones (forms con generous padding).
+- **Atmósfera**: grain overlay vía SVG turbulence (6% opacity, mix-blend overlay) sobre todo el body. No flat dark.
+- **Motion**: discreto. Un `fade-in` al cargar página, un `pulse-soft` para estados activos. Sin parallax, sin spring, sin "hover lift".
+
+**Consecuencias**:
+- (+) Identidad propia, no confundible con DefiTuna / Vercel / Linear / etc.
+- (+) Los números son protagonistas (tabular-nums, tamaños grandes en hero, mono donde toca).
+- (+) Sistema de tokens declarado (CSS vars `--color-*`, utilidades `.t-*`) facilita variantes futuras.
+- (−) Curva de aprendizaje breve para colaboradores que esperen Tailwind defaults / shadcn-ui.
+- (−) Fraunces variable es ~80kb gzipped — aceptable, pero pesa más que una sans system.
+
+**Alternativas consideradas**: minimal brutalist (Helvetica + cero color, descartado por sentirse de oficina sin vida), playful 2020s (gradientes / glassmorphism, descartado por ruidoso para un producto de datos), mantener el estilo previo con mejoras de copy (descartado — el feedback era visual).
+
+---
+
+## ADR-018 — Take-profit + Stop-loss simultáneos en un único auto-exit
+
+**Fecha**: 2026-05-20
+**Estado**: Aceptada · supera el modelo single-direction de [ADR-007](#)
+
+**Contexto**: El modelo inicial del auto-exit tenía una sola dirección (`above` | `below`) y un `targetPrice`. El usuario señaló que herramientas como Krystal permiten configurar TP **y** SL en el mismo auto-exit y dispararse el que toque primero. Es un patrón de UX standard (todo broker de trading lo hace) y nuestro modelo single-direction era una limitación arbitraria.
+
+**Decisión**: Un auto-exit puede tener `takeProfitPrice`, `stopLossPrice` o ambos (con al menos uno definido). El watcher evalúa los dos en cada tick. Si los dos cumplen en el mismo tick (precio cruzó todo el rango entre ticks), prioriza take-profit. Se registra `triggeredBy: "take_profit" | "stop_loss"` en el row para auditar el motivo.
+
+- DB schema: eliminadas `target_price` y `direction`; añadidas `take_profit_price` (real nullable), `stop_loss_price` (real nullable), `triggered_by` (text enum nullable).
+- Validación zod en `tasks.create`: dos `.refine`. (1) al menos uno definido > 0. (2) si los dos definidos, TP > SL.
+- UI: dos `TriggerInput` independientes en el form con su propio toggle, presets ±% y price input. Display unificado vía `formatTriggers(tp, sl)` y `formatNearestDistance(current, tp, sl)`.
+
+**Consecuencias**:
+- (+) Cubre el caso normal de trading (poner take-profit y stop-loss a la vez antes de irte).
+- (+) UX clara: el usuario decide qué triggers quiere, no qué "direction".
+- (−) Migración DB destructiva (regenerada la 0000 desde cero, dev wipe asumido). En F2+ si hay deploys reales con data, requiere migración con backfill: `take_profit_price = target_price WHERE direction = 'above'; stop_loss_price = target_price WHERE direction = 'below'`.
+- (−) El path CLI (`packages/cli`) sigue usando el modelo single-direction vía `BaseConfig.targetPrice` + `BaseConfig.direction` (legacy). El server bypassa BaseConfig y usa el row directamente. Documentado en `TaskManager.toBaseConfig`.
+
+---
+
+## ADR-019 — Regla "un auto-exit activo por posición"
+
+**Fecha**: 2026-05-20
+**Estado**: Aceptada
+
+**Contexto**: Un usuario podría crear varios auto-exits sobre la misma posición Whirlpool. Eso no tiene sentido funcional — solo se puede cerrar la posición una vez, así que el segundo watcher quedaría huérfano cuando el primero cerrase. La UI inicial permitía esta inconsistencia.
+
+**Decisión**: La UI **enforza** que solo haya un auto-exit activo por `positionId` (activo = estado ∈ `idle | armed | triggered | closing | paused`). Estados terminales (`done | error | stopped`) no cuentan, así que el usuario puede crear uno nuevo tras un cierre o stop manual.
+
+- `/positions/[mint]` detecta el auto-exit activo (si existe) y renderiza `ExistingWatcher` con datos live + CTAs "Open auto-exit" / "Delete auto-exit", en lugar del form.
+- `/positions` lista marca con un chip pulsante `auto-exit set` las posiciones que ya tienen uno.
+- El backend **no** valida esto todavía (la UI es la única gate). Listado en backlog: añadir `refine` o check explícito en `tasks.create` para que el espejo sea coherente.
+
+**Consecuencias**:
+- (+) Modelo mental claro: una posición → un compromiso de salida.
+- (+) Evita confusiones tipo "¿por qué cerró si dije que el target era 30?" cuando había un segundo watcher con target distinto.
+- (−) Por ahora la regla solo está en UI; un cliente tRPC pirata podría crear dos. Aceptable mientras la UI es el único cliente público.
+
+---
+
+## ADR-020 — Connect-wallet modal Orca-style es cosmético: la firma sin presencia sigue requiriendo clave en el server
+
+**Fecha**: 2026-05-20
+**Estado**: Aceptada
+
+**Contexto**: El usuario pidió "Connect Wallet" como Orca/Meteora. Eso normalmente significa wallet adapter + Phantom popup que firma cada tx. Para un dApp donde el usuario está presente en cada acción, funciona. Para nuestro caso (auto-exit que dispara mientras el usuario duerme) no.
+
+**Decisión**: Implementar un modal estilo Orca con tres rutas (Generate / Import base58 / Import JSON) que por debajo sigue cifrando una clave que el server guarda. **No** implementar wallet adapter real con popup de firma por tx — rompería el use-case del bot. Reafirma [ADR-009](#) (modelo self-hosted no-custodial-via-program, con clave cifrada en el server).
+
+- `wallet.generate(passphrase)`: server crea ed25519 vía `node:crypto`, lo cifra, devuelve la base58 del secret **una sola vez** para que el user lo guarde en su password manager.
+- Modal con tabs Generate (badge "recommended") / Import base58 / Import JSON.
+- VaultChip cuando no hay wallet abre el modal en vez de linkear a `/wallet`.
+- Documentación: el README + onboarding del modal explican honestamente que el server necesita la clave para firmar sin presencia. No vendemos lo que no somos.
+
+**Consecuencias**:
+- (+) UX dApp-moderno sin sacrificar el modelo de bot.
+- (+) Generate-in-server es el camino más amable (cero copy-paste de la clave; el usuario solo guarda lo que el server le da una vez).
+- (−) Sigue requiriendo confianza en el server local. Si el usuario espera "Phantom popup" tipo dApp, hay que explicárselo (lo cual hacemos en el copy del modal).
+- (−) El secret viaja del server al cliente vía HTTPS local en la respuesta de la mutation. Localhost-only por default; si en F5 exponemos sobre LAN con token, esto sigue siendo seguro porque la ruta requiere auth, pero documentar en SECURITY.md.
+
+**Alternativa considerada**: wallet adapter real + tx pre-firmadas con durable nonces. Brittle (nonce caduca, parámetros del cierre tienen que conocerse de antemano, sin re-sign si la tx falla). Descartado.

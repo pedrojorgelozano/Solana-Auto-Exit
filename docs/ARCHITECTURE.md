@@ -110,15 +110,69 @@ Un solo archivo `src/main.ts` que: `loadBaseConfig` + leer `wallet.json` + `make
 - `src/trpc/init.ts` — `initTRPC` con context + `errorFormatter` que preserva `error.message`.
 - `src/trpc/context.ts` — `AppContext = { db, vault, taskManager }`.
 - `src/trpc/router.ts` — compone `health` + `walletRouter` + `positionsRouter` + `tasksRouter`.
-- `src/trpc/routers/wallet.ts` — `status / create / unlock / lock / delete`.
+- `src/trpc/routers/wallet.ts` — `status / generate / create / unlock / lock / delete`. `generate` produce ed25519 vía `node:crypto`, cifra con la passphrase y devuelve el secret en base58 una sola vez (ADR-020).
 - `src/trpc/routers/positions.ts` — `listOwned / getSummary / configSchema`.
-- `src/trpc/routers/tasks.ts` — `create / list / get / start / pause / stop / delete`.
-- `drizzle/` — migraciones SQL versionadas (sí entran en git; las generadas con `drizzle-kit generate`).
+- `src/trpc/routers/tasks.ts` — `create / list / get / start / pause / stop / delete`. El input de `create` valida con dos `.refine` que al menos uno de `takeProfitPrice`/`stopLossPrice` esté definido y, si ambos, TP > SL (ADR-018).
+- `drizzle/` — migraciones SQL versionadas. La inicial fue `0000_flat_flatman.sql`; tras introducir TP/SL se regeneró como `0000_lumpy_morbius.sql` (DB de dev wipeada — ADR-018).
 
-### `packages/web` (frontend, F1 — en construcción)
+`packages/server/package.json` expone `exports["./api"]` apuntando a `src/trpc/router.ts` para que el web pueda importar el tipo `AppRouter` sin alcanzar la implementación.
 
-- `src/app/` — Next.js App Router (`layout.tsx`, `page.tsx`, `globals.css` con tema oscuro).
-- F1.2+ añadirá `lib/trpc.ts`, pantallas y componentes UI.
+### `packages/web` (frontend Next.js — F1 completa, redesign R1–R8 aplicado)
+
+**Stack**:
+- Next.js 15.5 con App Router (`src/app/`).
+- Tailwind 4 (sin `tailwind.config.ts`; tokens en `@theme` dentro de `globals.css`).
+- React 19 + TanStack Query 5 + `@trpc/react-query`.
+- next/font para Fraunces (variable serif, axes opsz + SOFT) + Instrument Sans + JetBrains Mono.
+
+**Layout**:
+```
+packages/web/src/
+├── app/
+│   ├── layout.tsx          (fonts, providers, GlobalHeader)
+│   ├── page.tsx            (home: hero + Now watching + History)
+│   ├── globals.css         (tokens + utilidades .t-*)
+│   ├── fonts.ts            (next/font config)
+│   ├── not-found.tsx       (404 editorial)
+│   ├── error.tsx           (error boundary global)
+│   ├── wallet/page.tsx     (3 estados + danger zone)
+│   ├── positions/
+│   │   ├── page.tsx        (lista con symbols + chip "auto-exit set")
+│   │   └── [mint]/page.tsx (recap + form configure con TP/SL + ExistingWatcher si ya hay uno activo)
+│   └── tasks/
+│       ├── page.tsx        (ledger denso con filtros)
+│       └── [id]/page.tsx   (dashboard live + receipts editoriales)
+├── components/
+│   ├── GlobalHeader.tsx
+│   ├── PageHeader.tsx
+│   ├── ServerStatus.tsx
+│   ├── VaultChip.tsx
+│   ├── ConnectWalletModal.tsx
+│   └── ui/{Button,Card,Input}.tsx
+└── lib/
+    ├── trpc.ts             (createTRPCReact<AppRouter>)
+    ├── providers.tsx       (QueryClient + tRPC + ConnectWalletProvider)
+    ├── connect-wallet.tsx  (context + useConnectWallet hook)
+    ├── tokens.ts           (registry SOL/USDC/devUSDC + fallback truncado)
+    ├── status.ts           (BackendStatus → StatusView con tones)
+    ├── format.ts           (formatTriggers, formatNearestDistance, etc)
+    └── constants.ts        (NETWORK, RPC_URL, PROTOCOL hardcoded hasta F3)
+```
+
+**Sistema de diseño** (ADR-017):
+- Paleta oxblood + crema + ink en CSS vars (`--color-accent`, `--color-text`, etc).
+- Tipografía via utilidades `.t-display`, `.t-h1`, `.t-h2`, `.t-eyebrow`, `.t-body`, `.t-num`, `.t-num-display`.
+- Composición con hairlines (`hairline-t`, `rule-t`, `divide-y divide-[var(--color-hairline)]`) en lugar de cards apiladas.
+- Grain overlay global vía SVG turbulence inline.
+- Motion discreto: `.fade-in` (page transitions) y `.pulse-soft` (estados activos).
+
+**Vocabulario de UI** (ADR-017 lo escala): "auto-exit" es el nombre de cara al usuario; internamente sigue siendo `task` en el código. Los estados backend (`armed`, `triggered`, etc) se traducen vía `statusView()` a frases naturales ("Watching", "Target hit", etc).
+
+**Connect-wallet** (ADR-020): cuando no hay vault, el chip del header y el CTA del home abren `ConnectWalletModal` con tres rutas. La Generate-in-server crea la keypair, cifra y devuelve el secret una sola vez para que el usuario lo guarde.
+
+**Triggers TP/SL** (ADR-018): formularios con dos `TriggerInput` (TP verde-positive, SL cobre-warning) independientes con sus propios toggles y presets ±%. Display unificado con `formatTriggers(tp, sl)` → `"TP ≥ 25 · SL ≤ 18"`.
+
+**One-watcher-per-position** (ADR-019): `/positions/[mint]` detecta tasks activos para el mint y renderiza `ExistingWatcher` (con Open / Delete CTAs) en vez del form. `/positions` lista marca con chip pulsante `auto-exit set`.
 
 ## Contrato `ProtocolAdapter`
 
