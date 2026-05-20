@@ -22,6 +22,13 @@ const RPC_URL = "https://api.devnet.solana.com";
 const NETWORK = "devnet";
 const PASSPHRASE = "probe-passphrase-1234";
 
+/**
+ * Si se define, tras cerrar se hace swap del output a este mint. Debe ser
+ * uno de los dos tokens del pool en v1 (ADR-008). Vacío = sin swap.
+ * Default: devUSDC del pool SOL/devUSDC 0.2% en devnet.
+ */
+const EXIT_TOKEN_MINT = "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k";
+
 const DRY_RUN = !process.argv.includes("--real");
 
 // ============================================================================
@@ -223,6 +230,7 @@ async function run(): Promise<void> {
     slippageBps: 100,
     pollMs: 5000,
     dryRun: DRY_RUN,
+    ...(EXIT_TOKEN_MINT ? { exitTokenMint: EXIT_TOKEN_MINT } : {}),
     exitSwapSlippageBps: 100,
   });
   log(`Task created: id=${newTask.id} (target=${target}, direction=above)`);
