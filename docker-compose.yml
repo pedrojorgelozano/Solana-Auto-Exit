@@ -1,0 +1,37 @@
+# =============================================================================
+# solana-auto-exit · docker-compose (local, single user)
+# =============================================================================
+# Uso normal:
+#   docker compose up --build     # arranca + recompila si hay cambios
+#   docker compose up -d          # background
+#   docker compose logs -f        # ver logs en vivo
+#   docker compose down           # parar y limpiar
+#
+# El binding 127.0.0.1:7777:7777 garantiza que el server SOLO es accesible
+# desde la propia máquina (loopback). No se expone a la LAN ni a internet.
+# Para acceso remoto 24/7 vía VPS, ver docs/ARCHITECTURE.md (Tailscale /
+# Cloudflare Tunnel — pendiente de documentar en F3).
+# =============================================================================
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: solana-auto-exit:latest
+    container_name: solana-auto-exit-server
+    restart: unless-stopped
+    ports:
+      # IMPORTANTE: el prefijo "127.0.0.1:" es lo que hace este binding
+      # localhost-only. NO lo quites a menos que sepas lo que haces.
+      - "127.0.0.1:7777:7777"
+    volumes:
+      # Persistencia: SQLite y wallet vault encriptada. Si borras este
+      # directorio, pierdes las tasks y el vault (irrecuperable).
+      - ./packages/server/data:/app/data
+    environment:
+      SERVER_HOST: "0.0.0.0"
+      SERVER_PORT: "7777"
+      DB_PATH: "/app/data/auto-exit.db"
+      WALLET_VAULT_PATH: "/app/data/wallet.vault"
+      NODE_ENV: "production"

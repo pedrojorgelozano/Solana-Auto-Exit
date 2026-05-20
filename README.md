@@ -29,12 +29,22 @@ Diseño detallado en [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Decisiones 
 - `@solana/kit@^5` (Web3.js v2; pin v5 por peer de Orca v8, ver [ADR-002](docs/DECISIONS.md)).
 - `dotenv` para configuración.
 
-## Quick start (devnet)
+## Modos de ejecución
 
-Requisitos: Node ≥ 22, npm.
+| Modo | Cuándo | Cómo |
+|---|---|---|
+| **CLI** | Validación rápida, una posición, en tu máquina | `pnpm start` |
+| **Server local** | Probar el backend que la futura UI va a consumir | `pnpm start:server` |
+| **Docker** | "Producción" personal: arranca con la máquina, vault encriptada, persistencia | `docker compose up -d` |
+
+Por defecto **todo se ata a `127.0.0.1`** — sin acceso desde la LAN ni internet.
+
+## Quick start (devnet, modo CLI)
+
+Requisitos: Node ≥ 22, pnpm (`npm i -g pnpm`).
 
 ```bash
-npm install
+pnpm install
 cp .env.example .env
 ```
 
@@ -72,10 +82,31 @@ npx tsx scripts/export-base58.ts     # exporta la private key en base58 para Pha
 Ejecutar:
 
 ```bash
-npm start
+pnpm start
 ```
 
 En `DRY_RUN=true` el bot loguea el precio en cada ciclo y, al disparar el trigger, imprime el quote del cierre (y del swap si está configurado) sin enviar nada a la cadena.
+
+## Quick start (modo Docker)
+
+Requisitos: Docker Desktop (Windows/Mac) o Docker Engine + Compose v2 (Linux).
+
+```bash
+docker compose up --build      # primera vez: ~2 min compilando better-sqlite3 nativo
+docker compose logs -f         # ver logs en vivo
+docker compose down            # parar
+```
+
+El servicio:
+- Bindea **solo en `127.0.0.1:7777`** (no accesible desde LAN ni internet).
+- Persiste SQLite y wallet vault en `./packages/server/data/` (volumen montado al host).
+- Reinicia automáticamente (`unless-stopped`) si la máquina o el container caen.
+
+Endpoints:
+- `GET /` — sanity check.
+- `POST /trpc/*` — tRPC type-safe (los usa la UI; ver `packages/server/src/trpc/routers/`).
+
+Para añadir tu wallet sin tocar disco directamente, usa el endpoint `wallet.create` con base58 de Phantom/Backpack o el JSON del Solana CLI. Ejemplo en `scripts/probe-e2e.ts`.
 
 ## Seguridad
 
