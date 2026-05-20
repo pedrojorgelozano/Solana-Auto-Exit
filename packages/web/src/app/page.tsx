@@ -1,6 +1,33 @@
 import Link from "next/link";
 import { ServerStatus } from "@/components/ServerStatus";
 
+function NavTile({
+  href,
+  step,
+  title,
+  description,
+}: {
+  href: string;
+  step: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5 transition-colors hover:border-[var(--color-accent)]/60"
+    >
+      <div className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
+        Step {step}
+      </div>
+      <div className="mt-2 text-lg font-medium">{title}</div>
+      <div className="mt-1 text-sm text-[var(--color-text-muted)]">
+        {description}
+      </div>
+    </Link>
+  );
+}
+
 export default function Home() {
   return (
     <main className="mx-auto max-w-3xl px-6 py-20">
@@ -23,32 +50,25 @@ export default function Home() {
         stable token.
       </p>
 
-      <nav className="mt-12 grid gap-3 sm:grid-cols-2">
-        <Link
+      <nav className="mt-12 grid gap-3 sm:grid-cols-3">
+        <NavTile
           href="/wallet"
-          className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5 transition-colors hover:border-[var(--color-accent)]/60"
-        >
-          <div className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
-            Step 1
-          </div>
-          <div className="mt-2 text-lg font-medium">Wallet</div>
-          <div className="mt-1 text-sm text-[var(--color-text-muted)]">
-            Create or unlock your encrypted vault.
-          </div>
-        </Link>
-
-        <Link
+          step="1"
+          title="Wallet"
+          description="Create or unlock your encrypted vault."
+        />
+        <NavTile
           href="/positions"
-          className="group rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-elevated)] p-5 transition-colors hover:border-[var(--color-accent)]/60"
-        >
-          <div className="text-xs uppercase tracking-wider text-[var(--color-text-muted)]">
-            Step 2
-          </div>
-          <div className="mt-2 text-lg font-medium">Positions</div>
-          <div className="mt-1 text-sm text-[var(--color-text-muted)]">
-            See the liquidity positions owned by your bot wallet.
-          </div>
-        </Link>
+          step="2"
+          title="Positions"
+          description="See the liquidity positions owned by your bot wallet."
+        />
+        <NavTile
+          href="/tasks"
+          step="3"
+          title="Tasks"
+          description="Watch armed and finished auto-exits."
+        />
       </nav>
     </main>
   );
