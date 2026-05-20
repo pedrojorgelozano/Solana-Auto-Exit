@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
 import { statusView, TONE_CLASSES } from "@/lib/status";
 import {
-  formatDistance,
+  formatNearestDistance,
   formatPrice,
   formatTimeAgo,
+  formatTriggers,
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
@@ -127,7 +128,7 @@ function NowWatching({ tasks }: { tasks: TaskRow[] }) {
           Position
         </div>
         <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
-          Target price
+          Triggers
         </div>
         <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)]">
           Current price
@@ -149,10 +150,10 @@ function NowWatching({ tasks }: { tasks: TaskRow[] }) {
 function ActiveTaskRow({ task }: { task: TaskRow }) {
   const view = statusView(task.status);
   const tone = TONE_CLASSES[view.tone];
-  const distance = formatDistance(
+  const distance = formatNearestDistance(
     task.runtime.lastPrice,
-    task.targetPrice,
-    task.direction,
+    task.takeProfitPrice,
+    task.stopLossPrice,
   );
 
   return (
@@ -179,11 +180,10 @@ function ActiveTaskRow({ task }: { task: TaskRow }) {
         </div>
         <div className="mt-1 t-num text-[var(--color-text-muted)] md:col-span-3 md:mt-0">
           <span className="t-eyebrow mr-2 text-[var(--color-text-dim)] md:hidden">
-            target
+            triggers
           </span>
-          {task.direction === "above" ? "≥" : "≤"}{" "}
           <span className="text-[var(--color-text)]">
-            {formatPrice(task.targetPrice, 4)}
+            {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
           </span>
         </div>
         <div className="mt-1 t-num text-[var(--color-text)] md:col-span-2 md:mt-0">
@@ -265,11 +265,8 @@ function LedgerRow({ task }: { task: TaskRow }) {
       <td className="py-4 align-top t-small text-[var(--color-text)]">
         {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
       </td>
-      <td className="py-4 align-top t-num text-[var(--color-text-muted)]">
-        {task.direction === "above" ? "≥" : "≤"}{" "}
-        <span className="text-[var(--color-text)]">
-          {formatPrice(task.targetPrice, 4)}
-        </span>
+      <td className="py-4 align-top t-num text-[var(--color-text)]">
+        {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
         {task.exitTokenMint ? (
           <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
             → {tokenSymbol(task.exitTokenMint)}

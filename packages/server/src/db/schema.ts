@@ -16,9 +16,17 @@ export const tasks = sqliteTable("tasks", {
   /** Config específica del adapter (Orca: positionMint + decimals A/B). JSON. */
   protocolConfig: text("protocol_config", { mode: "json" }).notNull(),
 
-  // Trigger
-  targetPrice: real("target_price").notNull(),
-  direction: text("direction", { enum: ["above", "below"] }).notNull(),
+  // Triggers — al menos uno de los dos debe estar definido (validación en
+  // app layer; SQLite no soporta CHECK constraints via Drizzle out-of-box).
+  /** Precio a partir del cual se cierra como take-profit (price ≥ TP). */
+  takeProfitPrice: real("take_profit_price"),
+  /** Precio a partir del cual se cierra como stop-loss (price ≤ SL). */
+  stopLossPrice: real("stop_loss_price"),
+  /** Cuál de los dos disparó el cierre. Se rellena al disparar. */
+  triggeredBy: text("triggered_by", {
+    enum: ["take_profit", "stop_loss"],
+  }),
+
   slippageBps: integer("slippage_bps").notNull(),
   pollMs: integer("poll_ms").notNull(),
   dryRun: integer("dry_run", { mode: "boolean" }).notNull(),

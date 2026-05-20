@@ -1,22 +1,39 @@
 import { z } from "zod";
 import { router, publicProcedure, TRPCError } from "../init.js";
 
-const createTaskInput = z.object({
-  protocol: z.string().min(1),
-  network: z.enum(["mainnet", "devnet"]),
-  rpcUrl: z.string().url(),
-  positionId: z.string().min(1),
-  protocolConfig: z.record(z.string(), z.unknown()),
+const createTaskInput = z
+  .object({
+    protocol: z.string().min(1),
+    network: z.enum(["mainnet", "devnet"]),
+    rpcUrl: z.string().url(),
+    positionId: z.string().min(1),
+    protocolConfig: z.record(z.string(), z.unknown()),
 
-  targetPrice: z.number().positive(),
-  direction: z.enum(["above", "below"]),
-  slippageBps: z.number().int().min(0).max(10_000),
-  pollMs: z.number().int().min(1_000),
-  dryRun: z.boolean(),
+    takeProfitPrice: z.number().positive().nullable().optional(),
+    stopLossPrice: z.number().positive().nullable().optional(),
+    slippageBps: z.number().int().min(0).max(10_000),
+    pollMs: z.number().int().min(1_000),
+    dryRun: z.boolean(),
 
-  exitTokenMint: z.string().min(32).optional(),
-  exitSwapSlippageBps: z.number().int().min(0).max(10_000),
-});
+    exitTokenMint: z.string().min(32).optional(),
+    exitSwapSlippageBps: z.number().int().min(0).max(10_000),
+  })
+  .refine(
+    (v) =>
+      (v.takeProfitPrice != null && v.takeProfitPrice > 0) ||
+      (v.stopLossPrice != null && v.stopLossPrice > 0),
+    { message: "At least one of takeProfitPrice or stopLossPrice is required." },
+  )
+  .refine(
+    (v) =>
+      v.takeProfitPrice == null ||
+      v.stopLossPrice == null ||
+      v.takeProfitPrice > v.stopLossPrice,
+    {
+      message:
+        "Take-profit price must be greater than stop-loss price (TP > SL).",
+    },
+  );
 
 const idInput = z.object({ id: z.string().uuid() });
 

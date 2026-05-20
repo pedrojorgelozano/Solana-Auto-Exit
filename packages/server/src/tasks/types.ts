@@ -1,8 +1,9 @@
-import type { Direction, Network } from "@solana-auto-exit/engine";
+import type { Network } from "@solana-auto-exit/engine";
 
 /**
- * Input para crear una watch-task. Lo que la UI le manda al backend.
- * El backend valida con zod y persiste en la tabla `tasks`.
+ * Input para crear un auto-exit. Lo que la UI le manda al backend.
+ * El backend valida con zod (al menos uno de TP/SL definido) y persiste
+ * en la tabla `tasks`.
  */
 export interface CreateTaskInput {
   protocol: string;
@@ -13,8 +14,11 @@ export interface CreateTaskInput {
   /** Config específica del adapter (Orca: positionMint + decimals A/B). */
   protocolConfig: Record<string, unknown>;
 
-  targetPrice: number;
-  direction: Direction;
+  /** Take-profit: precio ≥ TP dispara cierre. Null si no se quiere TP. */
+  takeProfitPrice?: number | null;
+  /** Stop-loss: precio ≤ SL dispara cierre. Null si no se quiere SL. */
+  stopLossPrice?: number | null;
+
   slippageBps: number;
   pollMs: number;
   dryRun: boolean;
@@ -43,3 +47,6 @@ export type TaskEvent =
   | "paused"
   | "resumed"
   | "stopped";
+
+/** Qué trigger disparó un cierre. Lo registramos en task.triggeredBy. */
+export type TriggerKind = "take_profit" | "stop_loss";

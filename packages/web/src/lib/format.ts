@@ -134,6 +134,57 @@ export function formatRangeStatus(isInRange: boolean): string {
 }
 
 /**
+ * Resumen compacto de los dos triggers de un auto-exit.
+ * "TP ≥ 25 · SL ≤ 18" / "TP ≥ 25" / "SL ≤ 18" / "—".
+ */
+export function formatTriggers(
+  takeProfit: number | null,
+  stopLoss: number | null,
+  decimals = 4,
+): string {
+  const parts: string[] = [];
+  if (takeProfit !== null) {
+    parts.push(`TP ≥ ${formatPrice(takeProfit, decimals)}`);
+  }
+  if (stopLoss !== null) {
+    parts.push(`SL ≤ ${formatPrice(stopLoss, decimals)}`);
+  }
+  return parts.join(" · ") || "—";
+}
+
+/**
+ * Distancia al trigger más cercano (el primero que se activaría con el precio
+ * actual moviéndose hacia él). Devuelve null si no hay triggers.
+ */
+export function formatNearestDistance(
+  current: number | null | undefined,
+  takeProfit: number | null,
+  stopLoss: number | null,
+): { text: string; reached: boolean; pct: number | null; kind: "tp" | "sl" | null } {
+  if (current === null || current === undefined) {
+    return { text: "—", reached: false, pct: null, kind: null };
+  }
+  const tp =
+    takeProfit !== null ? formatDistance(current, takeProfit, "above") : null;
+  const sl =
+    stopLoss !== null ? formatDistance(current, stopLoss, "below") : null;
+
+  // Si alguno ya está triggered, priorizar ese.
+  if (tp?.reached) return { ...tp, kind: "tp" };
+  if (sl?.reached) return { ...sl, kind: "sl" };
+
+  // En otro caso, elegir el de menor distancia absoluta.
+  if (tp && sl) {
+    const tpAbs = Math.abs(tp.pct ?? Infinity);
+    const slAbs = Math.abs(sl.pct ?? Infinity);
+    return tpAbs <= slAbs ? { ...tp, kind: "tp" } : { ...sl, kind: "sl" };
+  }
+  if (tp) return { ...tp, kind: "tp" };
+  if (sl) return { ...sl, kind: "sl" };
+  return { text: "—", reached: false, pct: null, kind: null };
+}
+
+/**
  * "5m ago" / "just now" / "2h ago". timestamp en ms.
  */
 export function formatTimeAgo(timestampMs: number | null): string {

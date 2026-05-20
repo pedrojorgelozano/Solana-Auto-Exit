@@ -16,6 +16,7 @@ import {
   formatPollInterval,
   formatPrice,
   formatSlippage,
+  formatTriggers,
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
@@ -91,11 +92,14 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
   const mintA = "So11111111111111111111111111111111111111112";
   const mintB = task.exitTokenMint ?? "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k";
 
-  const distance = formatDistance(
-    task.runtime.lastPrice,
-    task.targetPrice,
-    task.direction,
-  );
+  const tpDistance =
+    task.takeProfitPrice !== null
+      ? formatDistance(task.runtime.lastPrice, task.takeProfitPrice, "above")
+      : null;
+  const slDistance =
+    task.stopLossPrice !== null
+      ? formatDistance(task.runtime.lastPrice, task.stopLossPrice, "below")
+      : null;
 
   return (
     <div className="space-y-16">
@@ -136,23 +140,22 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
             </div>
           </div>
 
-          <div className="md:col-span-5 md:border-l md:border-[var(--color-hairline)] md:pl-10">
-            <div className="t-eyebrow text-[var(--color-text-muted)]">Target</div>
-            <div className="mt-3 t-num text-2xl text-[var(--color-text)]">
-              {task.direction === "above" ? "≥ " : "≤ "}
-              {formatPrice(task.targetPrice, 6)}
-            </div>
-            {distance.pct !== null ? (
-              <div
-                className={`mt-2 t-eyebrow ${
-                  distance.reached
-                    ? "text-[var(--color-warning)]"
-                    : "text-[var(--color-text-muted)]"
-                }`}
-              >
-                {distance.text}
-                {distance.reached ? " · trigger met" : " from current"}
-              </div>
+          <div className="md:col-span-5 md:border-l md:border-[var(--color-hairline)] md:pl-10 space-y-6">
+            {task.takeProfitPrice !== null ? (
+              <TriggerBlock
+                kind="tp"
+                price={task.takeProfitPrice}
+                distance={tpDistance}
+                triggered={task.triggeredBy === "take_profit"}
+              />
+            ) : null}
+            {task.stopLossPrice !== null ? (
+              <TriggerBlock
+                kind="sl"
+                price={task.stopLossPrice}
+                distance={slDistance}
+                triggered={task.triggeredBy === "stop_loss"}
+              />
             ) : null}
           </div>
         </div>
@@ -289,8 +292,8 @@ function TriggerDetails({ task }: { task: TaskData }) {
             {truncateAddress(task.positionId, 6, 6)}
           </span>
         </Field>
-        <Field label="Direction">
-          {task.direction === "above" ? "Take profit" : "Stop loss"}
+        <Field label="Triggers">
+          {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
         </Field>
         <Field label="Poll interval">{formatPollInterval(task.pollMs)}</Field>
         <Field label="Close slippage">{formatSlippage(task.slippageBps)}</Field>
@@ -312,6 +315,52 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <div className="t-eyebrow text-[var(--color-text-muted)]">{label}</div>
       <div className="mt-2 t-body text-[var(--color-text)]">{children}</div>
+    </div>
+  );
+}
+
+// ============================================================================
+// TriggerBlock — uno por trigger (TP/SL) en el hero del dashboard
+// ============================================================================
+
+function TriggerBlock({
+  kind,
+  price,
+  distance,
+  triggered,
+}: {
+  kind: "tp" | "sl";
+  price: number;
+  distance: ReturnType<typeof formatDistance> | null;
+  triggered: boolean;
+}) {
+  const label = kind === "tp" ? "Take profit" : "Stop loss";
+  const op = kind === "tp" ? "≥" : "≤";
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <span className="t-eyebrow text-[var(--color-text-muted)]">{label}</span>
+        {triggered ? (
+          <span className="t-eyebrow text-[var(--color-warning)]">
+            · fired this one
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-1 t-num text-xl text-[var(--color-text)]">
+        {op} {formatPrice(price, 6)}
+      </div>
+      {distance && distance.pct !== null ? (
+        <div
+          className={`mt-1 t-eyebrow ${
+            distance.reached
+              ? "text-[var(--color-warning)]"
+              : "text-[var(--color-text-muted)]"
+          }`}
+        >
+          {distance.text}
+          {distance.reached ? " · trigger met" : " from current"}
+        </div>
+      ) : null}
     </div>
   );
 }

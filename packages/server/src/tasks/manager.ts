@@ -100,8 +100,8 @@ export class TaskManager {
         rpcUrl: input.rpcUrl,
         positionId: input.positionId,
         protocolConfig: input.protocolConfig,
-        targetPrice: input.targetPrice,
-        direction: input.direction,
+        takeProfitPrice: input.takeProfitPrice ?? null,
+        stopLossPrice: input.stopLossPrice ?? null,
         slippageBps: input.slippageBps,
         pollMs: input.pollMs,
         dryRun: input.dryRun,
@@ -283,8 +283,12 @@ export class TaskManager {
       return;
     }
 
+    const tpDesc =
+      row.takeProfitPrice !== null ? `TP≥${row.takeProfitPrice}` : "TP—";
+    const slDesc =
+      row.stopLossPrice !== null ? `SL≤${row.stopLossPrice}` : "SL—";
     log(
-      `[tasks] ${row.id} armed: ${position.poolLabel} target=${row.direction} ${row.targetPrice} pollMs=${row.pollMs}`,
+      `[tasks] ${row.id} armed: ${position.poolLabel} ${tpDesc} ${slDesc} pollMs=${row.pollMs}`,
     );
 
     while (!signal.aborted) {
@@ -301,19 +305,25 @@ export class TaskManager {
       entry.lastPrice = price;
       entry.lastTickAt = Date.now();
 
-      // --- Evaluar trigger ---
-      const triggered =
-        row.direction === "above"
-          ? price >= row.targetPrice
-          : price <= row.targetPrice;
+      // --- Evaluar triggers (TP + SL) ---
+      const tpHit =
+        row.takeProfitPrice !== null && price >= row.takeProfitPrice;
+      const slHit =
+        row.stopLossPrice !== null && price <= row.stopLossPrice;
 
-      if (!triggered) {
+      if (!tpHit && !slHit) {
         await this.sleepAbortable(row.pollMs, signal);
         continue;
       }
 
+      // Si por azar los dos están cumplidos en el mismo tick (rango entre
+      // SL y TP atravesado), priorizamos take-profit por defecto.
+      const triggeredBy: "take_profit" | "stop_loss" = tpHit
+        ? "take_profit"
+        : "stop_loss";
+
       // --- Trigger: cierre + (swap opcional) ---
-      this.markTriggered(row.id);
+      this.markTriggered(row.id, triggeredBy);
       await this.executeClose(row, adapter, position);
       this.running.delete(row.id);
       return;
@@ -400,17 +410,22 @@ export class TaskManager {
   // Helpers
   // ===========================================================================
 
+  /**
+   * BaseConfig que recibe el adapter en init(). Los campos targetPrice y
+   * direction son legacy del path CLI; el adapter NO los usa internamente
+   * (solo cachea protocolConfig, RPC y wallet). Pasamos placeholders válidos
+   * para satisfacer el tipo. El watcher loop evalúa los triggers reales
+   * (TP/SL) directamente desde row, no desde BaseConfig.
+   */
   private toBaseConfig(row: TaskRow): BaseConfig {
     return {
       protocol: row.protocol,
       network: row.network,
       rpcUrl: row.rpcUrl,
-      targetPrice: row.targetPrice,
-      direction: row.direction,
+      targetPrice: 0,
+      direction: "above",
       slippageBps: row.slippageBps,
       pollMs: row.pollMs,
-      // En el server la wallet viene del vault, no de un path en disco.
-      // walletPath se rellena con string vacío por compat del tipo.
       walletPath: "",
       dryRun: row.dryRun,
       exitTokenMint: row.exitTokenMint ?? undefined,
@@ -418,17 +433,21 @@ export class TaskManager {
     };
   }
 
-  private markTriggered(id: string): void {
+  private markTriggered(
+    id: string,
+    triggeredBy: "take_profit" | "stop_loss",
+  ): void {
     this.db
       .update(tasks)
       .set({
         status: "triggered",
+        triggeredBy,
         triggeredAt: new Date(),
         updatedAt: new Date(),
       })
       .where(eq(tasks.id, id))
       .run();
-    this.appendHistory(id, "triggered", {});
+    this.appendHistory(id, "triggered", { triggeredBy });
   }
 
   private markClosing(id: string): void {

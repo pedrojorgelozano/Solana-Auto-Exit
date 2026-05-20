@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import {
-  formatDistance,
+  formatNearestDistance,
   formatPrice,
   formatTimeAgo,
+  formatTriggers,
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
@@ -156,10 +157,10 @@ function Ledger({ rows }: { rows: TaskRow[] }) {
 function Row({ row }: { row: TaskRow }) {
   const view = statusView(row.status as BackendStatus);
   const tone = TONE_CLASSES[view.tone];
-  const distance = formatDistance(
+  const distance = formatNearestDistance(
     row.runtime.lastPrice,
-    row.targetPrice,
-    row.direction,
+    row.takeProfitPrice,
+    row.stopLossPrice,
   );
   const when = row.triggeredAt
     ? new Date(row.triggeredAt).getTime()
@@ -188,11 +189,8 @@ function Row({ row }: { row: TaskRow }) {
           {row.protocol}
         </span>
       </td>
-      <td className="py-4 pr-4 align-baseline t-num text-[var(--color-text-muted)]">
-        {row.direction === "above" ? "≥" : "≤"}{" "}
-        <span className="text-[var(--color-text)]">
-          {formatPrice(row.targetPrice, 4)}
-        </span>
+      <td className="py-4 pr-4 align-baseline t-num text-[var(--color-text)]">
+        {formatTriggers(row.takeProfitPrice, row.stopLossPrice, 4)}
         {row.exitTokenMint ? (
           <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
             → {tokenSymbol(row.exitTokenMint)}

@@ -14,11 +14,10 @@ import { trpc } from "@/lib/trpc";
 import { NETWORK, PROTOCOL, RPC_URL } from "@/lib/constants";
 import {
   formatDistance,
+  formatNearestDistance,
   formatPrice,
-  formatPrice1To1,
   formatRangeStatus,
   formatTokenAmount,
-  formatTriggerSentence,
   truncateAddress,
 } from "@/lib/format";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
@@ -165,10 +164,10 @@ function ExistingWatcher({
 }) {
   const view = statusView(task.status as BackendStatus);
   const tone = TONE_CLASSES[view.tone];
-  const distance = formatDistance(
+  const nearest = formatNearestDistance(
     task.runtime.lastPrice,
-    task.targetPrice,
-    task.direction,
+    task.takeProfitPrice,
+    task.stopLossPrice,
   );
 
   const utils = trpc.useUtils();
@@ -203,13 +202,18 @@ function ExistingWatcher({
       </p>
 
       <div className="mt-8 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-        <Field label="Direction">
-          {task.direction === "above" ? "Take profit" : "Stop loss"}
-        </Field>
-        <Field label="Target">
+        <Field label="Take profit">
           <span className="t-num">
-            {task.direction === "above" ? "≥ " : "≤ "}
-            {formatPrice(task.targetPrice, 6)}
+            {task.takeProfitPrice !== null
+              ? `≥ ${formatPrice(task.takeProfitPrice, 6)}`
+              : "—"}
+          </span>
+        </Field>
+        <Field label="Stop loss">
+          <span className="t-num">
+            {task.stopLossPrice !== null
+              ? `≤ ${formatPrice(task.stopLossPrice, 6)}`
+              : "—"}
           </span>
         </Field>
         <Field label="Last price">
@@ -219,15 +223,16 @@ function ExistingWatcher({
               : "—"}
           </span>
         </Field>
-        <Field label="Distance">
+        <Field label="Nearest">
           <span
             className={`t-num ${
-              distance.reached
+              nearest.reached
                 ? "text-[var(--color-warning)]"
                 : "text-[var(--color-text-muted)]"
             }`}
           >
-            {distance.text}
+            {nearest.text}
+            {nearest.kind ? ` ${nearest.kind === "tp" ? "TP" : "SL"}` : ""}
           </span>
         </Field>
       </div>
@@ -392,8 +397,12 @@ function ConfigureForm({
   const symA = tokenSymbol(tokenA.mint);
   const symB = tokenSymbol(tokenB.mint);
 
-  const [direction, setDirection] = useState<Direction>("above");
-  const [targetPrice, setTargetPrice] = useState("");
+  // Triggers independientes: cada uno tiene su toggle + su precio.
+  const [tpEnabled, setTpEnabled] = useState(true);
+  const [tpPrice, setTpPrice] = useState("");
+  const [slEnabled, setSlEnabled] = useState(false);
+  const [slPrice, setSlPrice] = useState("");
+
   const [pollMs, setPollMs] = useState<PollPreset>(30_000);
   const [slippageBps, setSlippageBps] = useState<SlippageBps>(100);
   const [exitChoice, setExitChoice] = useState<ExitChoice>("none");
@@ -406,16 +415,28 @@ function ConfigureForm({
   const start = trpc.tasks.start.useMutation();
   const busy = create.isPending || start.isPending;
 
-  const applyPreset = (pct: number) => {
-    const factor = direction === "above" ? 1 + pct / 100 : 1 - pct / 100;
-    const next = currentPrice * factor;
-    setTargetPrice(next.toFixed(6).replace(/\.?0+$/, ""));
+  const applyTpPreset = (pct: number) => {
+    const next = currentPrice * (1 + pct / 100);
+    setTpPrice(next.toFixed(6).replace(/\.?0+$/, ""));
+    setTpEnabled(true);
+  };
+  const applySlPreset = (pct: number) => {
+    const next = currentPrice * (1 - pct / 100);
+    setSlPrice(next.toFixed(6).replace(/\.?0+$/, ""));
+    setSlEnabled(true);
   };
 
-  const targetNum = Number(targetPrice);
-  const targetValid = Number.isFinite(targetNum) && targetNum > 0;
-  const distance = targetValid
-    ? formatDistance(currentPrice, targetNum, direction)
+  const tpNum = Number(tpPrice);
+  const slNum = Number(slPrice);
+  const tpValid = tpEnabled && Number.isFinite(tpNum) && tpNum > 0;
+  const slValid = slEnabled && Number.isFinite(slNum) && slNum > 0;
+  const atLeastOne = tpValid || slValid;
+
+  const tpDistance = tpValid
+    ? formatDistance(currentPrice, tpNum, "above")
+    : null;
+  const slDistance = slValid
+    ? formatDistance(currentPrice, slNum, "below")
     : null;
 
   const exitMint =
@@ -424,8 +445,12 @@ function ConfigureForm({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!targetValid) {
-      setError("Pick a target price first.");
+    if (!atLeastOne) {
+      setError("Enable take-profit, stop-loss, or both. At least one is required.");
+      return;
+    }
+    if (tpValid && slValid && tpNum <= slNum) {
+      setError("Take-profit must be greater than stop-loss (TP > SL).");
       return;
     }
     try {
@@ -439,8 +464,8 @@ function ConfigureForm({
           decimalsA: tokenA.decimals,
           decimalsB: tokenB.decimals,
         },
-        targetPrice: targetNum,
-        direction,
+        takeProfitPrice: tpValid ? tpNum : null,
+        stopLossPrice: slValid ? slNum : null,
         slippageBps,
         pollMs,
         dryRun: simulation,
@@ -459,70 +484,37 @@ function ConfigureForm({
       {/* === When to close === */}
       <fieldset className="hairline-t pt-8">
         <legend className="t-eyebrow mb-4">1 — When to close</legend>
+        <p className="t-small text-[var(--color-text-muted)] max-w-lg">
+          Enable take-profit, stop-loss, or both. The auto-exit closes when
+          either price is hit (whichever happens first).
+        </p>
 
-        <Segmented
-          value={direction}
-          onChange={(v) => setDirection(v as Direction)}
-          options={[
-            { value: "above", label: "Take profit (price rises)" },
-            { value: "below", label: "Stop loss (price falls)" },
-          ]}
-        />
-
-        <div className="mt-8 flex flex-wrap items-center gap-2">
-          <span className="t-eyebrow text-[var(--color-text-muted)] mr-2">
-            Preset
-          </span>
-          {[5, 10, 25, 50].map((pct) => (
-            <button
-              key={pct}
-              type="button"
-              onClick={() => applyPreset(pct)}
-              className="h-8 border border-[var(--color-hairline)] hover:border-[var(--color-text)] px-3 t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-[2px] transition-colors"
-            >
-              {direction === "above" ? "+" : "−"}{pct}%
-            </button>
-          ))}
+        <div className="mt-8 space-y-8">
+          <TriggerInput
+            kind="tp"
+            enabled={tpEnabled}
+            setEnabled={setTpEnabled}
+            price={tpPrice}
+            setPrice={setTpPrice}
+            currentPrice={currentPrice}
+            symA={symA}
+            symB={symB}
+            distance={tpDistance}
+            applyPreset={applyTpPreset}
+          />
+          <TriggerInput
+            kind="sl"
+            enabled={slEnabled}
+            setEnabled={setSlEnabled}
+            price={slPrice}
+            setPrice={setSlPrice}
+            currentPrice={currentPrice}
+            symA={symA}
+            symB={symB}
+            distance={slDistance}
+            applyPreset={applySlPreset}
+          />
         </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="target" hint={`current ${formatPrice(currentPrice, 6)}`}>
-              Target price ({symB} per {symA})
-            </Label>
-            <Input
-              id="target"
-              type="number"
-              step="any"
-              min="0"
-              value={targetPrice}
-              onChange={(e) => setTargetPrice(e.target.value)}
-              required
-              className="t-num text-2xl"
-            />
-            {distance ? (
-              <div
-                className={`mt-2 t-eyebrow ${
-                  distance.reached
-                    ? "text-[var(--color-warning)]"
-                    : "text-[var(--color-text-muted)]"
-                }`}
-              >
-                {distance.text}
-                {distance.reached ? " · trigger already true" : " from current"}
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        {targetValid ? (
-          <p className="mt-6 t-body text-[var(--color-text-muted)]">
-            <span className="text-[var(--color-text)]">
-              {formatTriggerSentence(direction, targetNum, tokenA.mint, tokenB.mint)}
-            </span>
-            .
-          </p>
-        ) : null}
       </fieldset>
 
       {/* === Output token === */}
@@ -661,6 +653,141 @@ function Segmented<T extends string>({
           </button>
         );
       })}
+    </div>
+  );
+}
+
+function TriggerInput({
+  kind,
+  enabled,
+  setEnabled,
+  price,
+  setPrice,
+  currentPrice,
+  symA,
+  symB,
+  distance,
+  applyPreset,
+}: {
+  kind: "tp" | "sl";
+  enabled: boolean;
+  setEnabled: (v: boolean) => void;
+  price: string;
+  setPrice: (v: string) => void;
+  currentPrice: number;
+  symA: string;
+  symB: string;
+  distance: ReturnType<typeof formatDistance> | null;
+  applyPreset: (pct: number) => void;
+}) {
+  const label = kind === "tp" ? "Take profit" : "Stop loss";
+  const verb = kind === "tp" ? "rises to" : "drops to";
+  const presetSign = kind === "tp" ? "+" : "−";
+
+  return (
+    <div
+      className={`border-l-2 pl-5 transition-opacity ${
+        enabled ? "" : "opacity-40"
+      } ${
+        kind === "tp"
+          ? "border-[var(--color-positive)]"
+          : "border-[var(--color-warning)]"
+      }`}
+    >
+      {/* Toggle row */}
+      <button
+        type="button"
+        onClick={() => setEnabled(!enabled)}
+        className="flex items-center gap-3 text-left"
+        aria-pressed={enabled}
+      >
+        <span
+          className={`inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors px-0.5 ${
+            enabled
+              ? kind === "tp"
+                ? "border-[var(--color-positive)] bg-[var(--color-positive)]/30 justify-end"
+                : "border-[var(--color-warning)] bg-[var(--color-warning)]/30 justify-end"
+              : "border-[var(--color-hairline)] bg-transparent justify-start"
+          }`}
+        >
+          <span
+            className={`block h-3 w-3 rounded-full ${
+              enabled
+                ? kind === "tp"
+                  ? "bg-[var(--color-positive)]"
+                  : "bg-[var(--color-warning)]"
+                : "bg-[var(--color-text-dim)]"
+            }`}
+          />
+        </span>
+        <span
+          className={`t-eyebrow ${
+            enabled
+              ? kind === "tp"
+                ? "text-[var(--color-positive)]"
+                : "text-[var(--color-warning)]"
+              : "text-[var(--color-text-muted)]"
+          }`}
+        >
+          {label}
+        </span>
+        <span className="t-small text-[var(--color-text-muted)]">
+          close when 1 {symA} {verb} a target price in {symB}
+        </span>
+      </button>
+
+      {enabled ? (
+        <div className="mt-4 fade-in">
+          {/* Presets */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="t-eyebrow text-[var(--color-text-dim)] mr-1">
+              from current
+            </span>
+            {[5, 10, 25, 50].map((pct) => (
+              <button
+                key={pct}
+                type="button"
+                onClick={() => applyPreset(pct)}
+                className="h-8 border border-[var(--color-hairline)] hover:border-[var(--color-text)] px-3 t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-[2px] transition-colors"
+              >
+                {presetSign}
+                {pct}%
+              </button>
+            ))}
+          </div>
+
+          {/* Price input */}
+          <div className="mt-4 max-w-sm">
+            <Label
+              htmlFor={`${kind}-price`}
+              hint={`current ${formatPrice(currentPrice, 6)}`}
+            >
+              Target price ({symB} per {symA})
+            </Label>
+            <Input
+              id={`${kind}-price`}
+              type="number"
+              step="any"
+              min="0"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="t-num text-xl"
+            />
+            {distance && distance.pct !== null ? (
+              <div
+                className={`mt-2 t-eyebrow ${
+                  distance.reached
+                    ? "text-[var(--color-warning)]"
+                    : "text-[var(--color-text-muted)]"
+                }`}
+              >
+                {distance.text}
+                {distance.reached ? " · trigger already true" : " from current"}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

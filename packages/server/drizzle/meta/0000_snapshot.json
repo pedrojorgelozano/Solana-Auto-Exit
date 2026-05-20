@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6d4a9818-3c87-4bc2-9ad2-4785f3c48bcd",
+  "id": "2084a59f-80fb-42b1-9c20-ca0af7719960",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "history": {
@@ -133,18 +133,25 @@
           "notNull": true,
           "autoincrement": false
         },
-        "target_price": {
-          "name": "target_price",
+        "take_profit_price": {
+          "name": "take_profit_price",
           "type": "real",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
-        "direction": {
-          "name": "direction",
+        "stop_loss_price": {
+          "name": "stop_loss_price",
+          "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "triggered_by": {
+          "name": "triggered_by",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "slippage_bps": {
