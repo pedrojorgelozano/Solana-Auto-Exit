@@ -33,6 +33,20 @@ export interface SettingsSnapshot {
   defaultExitSlippageBps: number;
   /** Intervalo de poll del watcher, en ms. */
   defaultPollMs: number;
+  /**
+   * Valores factory-default — lo que el snapshot devolvería tras un Reset.
+   * La UI los usa para implementar Reset imperativamente, sin depender de
+   * que TanStack Query detecte un cambio en el snapshot (que puede ser
+   * deep-equal si el DB ya estaba en defaults). Estos campos son siempre
+   * constantes (no leen del DB).
+   */
+  factoryDefaults: {
+    network: "devnet" | "mainnet";
+    rpcUrl: string;
+    slippageBps: number;
+    exitSlippageBps: number;
+    pollMs: number;
+  };
   /** Si el server tiene ALLOW_MAINNET_LIVE=true, la UI ofrece el switch a mainnet con confirmación. */
   mainnetGateAllowed: boolean;
 }
@@ -125,7 +139,11 @@ export const settingsRouter = router({
         : DEFAULTS.network;
     return {
       network,
-      rpcUrl: map.get(KEYS.rpcUrl) ?? DEFAULTS.rpcUrl,
+      // rpcUrl ahora hace fallback a la URL canónica de la red activa,
+      // no a DEFAULTS.rpcUrl (que es siempre mainnet). Importante porque
+      // tras un Reset (que preserva network) el rpcUrl deja de estar
+      // stored y debe poderse derivar coherentemente con la red.
+      rpcUrl: map.get(KEYS.rpcUrl) ?? DEFAULT_RPC[network],
       defaultRpcByNetwork: {
         mainnet: DEFAULT_RPC.mainnet,
         devnet: DEFAULT_RPC.devnet,
@@ -142,6 +160,16 @@ export const settingsRouter = router({
         map.get(KEYS.defaultPollMs),
         DEFAULTS.defaultPollMs,
       ),
+      // factoryDefaults representa "lo que devolvería el snapshot tras un
+      // Reset". El Reset preserva la red, así que rpcUrl tiene que ser la
+      // canónica de la red ACTUAL (no una fija). El resto son constantes.
+      factoryDefaults: {
+        network,
+        rpcUrl: DEFAULT_RPC[network],
+        slippageBps: DEFAULTS.defaultSlippageBps,
+        exitSlippageBps: DEFAULTS.defaultExitSlippageBps,
+        pollMs: DEFAULTS.defaultPollMs,
+      },
       mainnetGateAllowed: gate,
     };
   }),
@@ -171,9 +199,16 @@ export const settingsRouter = router({
     return { ok: true };
   }),
 
-  /** Reset a defaults. Borra todas las keys de settings. */
+  /**
+   * Reset a defaults: borra rpcUrl, slippage, exit-slippage y pollMs.
+   * **Preserva el row `network`** — cambiar de red es una decisión deliberada
+   * con implicaciones de seguridad (firma con fondos reales vs test), así
+   * que el Reset no debe alterarla silenciosamente. El usuario que quiera
+   * cambiar de red tiene el toggle TEST/REAL para hacerlo explícitamente.
+   */
   reset: publicProcedure.mutation(({ ctx }) => {
-    for (const dbKey of Object.values(KEYS)) {
+    for (const [snapshotKey, dbKey] of Object.entries(KEYS)) {
+      if (snapshotKey === "network") continue;
       ctx.db.delete(settings).where(eq(settings.key, dbKey)).run();
     }
     return { ok: true };

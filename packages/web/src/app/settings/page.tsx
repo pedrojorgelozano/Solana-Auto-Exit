@@ -27,6 +27,15 @@ export default function SettingsPage() {
   const utils = trpc.useUtils();
   const snapshot = trpc.settings.get.useQuery();
 
+  /**
+   * Refetch explícito (no solo invalidate). El invalidate marca stale pero
+   * en algunas condiciones no fuerza el refetch inmediato si el componente
+   * ya renderizó con la data previa. `refetch()` lo dispara seguro.
+   */
+  const refresh = async (): Promise<void> => {
+    await utils.settings.get.refetch();
+  };
+
   return (
     <main className="mx-auto max-w-3xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
@@ -43,10 +52,7 @@ export default function SettingsPage() {
           {snapshot.error.message}
         </p>
       ) : snapshot.data ? (
-        <SettingsForm
-          initial={snapshot.data}
-          refresh={() => utils.settings.get.invalidate()}
-        />
+        <SettingsForm initial={snapshot.data} refresh={refresh} />
       ) : null}
     </main>
   );
@@ -63,9 +69,16 @@ function SettingsForm({
     defaultSlippageBps: number;
     defaultExitSlippageBps: number;
     defaultPollMs: number;
+    factoryDefaults: {
+      network: "devnet" | "mainnet";
+      rpcUrl: string;
+      slippageBps: number;
+      exitSlippageBps: number;
+      pollMs: number;
+    };
     mainnetGateAllowed: boolean;
   };
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }) {
   const [rpcUrl, setRpcUrl] = useState(initial.rpcUrl);
   const [slippageBps, setSlippageBps] = useState<number>(
@@ -78,13 +91,21 @@ function SettingsForm({
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  // Si el backend cambia (otra pestaña edita) re-sincronizamos.
+  // Sincroniza el local state con el snapshot del servidor. Dependencias
+  // explícitas (no el objeto `initial` entero) para que el effect dispare
+  // siempre que cualquier campo cambie — caso típico tras un Reset que
+  // limpia varios valores a la vez.
   useEffect(() => {
     setRpcUrl(initial.rpcUrl);
     setSlippageBps(initial.defaultSlippageBps);
     setExitSlippageBps(initial.defaultExitSlippageBps);
     setPollMs(initial.defaultPollMs);
-  }, [initial]);
+  }, [
+    initial.rpcUrl,
+    initial.defaultSlippageBps,
+    initial.defaultExitSlippageBps,
+    initial.defaultPollMs,
+  ]);
 
   const update = trpc.settings.update.useMutation();
   const reset = trpc.settings.reset.useMutation();
@@ -121,7 +142,7 @@ function SettingsForm({
         ops.push(update.mutateAsync({ key: "defaultPollMs", value: pollMs }));
       }
       await Promise.all(ops);
-      refresh();
+      await refresh();
       setSavedAt(Date.now());
       window.setTimeout(() => setSavedAt(null), 2500);
     } catch (err) {
@@ -141,9 +162,31 @@ function SettingsForm({
   );
 
   const onReset = async () => {
-    if (!confirm("Reset all settings to their defaults?")) return;
-    await reset.mutateAsync();
-    refresh();
+    if (
+      !confirm(
+        "Reset RPC URL, slippage and poll interval to defaults?\n\n" +
+          "Your network choice (TEST / REAL) is preserved — switch it from the toggle above if you need to.",
+      )
+    )
+      return;
+    setError(null);
+    try {
+      await reset.mutateAsync();
+      // Reset imperativo del local state. NO podemos depender del useEffect
+      // porque TanStack Query usa structural sharing — si el snapshot tras
+      // reset es deep-equal al anterior (caso típico cuando el DB ya estaba
+      // en valores default-equivalent), devuelve la misma referencia y el
+      // useEffect no dispara. Aplicamos los factory defaults directamente.
+      setRpcUrl(initial.factoryDefaults.rpcUrl);
+      setSlippageBps(initial.factoryDefaults.slippageBps);
+      setExitSlippageBps(initial.factoryDefaults.exitSlippageBps);
+      setPollMs(initial.factoryDefaults.pollMs);
+      await refresh();
+      setSavedAt(Date.now());
+      window.setTimeout(() => setSavedAt(null), 2500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
   };
 
   return (
@@ -388,7 +431,7 @@ function NetworkPanel({
   defaultRpcByNetwork: { mainnet: string; devnet: string };
   currentRpcUrl: string;
   setRpcUrl: (v: string) => void;
-  refresh: () => void;
+  refresh: () => Promise<void>;
 }) {
   const [pendingReal, setPendingReal] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -418,7 +461,7 @@ function NetworkPanel({
       setRpcUrl(nextRpc);
     }
     await Promise.all(ops);
-    refresh();
+    await refresh();
   };
 
   const handleChange = async (next: "devnet" | "mainnet") => {

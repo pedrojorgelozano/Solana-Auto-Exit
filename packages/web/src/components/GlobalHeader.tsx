@@ -7,16 +7,19 @@ import { trpc } from "@/lib/trpc";
 
 /**
  * Header global persistente. Logo a la izquierda (typo display + eyebrow
- * con la red activa — oxblood prominente cuando es mainnet, ADR-006/F4.3),
- * server status + vault chip a la derecha. Hairline al pie que separa
- * del resto.
+ * con los protocolos soportados), server status + vault chip a la derecha.
+ *
+ * ADR-027: mainnet es el default; ya no se explicita en la cabecera porque
+ * no aporta información. Test mode SÍ se explicita con un pill warning
+ * cuando está activo — es la situación no-default y conviene que el usuario
+ * la vea siempre.
  */
 export function GlobalHeader() {
   const settings = trpc.settings.get.useQuery(undefined, {
     refetchInterval: 10_000,
   });
-  const network = settings.data?.network ?? "devnet";
-  const isMainnet = network === "mainnet";
+  const network = settings.data?.network ?? "mainnet";
+  const isTest = network === "devnet";
 
   return (
     <header className="hairline-b">
@@ -27,28 +30,19 @@ export function GlobalHeader() {
           </div>
           <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
             on Orca <span className="text-[var(--color-text-dim)]/60">·</span>{" "}
-            Meteora{" "}
-            <span
-              className={`hidden sm:inline ${
-                isMainnet
-                  ? "text-[var(--color-accent-bright)]"
-                  : "text-[var(--color-text-dim)]"
-              }`}
-            >
-              · {network}
-            </span>
+            Meteora
           </div>
         </Link>
 
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          {isMainnet ? (
+          {isTest ? (
             <Link
               href="/settings"
-              className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--color-accent)] bg-[var(--color-accent)] px-3.5 t-eyebrow text-[var(--color-accent-fg)] hover:bg-[var(--color-accent-bright)] hover:border-[var(--color-accent-bright)] transition-colors"
-              title="Real funds — click to review network settings"
+              className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--color-warning)] bg-[var(--color-warning-bg)] px-3.5 t-eyebrow text-[var(--color-warning)] hover:bg-[var(--color-warning)] hover:text-[var(--color-bg)] transition-colors"
+              title="Test mode (Solana devnet) — click to switch back to real"
             >
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-accent-fg)] pulse-soft" />
-              mainnet
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-warning)] pulse-soft" />
+              test mode
             </Link>
           ) : null}
           <Link
