@@ -86,7 +86,7 @@
 
 ## Hecho recientemente
 
-Ver [PROGRESS.md](PROGRESS.md).
+Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
 - **F4.1.a — Tauri scaffolding (2026-05-21)**: `packages/tauri/` con
   manifest Rust + `tauri.conf.json` v2 + entry points + scripts. `pnpm

@@ -8,8 +8,14 @@ wallet.json
 .DS_Store
 Thumbs.db
 
-# Claude Code: ajustes locales y skills personales
+# Local editor / tooling settings + project notes that live outside the
+# public repo (bitácora de sesiones, índice de notas, draft script
+# original que dio pie al refactor). Persisten en local; no se publican.
 .claude/
+CLAUDE.md
+docs/PROGRESS.md
+docs/sessions/
+orca-auto-exit.ts
 
 # Server runtime data: SQLite DB, WAL files, wallet vault encriptado (futuro).
 # El esquema vive en packages/server/drizzle/ y SÍ se versiona.

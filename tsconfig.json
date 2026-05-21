@@ -28,7 +28,6 @@
     "**/node_modules",
     "**/dist",
     "**/.next",
-    "packages/web",
-    "orca-auto-exit.ts"
+    "packages/web"
   ]
 }

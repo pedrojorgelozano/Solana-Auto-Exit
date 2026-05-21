@@ -22,8 +22,6 @@ docker-compose.yml
 
 # Documentación y referencia, no necesarias en la imagen
 docs
-CLAUDE.md
 README.md
-orca-auto-exit.ts
 scripts/probe-*
 scripts/probe-*.ts

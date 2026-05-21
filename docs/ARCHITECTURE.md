@@ -269,17 +269,15 @@ solana-auto-exit/
 ├── pnpm-workspace.yaml
 ├── pnpm-lock.yaml
 ├── tsconfig.json              (typecheck del engine + cli + server; excluye web)
-├── orca-auto-exit.ts          (referencia original, fuera del build)
 ├── wallet.json                (gitignored)
-├── CLAUDE.md
 ├── README.md
+├── SECURITY.md
+├── CONTRIBUTING.md
 ├── docs/
-│   ├── PROGRESS.md
 │   ├── TODO.md
 │   ├── DECISIONS.md
 │   ├── ARCHITECTURE.md
-│   ├── TESTING.md
-│   └── sessions/
+│   └── TESTING.md
 ├── scripts/
 │   ├── gen-wallet.ts
 │   ├── export-base58.ts
@@ -344,7 +342,7 @@ solana-auto-exit/
    - `getPrice(position)`, `closePosition(...)`, `swapToExit(...)` — operaciones del watcher; deben respetar `dryRun`.
 4. Registrar en `packages/engine/src/protocols/registry.ts` (`case "<name>": return new <Name>Adapter();`).
 5. Documentar variables específicas en `.env.example`.
-6. Añadir entrada en `PROGRESS.md` y, si hubo decisiones de diseño, ADRs en `DECISIONS.md`.
+6. Si hubo decisiones de diseño relevantes, añadir un ADR en `DECISIONS.md`.
 
 La UI lo recogerá automáticamente cuando llamen `positions.configSchema` con el nuevo nombre de protocolo — el form se renderiza desde el schema declarado, sin tocar código del frontend.
 
@@ -353,5 +351,5 @@ La UI lo recogerá automáticamente cuando llamen `positions.configSchema` con e
 - Por defecto **todo apunta a devnet** y `DRY_RUN=true`.
 - Mainnet en vivo requiere `NETWORK=mainnet` + `DRY_RUN=false` + `ALLOW_MAINNET_LIVE=true` (ver [ADR-006](DECISIONS.md)). El gate también aplicará a la UI cuando se habilite (F4).
 - Servidores bindean a `127.0.0.1` por defecto (ver [ADR-016](DECISIONS.md)). Para 24/7 vía VPS, usar Tailscale o Cloudflare Tunnel, **nunca abrir puertos a internet**.
-- `wallet.json`, `.env`, `packages/server/data/`, `.next/`, `.claude/` están en `.gitignore`. Verificar con `git status` antes de cada commit.
+- `wallet.json`, `.env`, `packages/server/data/`, `.next/`, y los directorios de tooling local están en `.gitignore`. Verificar con `git status` antes de cada commit.
 - TypeScript estricto: `strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`, `noFallthroughCasesInSwitch`.

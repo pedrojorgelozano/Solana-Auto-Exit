@@ -10,8 +10,7 @@
 # Si en el futuro añadimos más mints conocidos al código o docs, mete su
 # fingerprint aquí. Para un proyecto Solana es normal tener mints hardcoded.
 
-e38855d2f7e7b17773719c4582a2227a6eddcdb5:scripts/probe-e2e.ts:generic-api-key:30
-44ad94e7a1c1797c391795e9ffba587a0c72eaee:docs/PROGRESS.md:generic-api-key:15
-44ad94e7a1c1797c391795e9ffba587a0c72eaee:docs/TESTING.md:generic-api-key:73
-a473cd8c328258ed08d962d7121fae3e61191c7a:docs/TODO.md:generic-api-key:7
-a473cd8c328258ed08d962d7121fae3e61191c7a:docs/TESTING.md:generic-api-key:73
+4943520be540a82267c17e9d7956f8f382b9c4d0:scripts/probe-e2e.ts:generic-api-key:30
+f097b6c6b5f6c13dd386f291955f28c0a5a805e4:docs/TESTING.md:generic-api-key:73
+44c79a2eed2a334ca4f7095fa6eeb7ac39cfab82:docs/TODO.md:generic-api-key:7
+44c79a2eed2a334ca4f7095fa6eeb7ac39cfab82:docs/TESTING.md:generic-api-key:73
