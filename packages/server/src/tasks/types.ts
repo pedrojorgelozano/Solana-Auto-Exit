@@ -43,6 +43,7 @@ export type TaskEvent =
   | "triggered"
   | "closed"
   | "swapped"
+  | "verified"
   | "error"
   | "paused"
   | "resumed"

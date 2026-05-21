@@ -16,6 +16,7 @@ import type { Db } from "../db/client.js";
 import { tasks, history, type TaskRow } from "../db/schema.js";
 import type { WalletVault } from "../wallet/vault.js";
 import type { CreateTaskInput, TaskEvent } from "./types.js";
+import { verifyTxBalances } from "./verify.js";
 
 /**
  * Estados que el TaskManager considera "activos" — son los que se deberían
@@ -364,6 +365,20 @@ export class TaskManager {
       .run();
     this.appendHistory(row.id, "closed", closeResult as unknown as Record<string, unknown>);
 
+    // Verificación on-chain del close: best-effort, fire-and-forget pero
+    // awaited para que el evento `verified` quede registrado antes del swap.
+    if (
+      !row.dryRun &&
+      typeof (closeResult as { txId?: unknown }).txId === "string"
+    ) {
+      await this.verifyAndRecord(
+        row,
+        (closeResult as { txId: string }).txId,
+        "close",
+        closeResult as unknown as Record<string, unknown>,
+      );
+    }
+
     if (row.exitTokenMint) {
       try {
         const swapResult = await withRetry(
@@ -390,6 +405,18 @@ export class TaskManager {
           .where(eq(tasks.id, row.id))
           .run();
         this.appendHistory(row.id, "swapped", swapResult as unknown as Record<string, unknown>);
+
+        if (
+          !row.dryRun &&
+          typeof (swapResult as { txId?: unknown }).txId === "string"
+        ) {
+          await this.verifyAndRecord(
+            row,
+            (swapResult as { txId: string }).txId,
+            "swap",
+            swapResult as unknown as Record<string, unknown>,
+          );
+        }
       } catch (err) {
         // El close YA está hecho. Marcamos error pero indicamos que el close
         // sí salió bien — al user le aparecerá la task en estado "error" con
@@ -474,6 +501,43 @@ export class TaskManager {
       .where(eq(tasks.id, id))
       .run();
     this.appendHistory(id, "error", { message: msg });
+  }
+
+  /**
+   * Best-effort on-chain verification post-tx. Queryamos getTransaction al
+   * RPC, parseamos pre/post balances de la bot wallet y emitimos un evento
+   * `verified` con quoted vs actual. No-op si la wallet está locked o si
+   * el RPC no devuelve la tx a tiempo — solo loguea y continúa.
+   */
+  private async verifyAndRecord(
+    row: TaskRow,
+    signature: string,
+    kind: "close" | "swap",
+    quoted: Record<string, unknown>,
+  ): Promise<void> {
+    let owner: string;
+    try {
+      owner = this.vault.getKeypair().address;
+    } catch {
+      // Vault locked entre el cierre y la verificación — saltamos.
+      return;
+    }
+    try {
+      const deltas = await verifyTxBalances(row.rpcUrl, signature, owner);
+      this.appendHistory(row.id, "verified", {
+        kind,
+        signature,
+        fee: deltas.fee.toString(),
+        solDelta: deltas.solDelta.toString(),
+        tokenDeltas: Object.fromEntries(
+          Object.entries(deltas.tokenDeltas).map(([m, v]) => [m, v.toString()]),
+        ),
+        quoted,
+      });
+    } catch (err) {
+      logError(`[tasks] ${row.id} on-chain verification failed`, err);
+      // Non-fatal — el task ya está en `done`/`error` por otra vía.
+    }
   }
 
   /**

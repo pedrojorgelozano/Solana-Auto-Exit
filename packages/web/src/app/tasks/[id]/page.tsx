@@ -17,10 +17,11 @@ import {
   formatPrice,
   formatSlippage,
   formatTimeAgo,
+  formatTokenAmount,
   formatTriggers,
   truncateAddress,
 } from "@/lib/format";
-import { tokenSymbol } from "@/lib/tokens";
+import { tokenSymbol, tokenMeta } from "@/lib/tokens";
 
 type TaskData = inferRouterOutputs<AppRouter>["tasks"]["get"];
 
@@ -49,7 +50,12 @@ interface ProtocolConfigShape {
   positionMint?: string;
   decimalsA?: number;
   decimalsB?: number;
+  /** Mints A/B del pool. Persistido desde F2.4. Tasks anteriores no lo tienen. */
+  tokenMintA?: string;
+  tokenMintB?: string;
 }
+
+const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 export default function TaskPage() {
   const params = useParams<{ id: string }>();
@@ -88,10 +94,33 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
   const protocolConfig = task.protocolConfig as ProtocolConfigShape | null;
   const decimalsA = protocolConfig?.decimalsA ?? 9;
   const decimalsB = protocolConfig?.decimalsB ?? 6;
-  // En el server no guardamos los mints A/B del pool por task; usamos heurística:
-  // SOL para A, devUSDC para B. F2 puede mejorarlo si añadimos los mints al task row.
-  const mintA = "So11111111111111111111111111111111111111112";
-  const mintB = task.exitTokenMint ?? "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k";
+  // Desde F2.4 persistimos tokenMintA/tokenMintB en protocolConfig al crear el
+  // task. Para tasks anteriores caemos a la heurística previa (SOL en A,
+  // exitTokenMint o devUSDC en B).
+  const mintA = protocolConfig?.tokenMintA ?? SOL_MINT;
+  const mintB =
+    protocolConfig?.tokenMintB ??
+    task.exitTokenMint ??
+    "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k";
+
+  // History compartido entre los receipts (busca el verified) y el timeline.
+  // TanStack Query deduplica las dos llamadas con la misma key.
+  const history = trpc.tasks.history.useQuery(
+    { id: task.id },
+    { refetchInterval: 5_000 },
+  );
+  const closeShape = task.closeResult as CloseResultShape | null;
+  const swapShape = task.swapResult as SwapResultShape | null;
+  const verifiedClose = findVerifiedDeltas(
+    history.data,
+    "close",
+    closeShape?.txId,
+  );
+  const verifiedSwap = findVerifiedDeltas(
+    history.data,
+    "swap",
+    swapShape?.txId,
+  );
 
   const tpDistance =
     task.takeProfitPrice !== null
@@ -185,6 +214,7 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
           decimalsB={decimalsB}
           mintA={mintA}
           mintB={mintB}
+          verified={verifiedClose}
         />
       ) : null}
 
@@ -193,8 +223,10 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
         <SwapReceipt
           data={task.swapResult as unknown as SwapResultShape}
           exitTokenMint={task.exitTokenMint}
+          mintA={mintA}
           decimalsA={decimalsA}
           decimalsB={decimalsB}
+          verified={verifiedSwap}
         />
       ) : null}
 
@@ -379,13 +411,20 @@ function CloseReceipt({
   decimalsB,
   mintA,
   mintB,
+  verified,
 }: {
   data: CloseResultShape;
   decimalsA: number;
   decimalsB: number;
   mintA: string;
   mintB: string;
+  verified: VerifiedDeltas | null;
 }) {
+  // Para "Received": delta neto on-chain de cada mint. SOL nativo va por
+  // solDelta; SPL por tokenDeltas[mint].
+  const actualARaw = verified ? rawDeltaForMint(verified, mintA) : null;
+  const actualBRaw = verified ? rawDeltaForMint(verified, mintB) : null;
+
   return (
     <section className="hairline-t pt-8">
       <div className="flex items-baseline justify-between">
@@ -401,9 +440,23 @@ function CloseReceipt({
       <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
         <Receipt label={`Received ${tokenSymbol(mintA)}`}>
           {formatAmountWithSymbol(data.estimatedTokenA, mintA, decimalsA, 6)}
+          <ActualLine
+            rawActual={actualARaw}
+            rawQuoted={data.estimatedTokenA}
+            decimals={decimalsA}
+            mint={mintA}
+            showDiff={mintA !== SOL_MINT}
+          />
         </Receipt>
         <Receipt label={`Received ${tokenSymbol(mintB)}`}>
           {formatAmountWithSymbol(data.estimatedTokenB, mintB, decimalsB, 6)}
+          <ActualLine
+            rawActual={actualBRaw}
+            rawQuoted={data.estimatedTokenB}
+            decimals={decimalsB}
+            mint={mintB}
+            showDiff={mintB !== SOL_MINT}
+          />
         </Receipt>
         <Receipt label="Fees A">
           {formatAmountWithSymbol(data.feesTokenA, mintA, decimalsA, 6)}
@@ -412,6 +465,14 @@ function CloseReceipt({
           {formatAmountWithSymbol(data.feesTokenB, mintB, decimalsB, 6)}
         </Receipt>
       </dl>
+
+      {verified && mintA === SOL_MINT ? (
+        <p className="mt-6 t-small text-[var(--color-text-dim)]">
+          The actual SOL delta includes tx fees deducted and any rent recovered
+          from closed accounts, which is why it can differ from the quoted
+          liquidity amount.
+        </p>
+      ) : null}
 
       {data.notes ? (
         <p className="mt-6 t-small text-[var(--color-text-muted)]">{data.notes}</p>
@@ -423,13 +484,17 @@ function CloseReceipt({
 function SwapReceipt({
   data,
   exitTokenMint,
+  mintA,
   decimalsA,
   decimalsB,
+  verified,
 }: {
   data: SwapResultShape;
   exitTokenMint: string | null;
+  mintA: string;
   decimalsA: number;
   decimalsB: number;
+  verified: VerifiedDeltas | null;
 }) {
   if (data.skipped) {
     return (
@@ -446,9 +511,9 @@ function SwapReceipt({
 
   const fromSym = data.fromMint ? tokenSymbol(data.fromMint) : "?";
   const toSym = exitTokenMint ? tokenSymbol(exitTokenMint) : "?";
-  // Aproximación: decimalsA si fromMint == mint A, decimalsB en otro caso.
-  const isFromA =
-    data.fromMint === "So11111111111111111111111111111111111111112";
+  // Comparamos fromMint con los mints reales del pool (persistidos desde F2.4
+  // en protocolConfig; fallback heurístico en Dashboard si el task es viejo).
+  const isFromA = data.fromMint === mintA;
   const fromDecimals = isFromA ? decimalsA : decimalsB;
   const toDecimals = isFromA ? decimalsB : decimalsA;
 
@@ -467,38 +532,76 @@ function SwapReceipt({
         {data.txId ? <SolscanLink sig={data.txId} /> : null}
       </div>
 
-      <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3">
-        <Receipt label="Input">
-          {data.inputAmount
-            ? formatAmountWithSymbol(
-                data.inputAmount,
-                data.fromMint ?? "",
-                fromDecimals,
-                6,
-              )
-            : "—"}
-        </Receipt>
-        <Receipt label="Output (estimated)">
-          {data.estimatedOutput
-            ? formatAmountWithSymbol(
-                data.estimatedOutput,
-                exitTokenMint ?? "",
-                toDecimals,
-                6,
-              )
-            : "—"}
-        </Receipt>
-        <Receipt label="Output (minimum)">
-          {data.minimumOutput
-            ? formatAmountWithSymbol(
-                data.minimumOutput,
-                exitTokenMint ?? "",
-                toDecimals,
-                6,
-              )
-            : "—"}
-        </Receipt>
-      </dl>
+      {(() => {
+        // Cómputo de "actual" para input y output del swap. Para SOL como
+        // input, aislamos el swap input restando la tx fee del solDelta.
+        let actualInputRaw: string | null = null;
+        let actualOutputRaw: string | null = null;
+        if (verified && data.fromMint) {
+          if (data.fromMint === SOL_MINT) {
+            const fee = BigInt(verified.fee);
+            const sol = BigInt(verified.solDelta);
+            // solDelta es negativo cuando gastas SOL. -sol - fee = input puro.
+            actualInputRaw = (-sol - fee).toString();
+          } else {
+            const tokenDelta = BigInt(
+              verified.tokenDeltas[data.fromMint] ?? "0",
+            );
+            actualInputRaw = (-tokenDelta).toString();
+          }
+        }
+        if (verified && exitTokenMint) {
+          actualOutputRaw = rawDeltaForMint(verified, exitTokenMint);
+        }
+        return (
+          <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3">
+            <Receipt label="Input">
+              {data.inputAmount
+                ? formatAmountWithSymbol(
+                    data.inputAmount,
+                    data.fromMint ?? "",
+                    fromDecimals,
+                    6,
+                  )
+                : "—"}
+              <ActualLine
+                rawActual={actualInputRaw}
+                rawQuoted={data.inputAmount}
+                decimals={fromDecimals}
+                mint={data.fromMint ?? ""}
+                showDiff
+              />
+            </Receipt>
+            <Receipt label="Output (estimated)">
+              {data.estimatedOutput
+                ? formatAmountWithSymbol(
+                    data.estimatedOutput,
+                    exitTokenMint ?? "",
+                    toDecimals,
+                    6,
+                  )
+                : "—"}
+              <ActualLine
+                rawActual={actualOutputRaw}
+                rawQuoted={data.estimatedOutput}
+                decimals={toDecimals}
+                mint={exitTokenMint ?? ""}
+                showDiff
+              />
+            </Receipt>
+            <Receipt label="Output (minimum)">
+              {data.minimumOutput
+                ? formatAmountWithSymbol(
+                    data.minimumOutput,
+                    exitTokenMint ?? "",
+                    toDecimals,
+                    6,
+                  )
+                : "—"}
+            </Receipt>
+          </dl>
+        );
+      })()}
 
       {data.notes ? (
         <p className="mt-6 t-small text-[var(--color-text-muted)]">{data.notes}</p>
@@ -533,6 +636,105 @@ function SolscanLink({ sig }: { sig: string }) {
       tx {truncateAddress(sig, 6, 6)} ↗
     </Link>
   );
+}
+
+// ============================================================================
+// Verified deltas — payload del evento `verified` que emitimos en el backend
+// ============================================================================
+
+interface VerifiedDeltas {
+  fee: string;
+  solDelta: string;
+  tokenDeltas: Record<string, string>;
+}
+
+function findVerifiedDeltas(
+  events: HistoryEvent[] | undefined,
+  kind: "close" | "swap",
+  signature: string | undefined,
+): VerifiedDeltas | null {
+  if (!events || !signature) return null;
+  for (const ev of events) {
+    if (ev.event !== "verified") continue;
+    const d = ev.data as Record<string, unknown> | null;
+    if (!d) continue;
+    if (d.kind === kind && d.signature === signature) {
+      return {
+        fee: String(d.fee ?? "0"),
+        solDelta: String(d.solDelta ?? "0"),
+        tokenDeltas: (d.tokenDeltas as Record<string, string>) ?? {},
+      };
+    }
+  }
+  return null;
+}
+
+/** Para un mint dado, devuelve el delta raw (string bigint). SOL nativo → solDelta. */
+function rawDeltaForMint(verified: VerifiedDeltas, mint: string): string {
+  if (mint === SOL_MINT) return verified.solDelta;
+  return verified.tokenDeltas[mint] ?? "0";
+}
+
+/**
+ * Línea pequeña debajo de cada cell de un receipt con el delta real on-chain.
+ * Opcionalmente computa el diff % vs el quoted. Para SOL no mostramos diff
+ * porque incluye tx fees y rent recovery — sería visualmente alarmante.
+ */
+function ActualLine({
+  rawActual,
+  rawQuoted,
+  decimals,
+  mint,
+  showDiff = false,
+}: {
+  rawActual: string | null;
+  rawQuoted: string | undefined;
+  decimals: number;
+  mint: string;
+  showDiff?: boolean;
+}) {
+  if (rawActual === null || rawActual === "0") return null;
+  const sign = rawActual.startsWith("-") ? "" : "+";
+  const display = `${sign}${formatTokenAmount(rawActual, decimals, 6)} ${tokenSymbol(mint)}`;
+  const diff = showDiff ? computeDiffPct(rawActual, rawQuoted) : null;
+  return (
+    <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
+      actual {display}
+      {diff !== null ? (
+        <span
+          className={`ml-2 ${
+            Math.abs(diff.value) < 0.01
+              ? "text-[var(--color-text-dim)]"
+              : "text-[var(--color-warning)]"
+          }`}
+        >
+          ({diff.label})
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function computeDiffPct(
+  actualRaw: string,
+  quotedRaw: string | undefined,
+): { label: string; value: number } | null {
+  if (!quotedRaw) return null;
+  try {
+    const actual = BigInt(actualRaw);
+    const quoted = BigInt(quotedRaw);
+    if (quoted === 0n) return null;
+    const diff = actual - quoted;
+    const absQ = quoted < 0n ? -quoted : quoted;
+    // bps * 100 = pct con 2 decimales
+    const tenThou = (diff * 10_000n) / absQ;
+    const value = Number(tenThou) / 100;
+    if (!Number.isFinite(value)) return null;
+    const sign = value > 0 ? "+" : "";
+    return { label: `${sign}${value.toFixed(2)}%`, value };
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================
@@ -694,6 +896,35 @@ function describeEvent(ev: HistoryEvent): {
             ? "Swap quoted in simulation — no transaction sent."
             : "Proceeds swapped on-chain.",
         txId,
+      };
+    }
+    case "verified": {
+      const kind = typeof data.kind === "string" ? data.kind : "";
+      const sig = typeof data.signature === "string" ? data.signature : undefined;
+      const solDelta =
+        typeof data.solDelta === "string" ? BigInt(data.solDelta) : 0n;
+      const rawDeltas = (data.tokenDeltas ?? {}) as Record<string, string>;
+      const parts: string[] = [];
+      for (const [mint, rawStr] of Object.entries(rawDeltas)) {
+        const meta = tokenMeta(mint);
+        const decimals = meta?.decimals ?? 0;
+        const sign = rawStr.startsWith("-") ? "" : "+";
+        parts.push(
+          `${sign}${formatTokenAmount(rawStr, decimals, 6)} ${tokenSymbol(mint)}`,
+        );
+      }
+      if (solDelta !== 0n) {
+        const sign = solDelta < 0n ? "" : "+";
+        parts.push(`${sign}${formatTokenAmount(solDelta.toString(), 9, 6)} SOL`);
+      }
+      return {
+        tone: "text-[var(--color-positive)]",
+        label: kind === "swap" ? "Swap verified" : "Close verified",
+        description:
+          parts.length > 0
+            ? `On-chain delta: ${parts.join(" · ")}`
+            : "On-chain queried — no balance changes detected.",
+        txId: sig,
       };
     }
     case "error": {

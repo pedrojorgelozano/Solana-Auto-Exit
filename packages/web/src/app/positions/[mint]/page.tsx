@@ -463,6 +463,8 @@ function ConfigureForm({
           positionMint: mint,
           decimalsA: tokenA.decimals,
           decimalsB: tokenB.decimals,
+          tokenMintA: tokenA.mint,
+          tokenMintB: tokenB.mint,
         },
         takeProfitPrice: tpValid ? tpNum : null,
         stopLossPrice: slValid ? slNum : null,
