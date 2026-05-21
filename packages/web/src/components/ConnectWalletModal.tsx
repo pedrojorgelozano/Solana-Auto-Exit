@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
-import { truncateAddress } from "@/lib/format";
+import { truncateAddress, formatTokenAmount } from "@/lib/format";
 
 type Tab = "generate" | "base58" | "json";
 
@@ -496,24 +497,12 @@ function GenerateSuccess({
           time you&apos;ll see it.</strong>
         </p>
 
-        {/* Address */}
-        <div>
-          <div className="flex items-center justify-between">
-            <span className="t-eyebrow text-[var(--color-text-muted)]">
-              Address
-            </span>
-            <button
-              type="button"
-              onClick={() => copy(address, "addr")}
-              className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-            >
-              {copiedAddr ? "copied" : "copy"}
-            </button>
-          </div>
-          <div className="mt-2 t-num break-all text-[var(--color-text)]">
-            {address}
-          </div>
-        </div>
+        {/* Address — con QR + balance + faucet */}
+        <AddressBlock
+          address={address}
+          copied={copiedAddr}
+          onCopy={() => copy(address, "addr")}
+        />
 
         {/* Secret (oculto por defecto) */}
         <div className="border-l-2 border-[var(--color-danger)] pl-5">
@@ -599,5 +588,90 @@ function GenerateSuccess({
         </div>
       </div>
     </>
+  );
+}
+
+// ============================================================================
+// AddressBlock — address text + QR + balance live + faucet link
+// ============================================================================
+
+function AddressBlock({
+  address,
+  copied,
+  onCopy,
+}: {
+  address: string;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  const settings = trpc.settings.get.useQuery();
+  const balance = trpc.wallet.balance.useQuery(
+    { address },
+    { refetchInterval: 5_000 },
+  );
+  const isDevnet = settings.data?.network === "devnet";
+  const solBalance = balance.data?.lamports ?? 0;
+  const balanceText = formatTokenAmount(String(solBalance), 9, 6);
+
+  return (
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-12 md:gap-8">
+      {/* Left: address text + balance + faucet */}
+      <div className="md:col-span-8 space-y-4">
+        <div>
+          <div className="flex items-center justify-between">
+            <span className="t-eyebrow text-[var(--color-text-muted)]">
+              Address
+            </span>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+            >
+              {copied ? "copied" : "copy"}
+            </button>
+          </div>
+          <div className="mt-2 t-num break-all text-[var(--color-text)]">
+            {address}
+          </div>
+        </div>
+
+        <div className="flex items-baseline justify-between hairline-t pt-3">
+          <span className="t-eyebrow text-[var(--color-text-muted)]">
+            Balance
+          </span>
+          <span className="t-num text-[var(--color-text)]">
+            {balance.isLoading ? "…" : `${balanceText} SOL`}
+          </span>
+        </div>
+
+        {isDevnet ? (
+          <a
+            href={`https://faucet.solana.com/?walletAddress=${address}&amount=1&network=devnet`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block t-eyebrow text-[var(--color-accent-bright)] hover:underline"
+          >
+            → Get devnet SOL from the faucet
+          </a>
+        ) : null}
+      </div>
+
+      {/* Right: QR */}
+      <div className="md:col-span-4 flex flex-col items-center justify-start">
+        <div className="rounded-[2px] bg-white p-3">
+          <QRCodeSVG
+            value={address}
+            size={132}
+            level="M"
+            marginSize={0}
+            bgColor="#ffffff"
+            fgColor="#0c0a08"
+          />
+        </div>
+        <span className="mt-3 t-eyebrow text-[var(--color-text-dim)]">
+          scan to send funds
+        </span>
+      </div>
+    </div>
   );
 }

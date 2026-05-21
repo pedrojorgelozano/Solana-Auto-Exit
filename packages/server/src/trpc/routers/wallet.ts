@@ -1,12 +1,16 @@
 import { generateKeyPairSync } from "node:crypto";
 import { z } from "zod";
 import { getBase58Codec } from "@solana/kit";
+import { eq } from "drizzle-orm";
 
 import { router, publicProcedure, TRPCError } from "../init.js";
 import {
   bytesFromBase58,
   bytesFromJsonArray,
 } from "../../wallet/import.js";
+import { settings as settingsTable } from "../../db/schema.js";
+
+const DEFAULT_RPC_URL = "https://api.devnet.solana.com";
 
 const sourceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("base58"), value: z.string().min(40) }),
@@ -100,4 +104,41 @@ export const walletRouter = router({
     ctx.vault.delete();
     return { ok: true };
   }),
+
+  /**
+   * Consulta el balance de SOL de una address vía el RPC configurado en
+   * settings. Útil en el onboarding post-Generate para confirmar que han
+   * llegado los fondos.
+   */
+  balance: publicProcedure
+    .input(z.object({ address: z.string().min(32) }))
+    .query(async ({ ctx, input }) => {
+      const row = ctx.db
+        .select()
+        .from(settingsTable)
+        .where(eq(settingsTable.key, "rpc_url"))
+        .get();
+      const rpcUrl = row?.value ?? DEFAULT_RPC_URL;
+      const res = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "getBalance",
+          params: [input.address],
+        }),
+      });
+      const body = (await res.json()) as {
+        result?: { value: number };
+        error?: { message?: string };
+      };
+      if (body.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: body.error.message ?? "RPC error",
+        });
+      }
+      return { lamports: body.result?.value ?? 0 };
+    }),
 });

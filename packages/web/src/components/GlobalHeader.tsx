@@ -31,6 +31,12 @@ export function GlobalHeader() {
           >
             Docs
           </Link>
+          <Link
+            href="/settings"
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            Settings
+          </Link>
           <div className="hidden md:block">
             <ServerStatus />
           </div>

@@ -87,10 +87,15 @@ function NeedUnlock() {
 }
 
 function OwnedList({ owner }: { owner: string }) {
+  // Desde F3.3 el RPC URL sale de settings; constants es solo fallback.
+  const settings = trpc.settings.get.useQuery();
+  const rpcUrl = settings.data?.rpcUrl ?? RPC_URL;
+  const network = settings.data?.network ?? NETWORK;
+
   const list = trpc.positions.listOwned.useQuery({
     protocol: PROTOCOL,
-    network: NETWORK,
-    rpcUrl: RPC_URL,
+    network,
+    rpcUrl,
     owner,
   });
 
@@ -160,10 +165,12 @@ function PositionRow({
   posRef: PositionRef;
   activeTaskId: string | null;
 }) {
+  // Reuse del cache de settings (TanStack Query deduplica con OwnedList).
+  const settings = trpc.settings.get.useQuery();
   const summary = trpc.positions.getSummary.useQuery({
     protocol: PROTOCOL,
-    network: NETWORK,
-    rpcUrl: RPC_URL,
+    network: settings.data?.network ?? NETWORK,
+    rpcUrl: settings.data?.rpcUrl ?? RPC_URL,
     ref: posRef,
   });
 

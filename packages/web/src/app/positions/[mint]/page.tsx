@@ -36,12 +36,15 @@ export default function PositionPage() {
 
   const walletStatus = trpc.wallet.status.useQuery();
   const owner = walletStatus.data?.address;
+  const settings = trpc.settings.get.useQuery();
+  const network = settings.data?.network ?? NETWORK;
+  const rpcUrl = settings.data?.rpcUrl ?? RPC_URL;
 
   const list = trpc.positions.listOwned.useQuery(
     {
       protocol: PROTOCOL,
-      network: NETWORK,
-      rpcUrl: RPC_URL,
+      network,
+      rpcUrl,
       owner: owner ?? "",
     },
     { enabled: !!owner && walletStatus.data?.unlocked === true },
@@ -119,10 +122,14 @@ function Editor({
   posRef: PositionRef;
   router: ReturnType<typeof useRouter>;
 }) {
+  const settings = trpc.settings.get.useQuery();
+  const network = settings.data?.network ?? NETWORK;
+  const rpcUrl = settings.data?.rpcUrl ?? RPC_URL;
+
   const summary = trpc.positions.getSummary.useQuery({
     protocol: PROTOCOL,
-    network: NETWORK,
-    rpcUrl: RPC_URL,
+    network,
+    rpcUrl,
     ref: posRef,
   });
 
@@ -147,7 +154,18 @@ function Editor({
       {activeTask ? (
         <ExistingWatcher task={activeTask} />
       ) : summary.data ? (
-        <ConfigureForm mint={mint} summary={summary.data} router={router} />
+        <ConfigureForm
+          mint={mint}
+          summary={summary.data}
+          router={router}
+          network={network}
+          rpcUrl={rpcUrl}
+          defaults={{
+            slippageBps: settings.data?.defaultSlippageBps,
+            exitSlippageBps: settings.data?.defaultExitSlippageBps,
+            pollMs: settings.data?.defaultPollMs,
+          }}
+        />
       ) : null}
     </div>
   );
@@ -388,10 +406,20 @@ function ConfigureForm({
   mint,
   summary,
   router,
+  network,
+  rpcUrl,
+  defaults,
 }: {
   mint: string;
   summary: PositionSummary;
   router: ReturnType<typeof useRouter>;
+  network: "devnet" | "mainnet";
+  rpcUrl: string;
+  defaults: {
+    slippageBps: number | undefined;
+    exitSlippageBps: number | undefined;
+    pollMs: number | undefined;
+  };
 }) {
   const { tokenA, tokenB, currentPrice } = summary;
   const symA = tokenSymbol(tokenA.mint);
@@ -403,10 +431,18 @@ function ConfigureForm({
   const [slEnabled, setSlEnabled] = useState(false);
   const [slPrice, setSlPrice] = useState("");
 
-  const [pollMs, setPollMs] = useState<PollPreset>(30_000);
-  const [slippageBps, setSlippageBps] = useState<SlippageBps>(100);
+  // Defaults vienen del backend (F3.3). Si los presets típicos coinciden con
+  // el default, los chips se marcan como activos; si el usuario configuró un
+  // valor custom en /settings (75bps por ejemplo), state lo acepta y ningún
+  // chip queda highlighted hasta que se haga click en uno.
+  const [pollMs, setPollMs] = useState<number>(defaults.pollMs ?? 30_000);
+  const [slippageBps, setSlippageBps] = useState<number>(
+    defaults.slippageBps ?? 100,
+  );
   const [exitChoice, setExitChoice] = useState<ExitChoice>("none");
-  const [exitSlippageBps, setExitSlippageBps] = useState<SlippageBps>(100);
+  const [exitSlippageBps, setExitSlippageBps] = useState<number>(
+    defaults.exitSlippageBps ?? 100,
+  );
   const [simulation, setSimulation] = useState(true);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -456,8 +492,8 @@ function ConfigureForm({
     try {
       const task = await create.mutateAsync({
         protocol: PROTOCOL,
-        network: NETWORK,
-        rpcUrl: RPC_URL,
+        network,
+        rpcUrl,
         positionId: mint,
         protocolConfig: {
           positionMint: mint,
@@ -557,7 +593,7 @@ function ConfigureForm({
           <Label>Close slippage tolerance</Label>
           <Segmented
             value={String(slippageBps)}
-            onChange={(v) => setSlippageBps(Number(v) as SlippageBps)}
+            onChange={(v) => setSlippageBps(Number(v))}
             options={SLIPPAGE_PRESETS.map((p) => ({
               value: String(p.bps),
               label: p.label,
@@ -582,7 +618,7 @@ function ConfigureForm({
               <Label>Poll interval</Label>
               <Segmented
                 value={String(pollMs)}
-                onChange={(v) => setPollMs(Number(v) as PollPreset)}
+                onChange={(v) => setPollMs(Number(v))}
                 options={POLL_PRESETS.map((p) => ({
                   value: String(p.ms),
                   label: p.label,
@@ -597,7 +633,7 @@ function ConfigureForm({
                 <Label>Exit swap slippage</Label>
                 <Segmented
                   value={String(exitSlippageBps)}
-                  onChange={(v) => setExitSlippageBps(Number(v) as SlippageBps)}
+                  onChange={(v) => setExitSlippageBps(Number(v))}
                   options={SLIPPAGE_PRESETS.map((p) => ({
                     value: String(p.bps),
                     label: p.label,
