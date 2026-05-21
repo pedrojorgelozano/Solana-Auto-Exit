@@ -1,0 +1,15 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Tauri generated files
+gen/
+
+# Build outputs (binaries / installers)
+*.dmg
+*.app
+*.msi
+*.deb
+*.AppImage
+*.exe

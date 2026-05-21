@@ -1,0 +1,27 @@
+[package]
+name = "solana-auto-exit-tauri"
+version = "0.1.0"
+description = "Tauri shell for solana-auto-exit"
+authors = ["Pedro Lozano"]
+edition = "2021"
+license = "MIT"
+publish = false
+
+[lib]
+name = "solana_auto_exit_tauri_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
+[dependencies]
+tauri = { version = "2.0", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"      # Sin unwinding — más pequeño + más rápido
+codegen-units = 1    # LLVM optimiza todo el crate junto — binario más pequeño
+lto = true           # Link-time optimization — agresiva
+opt-level = "s"      # Optimiza para tamaño en vez de velocidad pura
+strip = true         # Elimina símbolos de debug

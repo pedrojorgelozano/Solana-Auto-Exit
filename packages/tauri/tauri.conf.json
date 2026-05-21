@@ -1,0 +1,48 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Auto-Exit",
+  "version": "0.1.0",
+  "identifier": "com.autoexit.desktop",
+  "build": {
+    "beforeDevCommand": "pnpm --filter @solana-auto-exit/web dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "pnpm --filter @solana-auto-exit/web build",
+    "frontendDist": "../web/out"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Auto-Exit",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 620,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "alwaysOnTop": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Finance",
+    "shortDescription": "Self-hosted auto-exit bot for Solana LP positions.",
+    "longDescription": "Watches Orca and Meteora liquidity positions on Solana and closes them when price hits a take-profit or stop-loss trigger. Runs locally; key encrypted on disk.",
+    "copyright": "Copyright (c) 2026 Pedro Lozano",
+    "publisher": "Pedro Lozano",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

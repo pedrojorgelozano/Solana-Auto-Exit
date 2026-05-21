@@ -10,6 +10,8 @@
     "start:server": "pnpm --filter @solana-auto-exit/server start",
     "dev:web": "pnpm --filter @solana-auto-exit/web dev",
     "build:web": "pnpm --filter @solana-auto-exit/web build",
+    "tauri:dev": "pnpm --filter @solana-auto-exit/tauri exec tauri dev",
+    "tauri:build": "pnpm --filter @solana-auto-exit/tauri exec tauri build",
     "db:generate": "pnpm --filter @solana-auto-exit/server exec drizzle-kit generate",
     "typecheck": "tsc --noEmit && pnpm --filter @solana-auto-exit/web typecheck",
     "gen-wallet": "tsx scripts/gen-wallet.ts",
