@@ -72,7 +72,7 @@ function EmptyState() {
         completion, including dry-run simulations.
       </p>
       <div className="mt-6">
-        <Link href="/positions">
+        <Link href="/">
           <Button>Go to positions →</Button>
         </Link>
       </div>

@@ -82,7 +82,7 @@ export default function GettingStarted() {
       <section className="hairline-t pt-10">
         <h2 className="t-h2">03 · Configure an auto-exit</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
-          On the positions page, pick one and set up a trigger. You can give
+          On the home, pick a position from the list and set up a trigger. You can give
           it a take-profit price, a stop-loss price, or both — whichever
           hits first wins. Optionally, choose an exit token: after the close,
           the bot will swap the proceeds into the token you picked (must be

@@ -78,7 +78,7 @@ export default function PositionPage() {
       <PageHeader
         eyebrow="Position"
         title="Configure the exit."
-        back={{ href: "/positions", label: "Positions" }}
+        back={{ href: "/", label: "Home" }}
       />
 
       {walletStatus.isLoading || isLoading ? (

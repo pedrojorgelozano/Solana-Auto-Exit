@@ -9,7 +9,7 @@ export const RPC_URL = "https://api.devnet.solana.com";
 export const PROTOCOL = "orca" as const;
 
 /**
- * Protocolos que la UI consulta en paralelo desde `/positions`. F6.1
+ * Protocolos que la UI consulta en paralelo desde el home. F6.1
  * añade Meteora (read-only); F6.2/F6.3 abrirán el path completo de
  * cierre + swap. Si añades uno nuevo, también regístralo en
  * `packages/engine/src/protocols/registry.ts`.
