@@ -68,7 +68,7 @@ function FirstRunHome() {
     <main className="mx-auto max-w-4xl px-6 pb-32 pt-16 fade-in">
       <section className="pb-20">
         <div className="t-eyebrow text-[var(--color-accent-bright)]">
-          auto exits para pools de liquidez en Solana
+          auto exits for liquidity pools on Solana
         </div>
         <h1 className="mt-4 t-display">
           Set the conditions.
@@ -182,7 +182,7 @@ function DashboardHero({
     <section className="grid gap-10 pb-16 md:grid-cols-12">
       <div className="md:col-span-7">
         <div className="t-eyebrow text-[var(--color-accent-bright)]">
-          auto exits para pools de liquidez en Solana
+          auto exits for liquidity pools on Solana
         </div>
         <h1 className="mt-4 t-display">
           Set the conditions.
