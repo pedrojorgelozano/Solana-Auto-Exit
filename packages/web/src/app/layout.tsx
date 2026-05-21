@@ -22,12 +22,17 @@ export default function RootLayout({
       className={`${fraunces.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
       <body className="min-h-screen antialiased">
-        <Providers>
-          <LangProvider>
+        {/* LangProvider va POR FUERA de Providers porque `Providers`
+            renderiza `<ConnectWalletModal />` (montado globalmente para
+            que sea invocable desde cualquier sitio vía useConnectWallet),
+            y ese modal llama useT(). LangProvider es solo React state +
+            localStorage, sin dependencia del trpc client. */}
+        <LangProvider>
+          <Providers>
             <GlobalHeader />
             {children}
-          </LangProvider>
-        </Providers>
+          </Providers>
+        </LangProvider>
       </body>
     </html>
   );

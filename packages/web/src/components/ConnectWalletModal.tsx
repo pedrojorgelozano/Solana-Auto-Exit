@@ -41,7 +41,7 @@ export function ConnectWalletModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center px-4 fade-in"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 py-8 fade-in"
       role="dialog"
       aria-modal="true"
     >
@@ -49,12 +49,15 @@ export function ConnectWalletModal() {
       <button
         type="button"
         aria-label={t.modal.closeAria}
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-default"
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm cursor-default"
         onClick={close}
       />
 
-      {/* Panel */}
-      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-elevated)] shadow-xl">
+      {/* Panel — scrollea internamente cuando el contenido es más alto que
+          el viewport (caso típico en Import key + JSON con todos los warnings
+          y campos visibles). items-start + py-8 deja respiración arriba/abajo
+          incluso cuando cabe entero. */}
+      <div className="relative z-10 my-auto w-full max-w-2xl rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-elevated)] shadow-xl">
         <ModalContent />
       </div>
     </div>
