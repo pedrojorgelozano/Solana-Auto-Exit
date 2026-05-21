@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancela runs previos del mismo branch/PR si llega uno nuevo.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typecheck + tests (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install
+        # frozen-lockfile garantiza que el lockfile commiteado coincide con
+        # los manifest. Si rompe, hay que regenerar pnpm-lock.yaml localmente.
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (workspace root + web)
+        run: pnpm typecheck
+
+      - name: Typecheck (server, engine, cli — sin script propio)
+        # Estos packages no exponen un script "typecheck"; los tipan via tsc
+        # directo. Mantener alineado con vitest.config: si algo no compila,
+        # los tests no pueden importarlo.
+        run: |
+          (cd packages/server && pnpm exec tsc --noEmit)
+          (cd packages/engine && pnpm exec tsc --noEmit)
+          (cd packages/cli && pnpm exec tsc --noEmit)
+
+      - name: Tests
+        run: pnpm test
+
+  secret-scan:
+    name: Gitleaks (secret scan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history para escanear todos los commits)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITLEAKS_LICENSE no es necesario para repos públicos individuales.

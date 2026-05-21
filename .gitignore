@@ -29,3 +29,7 @@ next-env.d.ts
 **/target/
 packages/tauri/gen/
 
+# Local tooling (gitleaks binary, scan reports). El binario se descarga
+# bajo demanda; el report es output del scan y no se commitea.
+.tools/
+

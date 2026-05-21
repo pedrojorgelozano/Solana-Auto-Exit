@@ -1,0 +1,17 @@
+# gitleaks false positives — fingerprints de hallazgos confirmados como
+# direcciones Solana públicas (mints de tokens), no secretos.
+#
+# Verificación: el "Secret" detectado es BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k,
+# el mint address público de devUSDC (USDC en Solana devnet). Es información
+# pública on-chain, no requiere protección. Gitleaks lo flaggea por la
+# entropía base58 + el contexto "EXIT_TOKEN_MINT=" que matchea la regla
+# generic-api-key.
+#
+# Si en el futuro añadimos más mints conocidos al código o docs, mete su
+# fingerprint aquí. Para un proyecto Solana es normal tener mints hardcoded.
+
+e38855d2f7e7b17773719c4582a2227a6eddcdb5:scripts/probe-e2e.ts:generic-api-key:30
+44ad94e7a1c1797c391795e9ffba587a0c72eaee:docs/PROGRESS.md:generic-api-key:15
+44ad94e7a1c1797c391795e9ffba587a0c72eaee:docs/TESTING.md:generic-api-key:73
+a473cd8c328258ed08d962d7121fae3e61191c7a:docs/TODO.md:generic-api-key:7
+a473cd8c328258ed08d962d7121fae3e61191c7a:docs/TESTING.md:generic-api-key:73
