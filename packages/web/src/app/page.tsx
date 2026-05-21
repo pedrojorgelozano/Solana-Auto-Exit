@@ -8,6 +8,7 @@ import type { AppRouter } from "@solana-auto-exit/server/api";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
+import { useT } from "@/i18n/context";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import {
   formatDistance,
@@ -150,19 +151,23 @@ function BotWalletEyebrow({
   watchingCount: number;
   loadingPositions: boolean;
 }) {
+  const { t } = useT();
   return (
     <section className="pb-8 hairline-b">
       <div className="flex items-baseline justify-between gap-3">
         <div className="t-eyebrow text-[var(--color-text-muted)]">
-          Bot wallet {unlocked ? null : (
-            <span className="ml-2 text-[var(--color-warning)]">· locked</span>
+          {t.home.eyebrow.botWallet}
+          {unlocked ? null : (
+            <span className="ml-2 text-[var(--color-warning)]">
+              {t.home.eyebrow.locked}
+            </span>
           )}
         </div>
         <Link
           href="/docs/bot-wallet"
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          → What&apos;s a bot wallet
+          {t.home.eyebrow.whatIs}
         </Link>
       </div>
       <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-2">
@@ -172,15 +177,19 @@ function BotWalletEyebrow({
         <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
         <span className="t-small text-[var(--color-text-muted)]">
           {loadingPositions
-            ? "loading positions…"
-            : `${totalPositions} ${totalPositions === 1 ? "position" : "positions"}`}
+            ? t.home.eyebrow.loadingPositions
+            : totalPositions === 1
+              ? t.home.eyebrow.onePosition
+              : t.home.eyebrow.manyPositions(totalPositions)}
         </span>
         {watchingCount > 0 ? (
           <>
             <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
             <span className="inline-flex items-center gap-2 t-small text-[var(--color-positive)]">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)] pulse-soft" />
-              {watchingCount} auto-exit{watchingCount === 1 ? "" : "s"} watching
+              {watchingCount === 1
+                ? t.home.eyebrow.oneWatching
+                : t.home.eyebrow.manyWatching(watchingCount)}
             </span>
           </>
         ) : null}
@@ -210,11 +219,13 @@ function PositionsHub({
   isLoading: boolean;
   anyError: string | null;
 }) {
+  const { t } = useT();
+  const hubT = t.home.hub;
   if (isLoading && refs.length === 0) {
     return (
       <section className="pt-8">
         <p className="t-small text-[var(--color-text-muted)]">
-          Querying chain for positions of this wallet…
+          {hubT.loading}
         </p>
       </section>
     );
@@ -229,16 +240,16 @@ function PositionsHub({
       {/* Column headers — solo en md+; en mobile la fila se apila */}
       <div className="hidden hairline-b pb-3 md:grid md:grid-cols-12 md:items-baseline md:gap-4">
         <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)]">
-          Status
+          {hubT.headerStatus}
         </div>
         <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
-          Position
+          {hubT.headerPosition}
         </div>
         <div className="md:col-span-5 t-eyebrow text-[var(--color-text-dim)]">
-          Auto-exit
+          {hubT.headerAutoExit}
         </div>
         <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)] md:text-right">
-          Action
+          {hubT.headerAction}
         </div>
       </div>
 
@@ -256,7 +267,7 @@ function PositionsHub({
 
       {anyError ? (
         <p className="mt-6 t-small text-[var(--color-danger)]">
-          One protocol query failed: {anyError}
+          {hubT.oneProtocolFailed(anyError)}
         </p>
       ) : null}
     </section>
@@ -274,6 +285,7 @@ function PositionHubRow({
   network: "devnet" | "mainnet";
   rpcUrl: string;
 }) {
+  const { t } = useT();
   const summary = trpc.positions.getSummary.useQuery({
     protocol: posRef.protocol,
     network,
@@ -283,6 +295,9 @@ function PositionHubRow({
 
   const view = activeTask ? statusView(activeTask.status as BackendStatus) : null;
   const tone = view ? TONE_CLASSES[view.tone] : null;
+  const statusLabel = activeTask
+    ? t.status[activeTask.status as BackendStatus]?.label ?? activeTask.status
+    : null;
 
   const symA = summary.data ? tokenSymbol(summary.data.tokenA.mint) : null;
   const symB = summary.data ? tokenSymbol(summary.data.tokenB.mint) : null;
@@ -300,15 +315,19 @@ function PositionHubRow({
                 view.pulsing ? "pulse-soft" : ""
               }`}
             />
-            <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
+            <span className={`t-eyebrow ${tone.text}`}>{statusLabel}</span>
             {activeTask?.dryRun ? (
-              <span className="t-eyebrow text-[var(--color-warning)]">· sim</span>
+              <span className="t-eyebrow text-[var(--color-warning)]">
+                {t.format.sim}
+              </span>
             ) : null}
           </div>
         ) : (
           <div className="flex items-center gap-2">
             <span className="inline-block h-1.5 w-1.5 rounded-full border border-[var(--color-text-dim)]" />
-            <span className="t-eyebrow text-[var(--color-text-dim)]">No exit</span>
+            <span className="t-eyebrow text-[var(--color-text-dim)]">
+              {t.status.noExit}
+            </span>
           </div>
         )}
       </div>
@@ -393,14 +412,14 @@ function PositionHubRow({
             href={`/tasks/${activeTask.id}`}
             className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
           >
-            details →
+            {t.common.details}
           </Link>
         ) : (
           <Link
             href={`/positions/${posRef.id}`}
             className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
           >
-            auto-exit →
+            {t.common.autoExit}
           </Link>
         )}
       </div>
@@ -479,6 +498,8 @@ function AutoExitCell({
 // ============================================================================
 
 function EmptyHub({ owner }: { owner: string | null }) {
+  const { t } = useT();
+  const emptyT = t.home.emptyHub;
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     if (!owner) return;
@@ -493,17 +514,18 @@ function EmptyHub({ owner }: { owner: string | null }) {
 
   return (
     <section className="hairline-t pt-10">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">Empty</div>
-      <h2 className="mt-3 t-h2">No LP positions in this wallet yet.</h2>
+      <div className="t-eyebrow text-[var(--color-text-muted)]">
+        {emptyT.eyebrow}
+      </div>
+      <h2 className="mt-3 t-h2">{emptyT.title}</h2>
       <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-        The bot can only close positions whose NFT this address holds. There
-        are two ways to put one here.
+        {emptyT.intro}
       </p>
 
       {owner ? (
         <div className="mt-8 hairline-t hairline-b py-5">
           <div className="t-eyebrow text-[var(--color-text-muted)]">
-            Bot wallet address
+            {emptyT.addressLabel}
           </div>
           <div className="mt-2 flex items-center justify-between gap-4">
             <span className="t-num break-all text-[var(--color-text)]">
@@ -514,7 +536,7 @@ function EmptyHub({ owner }: { owner: string | null }) {
               onClick={copy}
               className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
             >
-              {copied ? "copied" : "copy"}
+              {copied ? emptyT.copied : emptyT.copy}
             </button>
           </div>
         </div>
@@ -523,13 +545,13 @@ function EmptyHub({ owner }: { owner: string | null }) {
       <ol className="mt-8 divide-y divide-[var(--color-hairline)]">
         <EmptyPath
           n="01"
-          title="Open new positions from the bot account"
-          body="Import the bot's secret into Phantom or Backpack as a new account (Settings → Add wallet → Import private key). Switch to it, then open an LP on Orca or Meteora normally. The position NFT will be owned by this same address and will appear here on refresh."
+          title={emptyT.path1Title}
+          body={emptyT.path1Body}
         />
         <EmptyPath
           n="02"
-          title="Transfer an existing position NFT"
-          body="From any account that currently owns a Whirlpool or DLMM position, send the position NFT to the address above. Ownership moves to the bot wallet and the position becomes closable from here. Don't forget to leave the bot wallet enough SOL for close + swap fees."
+          title={emptyT.path2Title}
+          body={emptyT.path2Body}
         />
       </ol>
 
@@ -540,7 +562,7 @@ function EmptyHub({ owner }: { owner: string | null }) {
           rel="noopener noreferrer"
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          open orca ↗
+          {emptyT.openOrca}
         </a>
         <a
           href="https://app.meteora.ag/dlmm"
@@ -548,13 +570,13 @@ function EmptyHub({ owner }: { owner: string | null }) {
           rel="noopener noreferrer"
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          open meteora ↗
+          {emptyT.openMeteora}
         </a>
         <Link
           href="/docs/getting-started"
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          → Step-by-step guide
+          {emptyT.stepByStep}
         </Link>
       </div>
     </section>
@@ -605,6 +627,8 @@ function isSlippageError(msg: string): boolean {
 }
 
 function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
+  const { t } = useT();
+  const actT = t.home.activity;
   if (tasks.length === 0) return null;
 
   return (
@@ -612,15 +636,15 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
       <div className="flex items-baseline justify-between">
         <div>
           <div className="t-eyebrow text-[var(--color-text-muted)]">
-            Transaction history
+            {actT.eyebrow}
           </div>
-          <h2 className="mt-2 t-h2">Closes, swaps and failures.</h2>
+          <h2 className="mt-2 t-h2">{actT.title}</h2>
         </div>
         <Link
           href="/tasks"
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          View all →
+          {actT.viewAll}
         </Link>
       </div>
 
@@ -628,11 +652,11 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
         <table className="w-full border-collapse">
           <thead>
             <tr className="text-left t-eyebrow text-[var(--color-text-dim)]">
-              <th className="pb-3 pr-4 font-normal">When</th>
-              <th className="pb-3 pr-4 font-normal">Position</th>
-              <th className="pb-3 pr-4 font-normal">Trigger</th>
-              <th className="pb-3 pr-4 font-normal">Result</th>
-              <th className="pb-3 pr-4 font-normal">Tx / Error</th>
+              <th className="pb-3 pr-4 font-normal">{actT.headerWhen}</th>
+              <th className="pb-3 pr-4 font-normal">{actT.headerPosition}</th>
+              <th className="pb-3 pr-4 font-normal">{actT.headerTrigger}</th>
+              <th className="pb-3 pr-4 font-normal">{actT.headerResult}</th>
+              <th className="pb-3 pr-4 font-normal">{actT.headerTxError}</th>
               <th className="pb-3 font-normal text-right">&nbsp;</th>
             </tr>
           </thead>
@@ -648,6 +672,7 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
 }
 
 function LedgerRow({ task }: { task: TaskRow }) {
+  const { t } = useT();
   const when = task.triggeredAt
     ? new Date(task.triggeredAt).getTime()
     : new Date(task.updatedAt).getTime();
@@ -656,7 +681,7 @@ function LedgerRow({ task }: { task: TaskRow }) {
   return (
     <tr className="group">
       <td className="py-4 pr-4 align-top t-num text-[var(--color-text-muted)]">
-        {formatTimeAgo(when)}
+        {formatTimeAgo(when, t)}
       </td>
       <td className="py-4 pr-4 align-top t-small text-[var(--color-text)]">
         {(() => {
@@ -707,13 +732,19 @@ function LedgerRow({ task }: { task: TaskRow }) {
  * detectada (slippage si aplica).
  */
 function ResultChip({ task }: { task: TaskRow }) {
+  const { t } = useT();
+  const actT = t.home.activity;
   if (task.status === "done") {
     return (
       <div className="flex items-center gap-2">
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)]" />
-        <span className="t-eyebrow text-[var(--color-positive)]">Closed</span>
+        <span className="t-eyebrow text-[var(--color-positive)]">
+          {actT.resultClosed}
+        </span>
         {task.dryRun ? (
-          <span className="t-eyebrow text-[var(--color-warning)]">· sim</span>
+          <span className="t-eyebrow text-[var(--color-warning)]">
+            {t.format.sim}
+          </span>
         ) : null}
       </div>
     );
@@ -723,10 +754,12 @@ function ResultChip({ task }: { task: TaskRow }) {
     return (
       <div className="flex items-center gap-2">
         <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
-        <span className="t-eyebrow text-[var(--color-danger)]">Failed</span>
+        <span className="t-eyebrow text-[var(--color-danger)]">
+          {actT.resultFailed}
+        </span>
         {slip ? (
           <span className="t-eyebrow text-[var(--color-text-muted)]">
-            · slippage
+            {actT.slippageTag}
           </span>
         ) : null}
       </div>
@@ -736,7 +769,9 @@ function ResultChip({ task }: { task: TaskRow }) {
   return (
     <div className="flex items-center gap-2">
       <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-text-dim)]" />
-      <span className="t-eyebrow text-[var(--color-text-muted)]">Stopped</span>
+      <span className="t-eyebrow text-[var(--color-text-muted)]">
+        {actT.resultStopped}
+      </span>
     </div>
   );
 }
@@ -753,6 +788,7 @@ function TxOrError({
   task: TaskRow;
   closeShape: CloseResultShape | null;
 }) {
+  const { t } = useT();
   if (task.status === "done" && closeShape?.txId && !closeShape.dryRun) {
     const cluster = task.network === "mainnet" ? "" : "?cluster=devnet";
     return (
@@ -769,7 +805,7 @@ function TxOrError({
   if (task.status === "done" && closeShape?.dryRun) {
     return (
       <span className="t-eyebrow text-[var(--color-text-dim)]">
-        simulated
+        {t.home.activity.simulated}
       </span>
     );
   }
@@ -792,79 +828,63 @@ function TxOrError({
 
 function FirstRunHome() {
   const connect = useConnectWallet();
+  const { t } = useT();
+  const fr = t.home.firstRun;
   return (
     <main className="mx-auto max-w-4xl px-6 pb-32 pt-16 fade-in">
       <section className="pb-20">
         <div className="t-eyebrow text-[var(--color-accent-bright)]">
-          auto exits for liquidity pools on Solana
+          {fr.eyebrow}
         </div>
         <h1 className="mt-4 t-display">
-          Set the conditions.
+          {fr.titleLine1}
           <br />
           <em
             className="font-normal not-italic text-[var(--color-text-muted)]"
             style={{ fontVariationSettings: '"opsz" 100, "SOFT" 80, "WONK" 1' }}
           >
-            Walk away.
+            {fr.titleLine2}
           </em>
         </h1>
         <p className="mt-10 max-w-xl t-body text-[var(--color-text-muted)]">
-          Auto-Exit watches your Orca (and soon Meteora) liquidity positions
-          every few seconds and closes them when price hits your take-profit
-          or stop-loss. It runs on this machine and signs with a wallet you
-          control.
+          {fr.intro}
         </p>
       </section>
 
       <section className="hairline-t pt-12">
         <div className="t-eyebrow text-[var(--color-text-muted)]">
-          How it works
+          {fr.stepsEyebrow}
         </div>
-        <h2 className="mt-2 t-h2">Three steps, then nothing.</h2>
+        <h2 className="mt-2 t-h2">{fr.stepsTitle}</h2>
 
         <ol className="mt-10 divide-y divide-[var(--color-hairline)]">
-          <Step
-            n="01"
-            title="Bot wallet"
-            body="A dedicated Solana account whose key lives encrypted on this machine. The bot uses it to sign the close transaction when triggers fire — including while you're asleep. That's the part Phantom-style popups can't do."
-          />
-          <Step
-            n="02"
-            title="Funded positions"
-            body="Fund the bot wallet with SOL (for fees) and the tokens you want it to manage. Open new LP positions from it on Orca, or transfer the NFT of an existing position to it."
-          />
-          <Step
-            n="03"
-            title="Triggers"
-            body="For each position, set a take-profit price, a stop-loss price, or both. The bot closes when whichever hits first; optionally swaps the proceeds into a stable."
-          />
+          <Step n="01" title={fr.step1Title} body={fr.step1Body} />
+          <Step n="02" title={fr.step2Title} body={fr.step2Body} />
+          <Step n="03" title={fr.step3Title} body={fr.step3Body} />
         </ol>
       </section>
 
       <section className="hairline-t mt-12 pt-12">
         <div className="flex flex-wrap items-baseline gap-4">
-          <Button onClick={connect.open}>Create the bot&apos;s wallet →</Button>
+          <Button onClick={connect.open}>{fr.ctaCreateWallet}</Button>
           <Link
             href="/docs/getting-started"
             className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
           >
-            Read the full guide →
+            {fr.ctaReadGuide}
           </Link>
           <span className="t-small text-[var(--color-text-dim)]">
-            Step 1 of 3 · stop and resume at any point.
+            {fr.stepHint}
           </span>
         </div>
       </section>
 
       <aside className="hairline-t mt-12 max-w-xl pt-10">
         <div className="t-eyebrow text-[var(--color-text-muted)]">
-          Local stack
+          {fr.localEyebrow}
         </div>
         <p className="mt-3 t-small text-[var(--color-text-dim)]">
-          The server listens on localhost only. Your wallet key is encrypted at
-          rest with your passphrase and decrypted in memory only while
-          unlocked — nothing about your wallet, positions, or trades leaves
-          this machine.
+          {fr.localBody}
         </p>
       </aside>
     </main>

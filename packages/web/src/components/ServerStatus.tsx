@@ -1,6 +1,7 @@
 "use client";
 
 import { trpc } from "@/lib/trpc";
+import { useT } from "@/i18n/context";
 
 /**
  * Indicador discreto del estado del backend. Texto mono pequeño con
@@ -8,24 +9,25 @@ import { trpc } from "@/lib/trpc";
  */
 export function ServerStatus() {
   const health = trpc.health.useQuery(undefined, { refetchInterval: 10_000 });
+  const { t } = useT();
 
   if (health.isLoading) {
-    return <Inline tone="neutral">connecting</Inline>;
+    return <Inline tone="neutral">{t.header.connecting}</Inline>;
   }
 
   if (health.error) {
     return (
       <Inline tone="danger" title={health.error.message}>
-        bot unreachable
+        {t.header.botUnreachable}
       </Inline>
     );
   }
 
   if (!health.data) {
-    return <Inline tone="neutral">no data</Inline>;
+    return <Inline tone="neutral">{t.common.noData}</Inline>;
   }
 
-  return <Inline tone="positive">bot running</Inline>;
+  return <Inline tone="positive">{t.header.botRunning}</Inline>;
 }
 
 function Inline({

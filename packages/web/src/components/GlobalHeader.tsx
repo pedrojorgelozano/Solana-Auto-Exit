@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { ServerStatus } from "./ServerStatus";
 import { VaultChip } from "./VaultChip";
+import { LangToggle } from "@/i18n/LangToggle";
+import { useT } from "@/i18n/context";
 import { trpc } from "@/lib/trpc";
 
 /**
@@ -18,6 +20,7 @@ export function GlobalHeader() {
   const settings = trpc.settings.get.useQuery(undefined, {
     refetchInterval: 10_000,
   });
+  const { t } = useT();
   const network = settings.data?.network ?? "mainnet";
   const isTest = network === "devnet";
 
@@ -29,8 +32,7 @@ export function GlobalHeader() {
             Auto<span className="text-[var(--color-accent)]"> · </span>Exit
           </div>
           <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
-            on Orca <span className="text-[var(--color-text-dim)]/60">·</span>{" "}
-            Meteora
+            {t.header.onOrcaMeteora}
           </div>
         </Link>
 
@@ -39,28 +41,29 @@ export function GlobalHeader() {
             <Link
               href="/settings"
               className="inline-flex h-9 items-center gap-2 rounded-full border border-[var(--color-warning)] bg-[var(--color-warning-bg)] px-3.5 t-eyebrow text-[var(--color-warning)] hover:bg-[var(--color-warning)] hover:text-[var(--color-bg)] transition-colors"
-              title="Test mode (Solana devnet) — click to switch back to real"
+              title={t.header.testModeTooltip}
             >
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-warning)] pulse-soft" />
-              test mode
+              {t.header.testMode}
             </Link>
           ) : null}
           <Link
             href="/docs"
-            aria-label="Docs"
-            title="Docs"
+            aria-label={t.header.docs}
+            title={t.header.docs}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-paper)] transition-colors"
           >
             <DocsIcon />
           </Link>
           <Link
             href="/settings"
-            aria-label="Settings"
-            title="Settings"
+            aria-label={t.header.settings}
+            title={t.header.settings}
             className="inline-flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-paper)] transition-colors"
           >
             <SettingsIcon />
           </Link>
+          <LangToggle />
           <div className="hidden md:inline-flex md:h-9 md:items-center">
             <ServerStatus />
           </div>

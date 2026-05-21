@@ -25,6 +25,7 @@ import {
 } from "@/lib/format";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import { tokenSymbol } from "@/lib/tokens";
+import { useT } from "@/i18n/context";
 
 type Direction = "above" | "below";
 type ExitChoice = "none" | "A" | "B";
@@ -36,6 +37,7 @@ export default function PositionPage() {
   const params = useParams<{ mint: string }>();
   const router = useRouter();
   const mint = params.mint;
+  const { t } = useT();
 
   const walletStatus = trpc.wallet.status.useQuery();
   const owner = walletStatus.data?.address;
@@ -79,24 +81,22 @@ export default function PositionPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
-        eyebrow="Position"
-        title="Configure the exit."
-        back={{ href: "/", label: "Home" }}
+        eyebrow={t.configure.pageEyebrow}
+        title={t.configure.pageTitle}
+        back={{ href: "/", label: t.configure.backLabel }}
       />
 
       {walletStatus.isLoading || isLoading ? (
-        <p className="t-small text-[var(--color-text-muted)]">Loading…</p>
+        <p className="t-small text-[var(--color-text-muted)]">
+          {t.common.loading}
+        </p>
       ) : !walletStatus.data?.hasVault || !walletStatus.data.unlocked ? (
         <NeedWallet hasVault={walletStatus.data?.hasVault ?? false} />
       ) : !posRef && firstError ? (
         <p className="t-small text-[var(--color-danger)]">{firstError.message}</p>
       ) : !posRef ? (
         <p className="t-small text-[var(--color-danger)]">
-          Position{" "}
-          <span className="t-num text-[var(--color-text)]">
-            {truncateAddress(mint, 6, 6)}
-          </span>{" "}
-          is not in this wallet.
+          {t.configure.positionNotInWallet(truncateAddress(mint, 6, 6))}
         </p>
       ) : (
         <Editor mint={mint} posRef={posRef} router={router} />
@@ -106,17 +106,19 @@ export default function PositionPage() {
 }
 
 function NeedWallet({ hasVault }: { hasVault: boolean }) {
+  const { t } = useT();
+  const nw = t.configure.needWallet;
   return (
     <section className="hairline-t pt-10">
       <div className="t-eyebrow text-[var(--color-warning)]">
-        {hasVault ? "Wallet is locked" : "No wallet"}
+        {hasVault ? nw.lockedEyebrow : nw.noVaultEyebrow}
       </div>
       <h2 className="mt-3 t-h2">
-        {hasVault ? "Unlock to configure." : "Set up your wallet first."}
+        {hasVault ? nw.lockedTitle : nw.noVaultTitle}
       </h2>
       <div className="mt-6">
         <Link href="/wallet">
-          <Button>{hasVault ? "Unlock wallet →" : "Go to wallet →"}</Button>
+          <Button>{hasVault ? nw.unlockCta : nw.setupCta}</Button>
         </Link>
       </div>
     </section>
@@ -203,8 +205,12 @@ function ExistingWatcher({
 }: {
   task: inferRouterOutputs<AppRouter>["tasks"]["list"][number];
 }) {
+  const { t } = useT();
+  const e = t.configure.existing;
   const view = statusView(task.status as BackendStatus);
   const tone = TONE_CLASSES[view.tone];
+  const statusLabel =
+    t.status[task.status as BackendStatus]?.label ?? task.status;
   const nearest = formatNearestDistance(
     task.runtime.lastPrice,
     task.takeProfitPrice,
@@ -225,25 +231,21 @@ function ExistingWatcher({
             view.pulsing ? "pulse-soft" : ""
           }`}
         />
-        <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
+        <span className={`t-eyebrow ${tone.text}`}>{statusLabel}</span>
         {task.dryRun ? (
           <span className="t-eyebrow text-[var(--color-warning)]">
-            · simulation
+            {t.format.simulation}
           </span>
         ) : null}
       </div>
 
-      <h2 className="mt-3 t-h2">
-        This position already has an auto-exit.
-      </h2>
+      <h2 className="mt-3 t-h2">{e.title}</h2>
       <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-        One auto-exit per position. Open it to see its live status, pause
-        or stop it. If you want different settings, delete the current one
-        and set up a new one.
+        {e.intro}
       </p>
 
       <div className="mt-8 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
-        <Field label="Take profit">
+        <Field label={e.fieldTakeProfit}>
           <span className="t-num">
             {task.takeProfitPrice !== null
               ? `≥ ${formatPrice(task.takeProfitPrice, 6)}`
@@ -254,7 +256,7 @@ function ExistingWatcher({
             firstCrossedAt={task.runtime.tpFirstCrossedAt}
           />
         </Field>
-        <Field label="Stop loss">
+        <Field label={e.fieldStopLoss}>
           <span className="t-num">
             {task.stopLossPrice !== null
               ? `≤ ${formatPrice(task.stopLossPrice, 6)}`
@@ -265,14 +267,14 @@ function ExistingWatcher({
             firstCrossedAt={task.runtime.slFirstCrossedAt}
           />
         </Field>
-        <Field label="Last price">
+        <Field label={e.fieldLastPrice}>
           <span className="t-num">
             {task.runtime.lastPrice !== null
               ? formatPrice(task.runtime.lastPrice, 6)
               : "—"}
           </span>
         </Field>
-        <Field label="Nearest">
+        <Field label={e.fieldNearest}>
           <span
             className={`t-num ${
               nearest.reached
@@ -290,17 +292,17 @@ function ExistingWatcher({
         {confirming ? (
           <>
             <span className="t-small text-[var(--color-danger)]">
-              Delete the current auto-exit?
+              {e.deleteConfirm}
             </span>
             <Button variant="ghost" onClick={() => setConfirming(false)}>
-              Cancel
+              {e.cancel}
             </Button>
             <Button
               variant="danger"
               onClick={() => del.mutate({ id: task.id })}
               disabled={del.isPending}
             >
-              {del.isPending ? "Deleting…" : "Yes, delete"}
+              {del.isPending ? t.common.deleting : e.yesDelete}
             </Button>
           </>
         ) : (
@@ -310,10 +312,10 @@ function ExistingWatcher({
               size="sm"
               onClick={() => setConfirming(true)}
             >
-              Delete auto-exit
+              {e.deleteCta}
             </Button>
             <Link href={`/tasks/${task.id}`}>
-              <Button>Open auto-exit →</Button>
+              <Button>{e.openCta}</Button>
             </Link>
           </>
         )}
@@ -337,11 +339,11 @@ function PositionRecap({
   loading: boolean;
   error: string | null;
 }) {
+  const { t } = useT();
+  const r = t.configure.recap;
   if (loading) {
     return (
-      <p className="t-small text-[var(--color-text-muted)]">
-        Loading position state…
-      </p>
+      <p className="t-small text-[var(--color-text-muted)]">{r.loading}</p>
     );
   }
   if (error) {
@@ -355,7 +357,7 @@ function PositionRecap({
   return (
     <section>
       <div className="t-eyebrow text-[var(--color-text-muted)]">
-        {posRef.protocol} · {symA} / {symB}
+        {r.pairWithProtocol(posRef.protocol, symA, symB)}
       </div>
       <h2 className="mt-2 t-h2">
         1 {symA} = <span className="t-num">{formatPrice(summary.currentPrice, 6)}</span>{" "}
@@ -372,7 +374,9 @@ function PositionRecap({
               : "bg-[var(--color-danger-bg)] border-[var(--color-danger)]"
           }`}
         >
-          <div className="t-eyebrow text-[var(--color-text-muted)]">Range</div>
+          <div className="t-eyebrow text-[var(--color-text-muted)]">
+            {r.labelRange}
+          </div>
           <div className="mt-2 text-[var(--color-text)]">
             <span className="t-num">
               {formatPrice(summary.range.min, 2)} – {formatPrice(summary.range.max, 2)}
@@ -384,21 +388,21 @@ function PositionRecap({
                   : "text-[var(--color-danger)]"
               }`}
             >
-              {formatRangeStatus(summary.isInRange)}
+              {formatRangeStatus(summary.isInRange, t)}
             </div>
           </div>
         </div>
-        <Field label={`Holdings ${symA}`}>
+        <Field label={r.labelHoldings(symA)}>
           <span className="t-num">
             {formatTokenAmount(summary.liquidity.tokenA, summary.tokenA.decimals, 6)}
           </span>
         </Field>
-        <Field label={`Holdings ${symB}`}>
+        <Field label={r.labelHoldings(symB)}>
           <span className="t-num">
             {formatTokenAmount(summary.liquidity.tokenB, summary.tokenB.decimals, 6)}
           </span>
         </Field>
-        <Field label="Fees pending">
+        <Field label={r.labelFeesPending}>
           {summary.feesPending ? (
             <div className="t-num text-[var(--color-text-muted)]">
               <div>
@@ -437,15 +441,21 @@ function BufferLine({
   bufferMs: number | null;
   firstCrossedAt: number | null;
 }) {
+  const { t } = useT();
   if (!bufferMs || bufferMs <= 0) return null;
-  const remaining = formatBufferRemaining(firstCrossedAt, bufferMs, Date.now());
+  const remaining = formatBufferRemaining(
+    firstCrossedAt,
+    bufferMs,
+    Date.now(),
+    t,
+  );
   return (
     <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
-      buffer {formatBuffer(bufferMs)}
+      buffer {formatBuffer(bufferMs, t)}
       {remaining ? (
         <span
           className={`ml-2 ${
-            remaining === "buffer met"
+            remaining === t.format.bufferMet
               ? "text-[var(--color-warning)]"
               : "text-[var(--color-accent-bright)]"
           }`}
@@ -507,6 +517,8 @@ function ConfigureForm({
     pollMs: number | undefined;
   };
 }) {
+  const { t } = useT();
+  const f = t.configure.form;
   const { tokenA, tokenB, currentPrice } = summary;
   const symA = tokenSymbol(tokenA.mint);
   const symB = tokenSymbol(tokenB.mint);
@@ -576,11 +588,11 @@ function ConfigureForm({
     e.preventDefault();
     setError(null);
     if (!atLeastOne) {
-      setError("Enable take-profit, stop-loss, or both. At least one is required.");
+      setError(f.errorAtLeastOne);
       return;
     }
     if (tpValid && slValid && tpNum <= slNum) {
-      setError("Take-profit must be greater than stop-loss (TP > SL).");
+      setError(f.errorTpGtSl);
       return;
     }
     try {
@@ -635,15 +647,14 @@ function ConfigureForm({
     <form onSubmit={submit} className="space-y-12">
       {/* === When to close === */}
       <fieldset className="hairline-t pt-8">
-        <legend className="t-eyebrow mb-4">1 — When to close</legend>
+        <legend className="t-eyebrow mb-4">{f.section1}</legend>
         <p className="t-small text-[var(--color-text-muted)] max-w-lg">
-          Enable take-profit, stop-loss, or both. The auto-exit closes when
-          either price is hit (whichever happens first).{" "}
+          {f.section1Intro}{" "}
           <Link
             href="/docs/auto-exit#triggers"
             className="text-[var(--color-accent-bright)] hover:underline"
           >
-            → How triggers work
+            {f.howTriggersWork}
           </Link>
         </p>
 
@@ -682,42 +693,40 @@ function ConfigureForm({
       {/* === Output token === */}
       <fieldset className="hairline-t pt-8">
         <div className="mb-4 flex items-baseline justify-between gap-3">
-          <legend className="t-eyebrow">2 — What to do with the output</legend>
+          <legend className="t-eyebrow">{f.section2}</legend>
           <Link
             href="/docs/auto-exit#exit-token"
             className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
           >
-            → docs
+            {f.section2Docs}
           </Link>
         </div>
         <Segmented
           value={exitChoice}
           onChange={(v) => setExitChoice(v as ExitChoice)}
           options={[
-            { value: "none", label: "Keep both tokens" },
-            { value: "A", label: `Sell into ${symA}` },
-            { value: "B", label: `Sell into ${symB}` },
+            { value: "none", label: f.exitKeepBoth },
+            { value: "A", label: f.exitSell(symA) },
+            { value: "B", label: f.exitSell(symB) },
           ]}
         />
         {exitChoice !== "none" ? (
           <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
-            After closing, the non-{exitChoice === "A" ? symA : symB} side is
-            swapped on the same pool with up to{" "}
-            <span className="t-num text-[var(--color-text)]">
-              {exitSlippageBps / 100}%
-            </span>{" "}
-            slippage tolerance.
+            {f.exitWithCopy(
+              exitChoice === "A" ? symA : symB,
+              String(exitSlippageBps / 100),
+            )}
           </p>
         ) : (
           <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
-            Both tokens are returned to your wallet as the position releases them.
+            {f.exitNoneCopy}
           </p>
         )}
       </fieldset>
 
       {/* === Safety === */}
       <fieldset className="hairline-t pt-8">
-        <legend className="t-eyebrow mb-4">3 — Safety</legend>
+        <legend className="t-eyebrow mb-4">{f.section3}</legend>
 
         {/* F6.3: SimulationToggle oculto. Para re-exponerlo, descomenta
             esta línea y vuelve a poner el default de `simulation` a true.
@@ -725,7 +734,7 @@ function ConfigureForm({
         */}
 
         <div>
-          <Label>Close slippage tolerance</Label>
+          <Label>{f.closeSlippageLabel}</Label>
           <Segmented
             value={String(slippageBps)}
             onChange={(v) => setSlippageBps(Number(v))}
@@ -735,15 +744,12 @@ function ConfigureForm({
             }))}
           />
           <p className="mt-3 max-w-lg t-small text-[var(--color-text-muted)]">
-            How much the pool price is allowed to drift between submission and
-            execution before the close transaction reverts. Higher values
-            complete more reliably in volatile markets; lower values give a
-            stricter price guarantee but can fail and retry more often.{" "}
+            {f.closeSlippageCopy}{" "}
             <Link
               href="/docs/auto-exit#slippage"
               className="text-[var(--color-accent-bright)] hover:underline"
             >
-              → Read more
+              {f.readMoreSlippage}
             </Link>
           </p>
         </div>
@@ -762,13 +768,13 @@ function ConfigureForm({
             onClick={() => setShowAdvanced(!showAdvanced)}
             className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
           >
-            {showAdvanced ? "− Hide" : "+ Show"} advanced settings
+            {showAdvanced ? f.advancedHide : f.advancedShow}
           </button>
 
           {showAdvanced ? (
             <div className="mt-6 space-y-6 fade-in">
               <div>
-                <Label>Exit swap slippage</Label>
+                <Label>{f.exitSwapSlippageLabel}</Label>
                 <Segmented
                   value={String(exitSlippageBps)}
                   onChange={(v) => setExitSlippageBps(Number(v))}
@@ -787,12 +793,10 @@ function ConfigureForm({
 
       <div className="flex items-center justify-between hairline-t pt-8">
         <p className="t-small text-[var(--color-text-muted)]">
-          {simulation
-            ? "Simulation mode: no transactions will be sent."
-            : "Real mode: transactions will be signed and broadcast."}
+          {simulation ? f.bottomSim : f.bottomReal}
         </p>
         <Button type="submit" disabled={busy}>
-          {busy ? "Starting…" : simulation ? "Start (simulate)" : "Start watching"}
+          {busy ? f.starting : simulation ? f.startSim : f.startReal}
         </Button>
       </div>
     </form>
@@ -826,8 +830,11 @@ function TriggerInput({
   distance: ReturnType<typeof formatDistance> | null;
   applyPreset: (pct: number) => void;
 }) {
-  const label = kind === "tp" ? "Take profit" : "Stop loss";
-  const verb = kind === "tp" ? "rises to" : "drops to";
+  const { t } = useT();
+  const f = t.configure.form;
+  const label = kind === "tp" ? f.takeProfit : f.stopLoss;
+  const description =
+    kind === "tp" ? f.tpDescription(symA, symB) : f.slDescription(symA, symB);
   const presetSign = kind === "tp" ? "+" : "−";
 
   return (
@@ -884,7 +891,7 @@ function TriggerInput({
               : "text-[var(--color-text)]"
           }`}
         >
-          close when 1 {symA} {verb} a target price in {symB}
+          {description}
         </span>
       </button>
 
@@ -893,7 +900,7 @@ function TriggerInput({
           {/* Presets */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="t-eyebrow text-[var(--color-text-dim)] mr-1">
-              from current
+              {f.fromCurrent}
             </span>
             {[5, 10, 25, 50].map((pct) => (
               <button
@@ -912,9 +919,9 @@ function TriggerInput({
           <div className="mt-4 max-w-sm">
             <Label
               htmlFor={`${kind}-price`}
-              hint={`current ${formatPrice(currentPrice, 6)}`}
+              hint={f.currentHint(formatPrice(currentPrice, 6))}
             >
-              Target price ({symB} per {symA})
+              {f.targetPriceLabel(symA, symB)}
             </Label>
             <Input
               id={`${kind}-price`}
@@ -934,7 +941,9 @@ function TriggerInput({
                 }`}
               >
                 {distance.text}
-                {distance.reached ? " · trigger already true" : " from current"}
+                {distance.reached
+                  ? t.format.triggerAlreadyTrue
+                  : ` ${t.format.awayFromCurrent}`}
               </div>
             ) : null}
           </div>
@@ -942,7 +951,7 @@ function TriggerInput({
           {/* Time buffer (ADR-025): el precio debe mantenerse en zona durante
               este tiempo antes de disparar. Reset duro si sale de la zona. */}
           <div className="mt-6">
-            <Label>Time buffer</Label>
+            <Label>{f.timeBuffer}</Label>
             <Segmented
               value={String(bufferMs)}
               onChange={(v) => setBufferMs(Number(v))}
@@ -953,15 +962,13 @@ function TriggerInput({
             />
             <p className="mt-2 max-w-md t-small text-[var(--color-text-muted)]">
               {bufferMs > 0
-                ? `Close only if the price stays ${
-                    kind === "tp" ? "above" : "below"
-                  } the target for at least this long. If it leaves the zone, the timer resets.`
-                : `Fire as soon as the price crosses the target — no waiting.`}{" "}
+                ? f.bufferOnCopy(kind === "tp" ? "above" : "below")
+                : f.bufferOffCopy}{" "}
               <Link
                 href="/docs/auto-exit#time-buffer"
                 className="text-[var(--color-accent-bright)] hover:underline"
               >
-                → Read more
+                {f.readMoreBuffer}
               </Link>
             </p>
           </div>

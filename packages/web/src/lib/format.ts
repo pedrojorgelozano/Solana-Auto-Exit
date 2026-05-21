@@ -1,4 +1,13 @@
 import { tokenSymbol } from "./tokens";
+import { en } from "@/i18n/en";
+
+/**
+ * Tipo del dictionary completo. Los helpers que devuelven strings
+ * localizables aceptan un `t` opcional; si no se pasa, caen al inglés
+ * (en.ts) — útil para llamadas desde lógica de fondo, defaults en
+ * placeholders, etc. La UI siempre debe pasar el `t` del hook useT().
+ */
+type Dict = typeof en;
 
 /**
  * Convierte un raw amount (bigint serializado como string) a decimal legible
@@ -129,8 +138,8 @@ export function formatTriggerSentence(
 /**
  * "in range" / "out of range" → "In your range" / "Out of range" (legible).
  */
-export function formatRangeStatus(isInRange: boolean): string {
-  return isInRange ? "In your range" : "Out of range";
+export function formatRangeStatus(isInRange: boolean, t: Dict = en): string {
+  return isInRange ? t.format.inRange : t.format.outOfRange;
 }
 
 /**
@@ -188,8 +197,11 @@ export function formatNearestDistance(
  * "off" / "6h" / "1d" / "7d" — duración del time buffer (ADR-025).
  * Acepta null y 0 como "off".
  */
-export function formatBuffer(ms: number | null | undefined): string {
-  if (!ms || ms <= 0) return "off";
+export function formatBuffer(
+  ms: number | null | undefined,
+  t: Dict = en,
+): string {
+  if (!ms || ms <= 0) return t.format.bufferOff;
   const hours = ms / 3_600_000;
   if (hours < 24) {
     return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
@@ -206,23 +218,24 @@ export function formatBufferRemaining(
   firstCrossedAtMs: number | null,
   bufferMs: number | null | undefined,
   nowMs: number,
+  t: Dict = en,
 ): string | null {
   if (!firstCrossedAtMs || !bufferMs || bufferMs <= 0) return null;
   const elapsed = nowMs - firstCrossedAtMs;
   const remaining = bufferMs - elapsed;
-  if (remaining <= 0) return "buffer met";
-  if (remaining < 60_000) return "less than 1m left";
+  if (remaining <= 0) return t.format.bufferMet;
+  if (remaining < 60_000) return t.format.lessThan1mLeft;
   if (remaining < 3_600_000) {
-    return `${Math.floor(remaining / 60_000)}m left`;
+    return t.format.minutesLeft(Math.floor(remaining / 60_000));
   }
   if (remaining < 86_400_000) {
     const h = Math.floor(remaining / 3_600_000);
     const m = Math.floor((remaining % 3_600_000) / 60_000);
-    return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+    return t.format.hoursLeft(h, m);
   }
   const d = Math.floor(remaining / 86_400_000);
   const h = Math.floor((remaining % 86_400_000) / 3_600_000);
-  return h > 0 ? `${d}d ${h}h left` : `${d}d left`;
+  return t.format.daysLeft(d, h);
 }
 
 /**
@@ -243,12 +256,15 @@ export function formatTaskPair(protocolConfig: unknown): string | null {
 /**
  * "5m ago" / "just now" / "2h ago". timestamp en ms.
  */
-export function formatTimeAgo(timestampMs: number | null): string {
+export function formatTimeAgo(
+  timestampMs: number | null,
+  t: Dict = en,
+): string {
   if (timestampMs === null) return "—";
   const diff = Date.now() - timestampMs;
-  if (diff < 5_000) return "just now";
-  if (diff < 60_000) return `${Math.round(diff / 1000)}s ago`;
-  if (diff < 3_600_000) return `${Math.round(diff / 60_000)}m ago`;
-  if (diff < 86_400_000) return `${Math.round(diff / 3_600_000)}h ago`;
+  if (diff < 5_000) return t.format.justNow;
+  if (diff < 60_000) return t.format.secondsAgo(Math.round(diff / 1000));
+  if (diff < 3_600_000) return t.format.minutesAgo(Math.round(diff / 60_000));
+  if (diff < 86_400_000) return t.format.hoursAgo(Math.round(diff / 3_600_000));
   return new Date(timestampMs).toLocaleDateString();
 }

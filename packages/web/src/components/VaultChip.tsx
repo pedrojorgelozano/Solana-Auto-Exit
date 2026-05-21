@@ -4,6 +4,7 @@ import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { truncateAddress } from "@/lib/format";
 import { useConnectWallet } from "@/lib/connect-wallet";
+import { useT } from "@/i18n/context";
 
 /**
  * Indicador del wallet en el header global. Cuando NO hay wallet (estado
@@ -15,11 +16,12 @@ export function VaultChip() {
     refetchInterval: 5_000,
   });
   const connect = useConnectWallet();
+  const { t } = useT();
 
   if (status.isLoading) {
     return (
       <ChipFrame tone="neutral">
-        <Lock /> wallet
+        <Lock /> {t.vaultChip.wallet}
       </ChipFrame>
     );
   }
@@ -31,7 +33,7 @@ export function VaultChip() {
         onClick={connect.open}
         className={chipClass("accent")}
       >
-        <Lock /> set up wallet
+        <Lock /> {t.vaultChip.setupWallet}
       </button>
     );
   }
@@ -40,7 +42,7 @@ export function VaultChip() {
     return (
       <Link href="/wallet" className={chipClass("neutral")}>
         <Lock />
-        wallet locked
+        {t.vaultChip.walletLocked}
         {status.data.address ? (
           <span className="ml-2 t-num text-[var(--color-text-dim)]">
             {truncateAddress(status.data.address, 4, 4)}
@@ -53,7 +55,7 @@ export function VaultChip() {
   return (
     <Link href="/wallet" className={chipClass("active")}>
       <Unlock />
-      wallet unlocked
+      {t.vaultChip.walletUnlocked}
       {status.data.address ? (
         <span className="ml-2 t-num text-[var(--color-text)]">
           {truncateAddress(status.data.address, 4, 4)}

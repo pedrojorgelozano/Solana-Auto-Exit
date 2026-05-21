@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Providers } from "@/lib/providers";
 import { GlobalHeader } from "@/components/GlobalHeader";
+import { LangProvider } from "@/i18n/context";
 import { fraunces, sourceSerif, jetbrainsMono } from "./fonts";
 
 export const metadata: Metadata = {
@@ -22,8 +23,10 @@ export default function RootLayout({
     >
       <body className="min-h-screen antialiased">
         <Providers>
-          <GlobalHeader />
-          {children}
+          <LangProvider>
+            <GlobalHeader />
+            {children}
+          </LangProvider>
         </Providers>
       </body>
     </html>

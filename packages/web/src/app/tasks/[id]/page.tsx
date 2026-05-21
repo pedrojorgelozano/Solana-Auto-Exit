@@ -27,6 +27,7 @@ import {
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol, tokenMeta } from "@/lib/tokens";
+import { useT } from "@/i18n/context";
 
 type TaskData = inferRouterOutputs<AppRouter>["tasks"]["get"];
 
@@ -68,17 +69,20 @@ export default function TaskPage() {
   const utils = trpc.useUtils();
   const task = trpc.tasks.get.useQuery({ id }, { refetchInterval: 2_000 });
   const refresh = () => utils.tasks.get.invalidate({ id });
+  const { t } = useT();
 
   return (
     <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
-        eyebrow="Auto-exit"
-        title="Live status"
-        back={{ href: "/tasks", label: "All auto-exits" }}
+        eyebrow={t.taskDetail.pageEyebrow}
+        title={t.taskDetail.pageTitle}
+        back={{ href: "/tasks", label: t.taskDetail.backLabel }}
       />
 
       {task.isLoading ? (
-        <p className="t-small text-[var(--color-text-muted)]">Loading…</p>
+        <p className="t-small text-[var(--color-text-muted)]">
+          {t.common.loading}
+        </p>
       ) : task.error ? (
         <p className="t-small text-[var(--color-danger)]">{task.error.message}</p>
       ) : task.data ? (
@@ -93,8 +97,12 @@ export default function TaskPage() {
 // ============================================================================
 
 function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
+  const { t } = useT();
   const view = statusView(task.status as BackendStatus);
   const tone = TONE_CLASSES[view.tone];
+  const statusKey = task.status as BackendStatus;
+  const statusLabel = t.status[statusKey]?.label ?? task.status;
+  const statusDescription = t.status[statusKey]?.description ?? "";
 
   const protocolConfig = task.protocolConfig as ProtocolConfigShape | null;
   const decimalsA = protocolConfig?.decimalsA ?? 9;
@@ -146,22 +154,22 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
               view.pulsing ? "pulse-soft" : ""
             }`}
           />
-          <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
+          <span className={`t-eyebrow ${tone.text}`}>{statusLabel}</span>
           {task.dryRun ? (
             <span className="t-eyebrow text-[var(--color-warning)]">
-              · simulation
+              {t.format.simulation}
             </span>
           ) : null}
         </div>
         <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-          {view.description}
+          {statusDescription}
         </p>
 
         {/* Big number: current price */}
         <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-12">
           <div className="md:col-span-7">
             <div className="t-eyebrow text-[var(--color-text-muted)]">
-              Current price
+              {t.taskDetail.hero.currentPrice}
             </div>
             <div className="mt-3 t-num-display tabular-nums">
               {task.runtime.lastPrice !== null
@@ -170,8 +178,10 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
             </div>
             <div className="mt-3 t-small text-[var(--color-text-muted)]">
               {task.runtime.lastTickAt
-                ? `last tick ${new Date(task.runtime.lastTickAt).toLocaleTimeString()}`
-                : "no ticks yet"}
+                ? t.taskDetail.hero.lastTick(
+                    new Date(task.runtime.lastTickAt).toLocaleTimeString(),
+                  )
+                : t.taskDetail.hero.noTicks}
             </div>
           </div>
 
@@ -270,6 +280,8 @@ function Controls({
   status: BackendStatus;
   refresh: () => void;
 }) {
+  const { t } = useT();
+  const c = t.taskDetail.controls;
   const start = trpc.tasks.start.useMutation({ onSuccess: refresh });
   const pause = trpc.tasks.pause.useMutation({ onSuccess: refresh });
   const stop = trpc.tasks.stop.useMutation({ onSuccess: refresh });
@@ -293,7 +305,7 @@ function Controls({
     <div className="mt-10 flex flex-wrap items-center justify-end gap-2 hairline-t pt-6">
       {canStart ? (
         <Button onClick={() => start.mutate({ id: task.id })} disabled={busy}>
-          {status === "error" ? "Restart" : "Resume"}
+          {status === "error" ? c.restart : c.resume}
         </Button>
       ) : null}
       {isActive ? (
@@ -302,7 +314,7 @@ function Controls({
           onClick={() => pause.mutate({ id: task.id })}
           disabled={busy}
         >
-          Pause
+          {c.pause}
         </Button>
       ) : null}
       {/* F6.3: Stop oculto en UI. El estado `stopped` se mantiene en el
@@ -323,13 +335,13 @@ function Controls({
         variant="danger"
         size="sm"
         onClick={() => {
-          if (confirm("Delete this watcher? Its history goes with it.")) {
+          if (confirm(c.deleteConfirm)) {
             del.mutate({ id: task.id });
           }
         }}
         disabled={busy}
       >
-        Delete
+        {c.delete}
       </Button>
       {err ? (
         <div className="basis-full">
@@ -347,6 +359,8 @@ function Controls({
 // ============================================================================
 
 function PoolState({ task }: { task: TaskData }) {
+  const { t } = useT();
+  const p = t.taskDetail.pool;
   const walletStatus = trpc.wallet.status.useQuery();
   const owner = walletStatus.data?.address;
 
@@ -385,7 +399,7 @@ function PoolState({ task }: { task: TaskData }) {
 
   return (
     <section className="hairline-t pt-8">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">Pool state</div>
+      <div className="t-eyebrow text-[var(--color-text-muted)]">{p.eyebrow}</div>
       <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
         {/* Range con bg tintado para que el estado in/out salte a la vista. */}
         <div
@@ -395,7 +409,7 @@ function PoolState({ task }: { task: TaskData }) {
               : "bg-[var(--color-danger-bg)] border-[var(--color-danger)]"
           }`}
         >
-          <div className="t-eyebrow text-[var(--color-text-muted)]">Range</div>
+          <div className="t-eyebrow text-[var(--color-text-muted)]">{p.range}</div>
           <div className="mt-2 text-[var(--color-text)]">
             <span className="t-num">
               {formatPrice(s.range.min, 2)} – {formatPrice(s.range.max, 2)}
@@ -407,21 +421,21 @@ function PoolState({ task }: { task: TaskData }) {
                   : "text-[var(--color-danger)]"
               }`}
             >
-              {formatRangeStatus(s.isInRange)}
+              {formatRangeStatus(s.isInRange, t)}
             </div>
           </div>
         </div>
-        <Field label={`Holdings ${symA}`}>
+        <Field label={p.holdings(symA)}>
           <span className="t-num">
             {formatTokenAmount(s.liquidity.tokenA, s.tokenA.decimals, 6)}
           </span>
         </Field>
-        <Field label={`Holdings ${symB}`}>
+        <Field label={p.holdings(symB)}>
           <span className="t-num">
             {formatTokenAmount(s.liquidity.tokenB, s.tokenB.decimals, 6)}
           </span>
         </Field>
-        <Field label="Fees pending">
+        <Field label={p.feesPending}>
           {s.feesPending ? (
             <div className="t-num text-[var(--color-text-muted)]">
               <div>
@@ -455,15 +469,17 @@ function PoolState({ task }: { task: TaskData }) {
 // ============================================================================
 
 function TriggerDetails({ task }: { task: TaskData }) {
+  const { t } = useT();
+  const cfg = t.taskDetail.config;
   const hasBuffer =
     (task.takeProfitBufferMs && task.takeProfitBufferMs > 0) ||
     (task.stopLossBufferMs && task.stopLossBufferMs > 0);
   const pair = formatTaskPair(task.protocolConfig);
   return (
     <section className="hairline-t pt-8">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">Configuration</div>
+      <div className="t-eyebrow text-[var(--color-text-muted)]">{cfg.eyebrow}</div>
       <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
-        <Field label="Position">
+        <Field label={cfg.position}>
           {pair ? (
             <>
               <span className="text-[var(--color-text)]">{pair}</span>
@@ -477,30 +493,30 @@ function TriggerDetails({ task }: { task: TaskData }) {
             </span>
           )}
         </Field>
-        <Field label="Triggers">
+        <Field label={cfg.triggers}>
           {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
         </Field>
-        <Field label="Poll interval">{formatPollInterval(task.pollMs)}</Field>
-        <Field label="Close slippage">{formatSlippage(task.slippageBps)}</Field>
+        <Field label={cfg.pollInterval}>{formatPollInterval(task.pollMs)}</Field>
+        <Field label={cfg.closeSlippage}>{formatSlippage(task.slippageBps)}</Field>
         {hasBuffer ? (
-          <Field label="Time buffer">
+          <Field label={cfg.timeBuffer}>
             <span className="t-num">
               {task.takeProfitPrice !== null
-                ? `TP ${formatBuffer(task.takeProfitBufferMs)}`
+                ? `TP ${formatBuffer(task.takeProfitBufferMs, t)}`
                 : null}
               {task.takeProfitPrice !== null && task.stopLossPrice !== null
                 ? " · "
                 : null}
               {task.stopLossPrice !== null
-                ? `SL ${formatBuffer(task.stopLossBufferMs)}`
+                ? `SL ${formatBuffer(task.stopLossBufferMs, t)}`
                 : null}
             </span>
           </Field>
         ) : null}
         {task.exitTokenMint ? (
           <>
-            <Field label="Exit token">{tokenSymbol(task.exitTokenMint)}</Field>
-            <Field label="Exit slippage">
+            <Field label={cfg.exitToken}>{tokenSymbol(task.exitTokenMint)}</Field>
+            <Field label={cfg.exitSlippage}>
               {formatSlippage(task.exitSwapSlippageBps)}
             </Field>
           </>
@@ -538,16 +554,23 @@ function TriggerBlock({
   bufferMs: number | null;
   firstCrossedAt: number | null;
 }) {
-  const label = kind === "tp" ? "Take profit" : "Stop loss";
+  const { t } = useT();
+  const tb = t.taskDetail.triggerBlock;
+  const label = kind === "tp" ? tb.tp : tb.sl;
   const op = kind === "tp" ? "≥" : "≤";
-  const remaining = formatBufferRemaining(firstCrossedAt, bufferMs, Date.now());
+  const remaining = formatBufferRemaining(
+    firstCrossedAt,
+    bufferMs,
+    Date.now(),
+    t,
+  );
   return (
     <div>
       <div className="flex items-center gap-2">
         <span className="t-eyebrow text-[var(--color-text-muted)]">{label}</span>
         {triggered ? (
           <span className="t-eyebrow text-[var(--color-warning)]">
-            · fired this one
+            {tb.firedThisOne}
           </span>
         ) : null}
       </div>
@@ -563,16 +586,16 @@ function TriggerBlock({
           }`}
         >
           {distance.text}
-          {distance.reached ? " · trigger met" : " from current"}
+          {distance.reached ? tb.triggerMet : tb.awayFromCurrent}
         </div>
       ) : null}
       {bufferMs && bufferMs > 0 ? (
         <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
-          buffer {formatBuffer(bufferMs)}
+          {tb.bufferLabel(formatBuffer(bufferMs, t))}
           {remaining ? (
             <span
               className={`ml-2 ${
-                remaining === "buffer met"
+                remaining === t.format.bufferMet
                   ? "text-[var(--color-warning)]"
                   : "text-[var(--color-accent-bright)]"
               }`}
@@ -953,6 +976,8 @@ function ErrorRecovery({
   triggered: boolean;
   refresh: () => void;
 }) {
+  const { t } = useT();
+  const e = t.taskDetail.error;
   const router = useRouter();
   const del = trpc.tasks.delete.useMutation({
     onSuccess: () => {
@@ -964,14 +989,15 @@ function ErrorRecovery({
 
   const slippage = isSlippageError(message);
   const closeAttempted = triggered;
+  const slippagePctStr = `${(slippageBps / 100).toFixed(slippageBps % 100 === 0 ? 0 : 2)}%`;
 
   return (
     <section className="border-l-2 border-[var(--color-danger)] pl-5">
       <div className="t-eyebrow text-[var(--color-danger)]">
-        Auto-exit failed
+        {e.header}
         {slippage ? (
           <span className="ml-2 text-[var(--color-text-muted)]">
-            · diagnosed: slippage
+            {e.diagnosedSlippage}
           </span>
         ) : null}
       </div>
@@ -981,63 +1007,47 @@ function ErrorRecovery({
 
       {slippage ? (
         <div className="mt-6 t-body text-[var(--color-text-muted)] space-y-3 max-w-2xl">
+          <p>{e.slippageExplain(slippagePctStr)}</p>
           <p>
-            The pool moved more between the close quote and execution than
-            your slippage tolerance of{" "}
             <strong className="text-[var(--color-text)]">
-              {(slippageBps / 100).toFixed(slippageBps % 100 === 0 ? 0 : 2)}%
-            </strong>{" "}
-            allowed. Orca / Meteora reverted the transaction to protect you
-            from a worse-than-expected fill.
+              {e.positionIntact}
+            </strong>
+            {e.positionIntactCopy}
           </p>
           <p>
-            <strong className="text-[var(--color-text)]">
-              Your position is intact on-chain.
-            </strong>{" "}
-            The close never executed, so the liquidity is still there. The
-            watcher just stopped — restarting it would likely fail again
-            unless the pool has fully settled.
-          </p>
-          <p>
-            <strong className="text-[var(--color-text)]">
-              Recommended path:
-            </strong>{" "}
-            delete this failed auto-exit and configure a new one on the same
-            position with higher slippage (try{" "}
-            <strong className="text-[var(--color-text)]">2%</strong> for
-            normal pairs, <strong className="text-[var(--color-text)]">5%</strong>{" "}
-            for volatile / shallow pools). Live tasks are immutable by design
-            (ADR-013), so editing isn&apos;t possible.
+            <strong className="text-[var(--color-text)]">{e.recommended}</strong>
+            {e.recommendedCopy}
+            <strong className="text-[var(--color-text)]">2%</strong>
+            {e.recommendedNormal}
+            <strong className="text-[var(--color-text)]">5%</strong>
+            {e.recommendedVolatile}
           </p>
         </div>
       ) : (
         <div className="mt-6 t-body text-[var(--color-text-muted)] space-y-3 max-w-2xl">
           <p>
-            This doesn&apos;t look like a slippage issue — possibly RPC
-            congestion, a transient network error, or an account state
-            problem.{" "}
+            {e.nonSlippage}
             {closeAttempted ? (
               <>
-                The close attempt failed, so{" "}
+                {e.closeAttemptedYes}
                 <strong className="text-[var(--color-text)]">
-                  your position is still intact on-chain
-                </strong>{" "}
-                — no tokens moved.
+                  {e.yourPositionIntact}
+                </strong>
+                {e.noTokensMoved}
               </>
             ) : (
-              <>The watcher never reached the close step.</>
+              <>{e.closeAttemptedNo}</>
             )}
           </p>
           <p>
-            Hitting <strong className="text-[var(--color-text)]">Restart</strong>{" "}
-            above usually resolves transient errors. If the same error returns
-            across multiple restarts, treat it as structural and delete +
-            reconfigure.{" "}
+            {e.restartLine1}
+            <strong className="text-[var(--color-text)]">{e.restartButton}</strong>
+            {e.restartLine2}
             <Link
               href="/docs/auto-exit#when-the-close-fails"
               className="text-[var(--color-accent-bright)] hover:underline"
             >
-              Read the troubleshooting guide →
+              {e.troubleshootingGuide}
             </Link>
           </p>
         </div>
@@ -1046,7 +1056,7 @@ function ErrorRecovery({
       {confirming ? (
         <div className="mt-8 flex flex-wrap items-center justify-end gap-3 hairline-t pt-6">
           <span className="t-small text-[var(--color-danger)] mr-auto">
-            Delete this auto-exit? History goes with it.
+            {e.deleteConfirm}
           </span>
           <Button
             variant="ghost"
@@ -1054,14 +1064,14 @@ function ErrorRecovery({
             onClick={() => setConfirming(false)}
             disabled={del.isPending}
           >
-            Cancel
+            {e.cancel}
           </Button>
           <Button
             variant="danger"
             onClick={() => del.mutate({ id: taskId })}
             disabled={del.isPending}
           >
-            {del.isPending ? "Deleting…" : "Yes — delete and go to position"}
+            {del.isPending ? t.common.deleting : e.deleteAndGo}
           </Button>
         </div>
       ) : (
@@ -1071,7 +1081,7 @@ function ErrorRecovery({
               href={`/positions/${positionId}`}
               className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
             >
-              Set up new with higher slippage →
+              {e.setUpNew}
             </Link>
           ) : null}
           <Button
@@ -1079,7 +1089,7 @@ function ErrorRecovery({
             size="sm"
             onClick={() => setConfirming(true)}
           >
-            Delete this auto-exit
+            {e.deleteCta}
           </Button>
         </div>
       )}
@@ -1094,6 +1104,8 @@ function ErrorRecovery({
 type HistoryEvent = inferRouterOutputs<AppRouter>["tasks"]["history"][number];
 
 function ActivityTimeline({ taskId }: { taskId: string }) {
+  const { t } = useT();
+  const tl = t.taskDetail.timeline;
   const history = trpc.tasks.history.useQuery(
     { id: taskId },
     { refetchInterval: 5_000 },
@@ -1102,8 +1114,12 @@ function ActivityTimeline({ taskId }: { taskId: string }) {
   if (history.isLoading) {
     return (
       <section className="hairline-t pt-8">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">Activity</div>
-        <p className="mt-4 t-small text-[var(--color-text-dim)]">Loading…</p>
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          {tl.eyebrow}
+        </div>
+        <p className="mt-4 t-small text-[var(--color-text-dim)]">
+          {t.common.loading}
+        </p>
       </section>
     );
   }
@@ -1115,16 +1131,18 @@ function ActivityTimeline({ taskId }: { taskId: string }) {
     <section className="hairline-t pt-8">
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex items-baseline gap-3">
-          <div className="t-eyebrow text-[var(--color-text-muted)]">Activity</div>
+          <div className="t-eyebrow text-[var(--color-text-muted)]">
+            {tl.eyebrow}
+          </div>
           <Link
             href="/docs/operational#timeline"
             className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
           >
-            → What&apos;s in here
+            {tl.whatsInHere}
           </Link>
         </div>
         <span className="t-eyebrow text-[var(--color-text-dim)]">
-          {events.length} {events.length === 1 ? "event" : "events"}
+          {tl.events(events.length)}
         </span>
       </div>
       <ol className="mt-6 divide-y divide-[var(--color-hairline)]">
