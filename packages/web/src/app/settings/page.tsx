@@ -46,6 +46,7 @@ function SettingsForm({
     defaultSlippageBps: number;
     defaultExitSlippageBps: number;
     defaultPollMs: number;
+    mainnetGateAllowed: boolean;
   };
   refresh: () => void;
 }) {
@@ -148,19 +149,11 @@ function SettingsForm({
         <h2 className="mt-3 t-h2">Where this server reads the chain.</h2>
 
         <div className="mt-8 space-y-6">
-          <div>
-            <Label htmlFor="network">Network</Label>
-            <div className="mt-2 flex items-baseline gap-3">
-              <span className="t-num text-[var(--color-text)]">devnet</span>
-              <span className="t-eyebrow text-[var(--color-text-dim)]">
-                · mainnet locked until F4
-              </span>
-            </div>
-            <p className="mt-2 t-small text-[var(--color-text-dim)]">
-              Mainnet access requires the production gate from ADR-006 plus a
-              visual audit before public release.
-            </p>
-          </div>
+          <NetworkPanel
+            network={initial.network}
+            gateAllowed={initial.mainnetGateAllowed}
+            refresh={refresh}
+          />
 
           <div>
             <Label htmlFor="rpcUrl" hint="any Solana JSON-RPC endpoint">
@@ -170,13 +163,18 @@ function SettingsForm({
               id="rpcUrl"
               value={rpcUrl}
               onChange={(e) => setRpcUrl(e.target.value)}
-              placeholder="https://api.devnet.solana.com"
+              placeholder={
+                initial.network === "mainnet"
+                  ? "https://api.mainnet-beta.solana.com (use a private one)"
+                  : "https://api.devnet.solana.com"
+              }
               spellCheck={false}
               className="t-num"
             />
             <p className="mt-2 t-small text-[var(--color-text-dim)]">
-              The public devnet endpoint is rate-limited. For sustained use
-              swap to Helius, QuickNode, Triton, or a node you run.
+              {initial.network === "mainnet"
+                ? "The public mainnet-beta endpoint is heavily rate-limited and not reliable for a watcher. Use Helius, QuickNode, Triton, or a node you run."
+                : "The public devnet endpoint is rate-limited. For sustained use swap to Helius, QuickNode, Triton, or a node you run."}
             </p>
           </div>
         </div>
@@ -270,6 +268,200 @@ function SettingsForm({
           </Button>
         </div>
       </section>
+    </div>
+  );
+}
+
+// ============================================================================
+// NetworkPanel — switch entre devnet y mainnet con confirmación en dos pasos
+// ============================================================================
+
+function NetworkPanel({
+  network,
+  gateAllowed,
+  refresh,
+}: {
+  network: "devnet" | "mainnet";
+  gateAllowed: boolean;
+  refresh: () => void;
+}) {
+  return (
+    <div>
+      <Label htmlFor="network">Network</Label>
+      <div className="mt-2 flex flex-wrap items-baseline gap-3">
+        <span
+          className={`t-num ${
+            network === "mainnet"
+              ? "text-[var(--color-accent-bright)]"
+              : "text-[var(--color-text)]"
+          }`}
+        >
+          {network}
+        </span>
+        {network === "mainnet" ? (
+          <span className="t-eyebrow text-[var(--color-accent-bright)]">
+            · real funds
+          </span>
+        ) : (
+          <span className="t-eyebrow text-[var(--color-text-dim)]">
+            · test network, no real funds
+          </span>
+        )}
+      </div>
+
+      {!gateAllowed ? (
+        <GateClosed />
+      ) : network === "devnet" ? (
+        <SwitchToMainnetAction refresh={refresh} />
+      ) : (
+        <SwitchToDevnetAction refresh={refresh} />
+      )}
+    </div>
+  );
+}
+
+function GateClosed() {
+  return (
+    <p className="mt-2 t-small text-[var(--color-text-dim)]">
+      Mainnet is locked on this server. To enable the switch, set{" "}
+      <code className="t-num text-[var(--color-text)]">
+        ALLOW_MAINNET_LIVE=true
+      </code>{" "}
+      in the server&apos;s environment and restart (see{" "}
+      <a
+        href="/docs/security"
+        className="text-[var(--color-accent-bright)] hover:underline"
+      >
+        /docs/security
+      </a>
+      ). The gate is closed by default per{" "}
+      <a
+        href="/docs/security"
+        className="text-[var(--color-accent-bright)] hover:underline"
+      >
+        ADR-006
+      </a>
+      .
+    </p>
+  );
+}
+
+function SwitchToMainnetAction({ refresh }: { refresh: () => void }) {
+  const [armed, setArmed] = useState(false);
+  const [understood, setUnderstood] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const update = trpc.settings.update.useMutation();
+
+  const submit = async () => {
+    setError(null);
+    try {
+      await update.mutateAsync({ key: "network", value: "mainnet" });
+      refresh();
+      setArmed(false);
+      setUnderstood(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  if (!armed) {
+    return (
+      <div className="mt-4">
+        <Button variant="ghost" size="sm" onClick={() => setArmed(true)}>
+          Switch to mainnet →
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-6 border-l-2 border-[var(--color-accent)] bg-[var(--color-accent-dim)] px-5 py-4">
+      <div className="t-eyebrow text-[var(--color-accent-bright)]">
+        Confirm switch to mainnet
+      </div>
+      <p className="mt-2 t-small text-[var(--color-text)]">
+        After this switch, every auto-exit you create signs transactions
+        against the real Solana mainnet. Close txs cost real SOL; price moves
+        affect real money. There is no undo on a triggered close.
+      </p>
+      <ul className="mt-3 ml-5 list-disc t-small text-[var(--color-text-muted)] space-y-1">
+        <li>
+          Update <em>RPC URL</em> below to a mainnet endpoint (Helius,
+          QuickNode, Triton, or your own node). The public devnet URL won&apos;t work.
+        </li>
+        <li>
+          Existing tasks keep their original network — they don&apos;t
+          auto-migrate. Only new auto-exits will be mainnet.
+        </li>
+        <li>
+          Re-test your strategy with dry-run on real prices before disabling
+          simulation.
+        </li>
+      </ul>
+
+      <label className="mt-4 flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={understood}
+          onChange={(e) => setUnderstood(e.target.checked)}
+          className="mt-0.5 h-4 w-4"
+        />
+        <span className="t-small text-[var(--color-text)]">
+          I understand this will sign transactions with real funds and I&apos;ve
+          updated my RPC URL.
+        </span>
+      </label>
+
+      {error ? <FieldError>{error}</FieldError> : null}
+
+      <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setArmed(false);
+            setUnderstood(false);
+            setError(null);
+          }}
+          disabled={update.isPending}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="danger"
+          onClick={submit}
+          disabled={!understood || update.isPending}
+        >
+          {update.isPending ? "Switching…" : "Confirm · use real funds"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function SwitchToDevnetAction({ refresh }: { refresh: () => void }) {
+  const update = trpc.settings.update.useMutation();
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    setError(null);
+    if (!confirm("Switch back to devnet? New auto-exits will use the test network.")) {
+      return;
+    }
+    try {
+      await update.mutateAsync({ key: "network", value: "devnet" });
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <div className="mt-4">
+      <Button variant="ghost" size="sm" onClick={submit} disabled={update.isPending}>
+        {update.isPending ? "Switching…" : "Switch back to devnet"}
+      </Button>
+      {error ? <FieldError>{error}</FieldError> : null}
     </div>
   );
 }

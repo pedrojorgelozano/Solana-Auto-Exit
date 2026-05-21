@@ -41,7 +41,16 @@ export const tasksRouter = router({
   /** Crea una task en estado "idle". No la arranca automáticamente. */
   create: publicProcedure
     .input(createTaskInput)
-    .mutation(({ ctx, input }) => ctx.taskManager.createTask(input)),
+    .mutation(({ ctx, input }) => {
+      if (input.network === "mainnet" && process.env.ALLOW_MAINNET_LIVE !== "true") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Mainnet is not enabled on this server. Set ALLOW_MAINNET_LIVE=true and restart, then switch the network in /settings.",
+        });
+      }
+      return ctx.taskManager.createTask(input);
+    }),
 
   /**
    * Lista todas las tasks (ordenadas por createdAt desc). Si la task está
