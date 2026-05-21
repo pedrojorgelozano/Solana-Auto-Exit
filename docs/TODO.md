@@ -63,10 +63,14 @@
 - [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar.
 - [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet,
   multi-hop). Hoy solo mismo pool (ADR-008).
-- [ ] Tests automatizados (hoy 0): empezar por `engine/config/env.ts`,
-  `engine/core/retry.ts`, `engine/core/loop.ts`, `server/wallet/vault.ts`,
-  `server/tasks/manager.ts` con `node:test` o `vitest`. Incluir un test
-  de la lógica TP/SL del watcher.
+- [ ] Ampliar cobertura de tests (baseline actual: 53 con Vitest — security
+  + buffer + verify + manager.markError). Pendientes priorizados:
+  `wallet/vault.ts` cripto roundtrip + bad-passphrase distinguible de
+  tampered, `engine/core/{retry,loop}.ts` + `engine/config/env.ts`,
+  lifecycle completo de `TaskManager` (`boot()` re-pausa stale states,
+  `pauseAllOnVaultLock`, transiciones atómicas con DB en transaction),
+  adapters Orca + Meteora con SDK mocks, routers tRPC vía
+  `appRouter.createCaller(ctx)`. Detalle en [TESTING.md](TESTING.md).
 - [ ] Auto-lock del wallet por inactividad (configurable; default 30 min sin
   operaciones). Hoy no hay timeout.
 - [ ] Sustituir el spawn `shell: true` del probe-e2e por `cross-spawn` o
@@ -80,11 +84,104 @@
   al `nativeMintWrappingStrategy` del SDK).
 - [ ] Métricas / observabilidad: logs estructurados (JSON), opción de
   exportar a fichero rotado o Prometheus.
+- [ ] **Hallazgos QA audit NO aplicados** (de la auditoría conjunta peer +
+  self review). Documentados con archivo:línea + mecanismo + fix
+  propuesto en la sesión correspondiente. Por orden de impacto:
+  - B-04: `update tasks` + `appendHistory` no atomicos (sin
+    transacción). Si el server crashea en medio, history queda
+    inconsistente. Wrap pares en `db.transaction()`.
+  - B-05: `withRetry` reintenta CUALQUIER error 5 veces, incluidos
+    permanentes (SlippageExceeded, InsufficientFunds, validaciones
+    del adapter). Añadir `retryableErrors?: (err) => boolean` opcional.
+  - B-07: `WalletVault.getRawSecret()` devuelve referencia mutable al
+    buffer interno. Quien la reciba (Meteora adapter) puede mutarla;
+    `lock()` zeroa el mismo buffer in-flight. Devolver copia.
+  - B-08: `lock` durante un close en flight no cancela la tx (no
+    podemos). Deshabilitar el botón Lock mientras haya tasks en
+    `closing` para evitar confusión UX.
+  - B-09: unlock-limiter cuenta CUALQUIER error de `vault.unlock`
+    como passphrase incorrecta (incluido "vault file corrupted",
+    "address mismatch"). Tipar el error en vault.ts para distinguir.
+  - B-10: `verifyTxBalances` solo lee `accountKeys` del message;
+    ignora `meta.loadedAddresses`. Si la wallet aparece solo en una
+    LUT, `solDelta` será 0 silenciosamente.
+  - B-11: Meteora `closePosition` multi-tx no compensa si tx[N+1]
+    falla tras tx[N] éxito — posición queda parcialmente cerrada y
+    `lastSig` apunta a la última exitosa (engaña al receipt).
+  - B-14: `runMigrations` solo `console.warn` si no existe folder.
+    Después las queries fallan en runtime con error críptico.
+    Lanzar en su lugar.
+  - B-15: `parseIntOr` permite valores negativos persistidos directo
+    en DB. Clampear o rechazar.
+  - B-17: `ALLOW_LOOPBACK_RPC` solo acepta literal `"true"` —
+    inconsistente con `parseBool` del engine. Unificar o documentar.
+  - B-18: `wallet.balance` no valida que `address` sea base58 válida;
+    cualquier 32+ chars pasa. RPC tira error confuso. Añadir refine.
+  - B-20: watcher crash deja la task en `armed` sin watcher real.
+    El `.catch` del spawn solo loguea; debería pasar a `error`.
 
 ## Hecho recientemente
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Pre-public infra (2026-05-21)**: `.github/workflows/ci.yml` con typecheck
+  + tests + gitleaks-action; issue templates + PR template + `CONTRIBUTING.md`;
+  `.gitleaksignore` con 4 fingerprints documentados; `attribution.commit = ""`
+  en settings local para no añadir trailer en futuros commits; history
+  rewrite con `git filter-repo` para purgar archivos internos de los
+  commits anteriores y limpiar trailers `Co-Authored-By: Claude` (force-
+  push). Repo ready para `gh repo edit --visibility public` cuando se
+  decida.
+- **B-02 fix (2026-05-21)**: `tasks.create` rechaza `network` + `rpcUrl`
+  incoherentes (mainnet + api.devnet.solana.com). Helper testeable
+  `inferNetworkFromRpcUrl` en `security/rpc-url.ts` con política conservadora
+  (RPCs privados → `null` → no se bloquean). 7 tests nuevos.
+- **Vitest scaffold + 53 tests baseline (2026-05-21)** ([ADR-028](DECISIONS.md)):
+  primera ronda de tests del repo. 5 suites cubriendo `security/rpc-url`
+  (14 tests), `security/unlock-limiter` (7), `tasks/buffer` (11),
+  `tasks/verify` (8), `tasks/manager.markError` (5+ integration). Bugs
+  reales encontrados durante la escritura (IPv6 brackets en `assertSafeRpcUrl`).
+  CI workflow ya corre `pnpm test` automáticamente.
+- **QA audit fixes (2026-05-21)**: aplicados los Top 6 hallazgos críticos
+  del code review combinado. B-01 (mark* guards), B-03 (fetch timeouts en
+  verify + wallet.balance), B-06 (evalBuffer extraído a módulo puro),
+  H-01 (try/catch en tasks.pause + tasks.delete), H-02 (assertSafeRpcUrl
+  rechaza credenciales embebidas), H-04 (pollMs.max en tasks.create).
+  El resto queda explicitado en backlog arriba.
+- **Security hardening (2026-05-21)** ([SECURITY.md](../SECURITY.md)):
+  nuevo `security/rpc-url.ts` con `assertSafeRpcUrl` (SSRF guard:
+  bloquea loopback default, cloud metadata 169.254/16, all-interfaces,
+  IPv6 link-local; mantiene LAN privadas + Tailscale CGNAT permitidos).
+  Nuevo `security/unlock-limiter.ts` (5 intentos / 5 min ventana
+  deslizante). Aplicados en `settings.update`, `tasks.create`,
+  `wallet.unlock`. SECURITY.md ampliado con threat table actualizada
+  + pre-public checklist con `gitleaks`.
+- **Bug fixes /tasks/[id] (2026-05-21)**: SolscanLink hardcodeaba
+  `?cluster=devnet` → 404 en mainnet. Propagado `network` a CloseReceipt
+  / SwapReceipt / ActivityTimeline / EventRow. Race condition pause/abort:
+  `if (signal.aborted) return` antes de `markTriggered` y antes del swap
+  opcional.
+- **Legal disclaimer + /docs coherencia + i18n drift (2026-05-21)**:
+  `README.md` sección "use at your own risk", nuevo `/docs/disclaimer`
+  artículo #07, links contextuales desde 4 puntos del UI. Revisión de
+  los 6 artículos /docs existentes para reflejar Meteora hecho,
+  simulación retirada, time buffer, mainnet default. Limpieza de drift
+  EN/ES (`threshold cruzado` → `Umbral`, `buffer cronómetro reset` →
+  `buffer timer reset`).
+- **i18n EN/ES + LangProvider + modal scroll (2026-05-21)**: sistema
+  de internacionalización casero (`packages/web/src/i18n/`) con
+  `LangProvider` + `useT()` + localStorage persist + `navigator.language`
+  detection. Toggle EN/ES en header. Fix: LangProvider debe envolver
+  Providers (no al revés) porque ConnectWalletModal se renderiza global.
+  Modal de connect-wallet con scroll cuando overflow.
+- **UX iterativo /tasks (2026-05-21)**: position name (SOL / devUSDC)
+  en lista, PoolState section en detail (rango, holdings, fees pending
+  cada 10s), dual distances TP+SL (en lugar de un único nearest), range
+  + in/out dot en home y list rows para discriminar pool trading.
+- **F6.3.b — reset fix + test pill + network preservation (2026-05-21)**:
+  Reset to defaults imperativo (TanStack structural sharing impedía el
+  useEffect). `factoryDefaults` en snapshot tRPC. Reset preserva la fila
+  `network`. Pill "test mode" amber en devnet (no en mainnet).
 - **F4.1.b — Tauri sidecar + static export + iconos (2026-05-21)**:
   - Next.js: `output: 'export'` activado por env `TAURI_BUILD=1`; rutas
     dinámicas `[mint]` y `[id]` refactorizadas a `page.tsx` Server

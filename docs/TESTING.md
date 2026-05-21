@@ -2,12 +2,66 @@
 
 ## Estado actual
 
-**No hay tests automatizados.** Las validaciones realizadas hasta hoy son:
+**Baseline de 53 tests automatizados con Vitest** (cubriendo seguridad y lifecycle del watcher) + typecheck en CI + smoke tests manuales en devnet/mainnet.
 
-1. **Typecheck**: `npm run typecheck` (= `tsc --noEmit`). Pasa.
-2. **Smoke tests manuales** en devnet contra Orca Whirlpools (documentados abajo).
+1. **Typecheck**: `pnpm typecheck` (= `tsc --noEmit` raíz + web). Verde.
+2. **Tests automatizados**: `pnpm test` (Vitest, ~1.8s, 53/53 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
+3. **Secret scan**: `gitleaks` en CI vía GitHub Action `gitleaks/gitleaks-action@v2`.
+4. **Smoke tests manuales** en devnet (Orca) y mainnet (Orca + Meteora) — documentados abajo desde F0.
 
-Cubrir `env.ts`, `retry.ts` y `loop.ts` con tests unitarios (`node:test` o `vitest`) está en el [backlog](TODO.md).
+Cobertura aún parcial — ver [backlog](TODO.md) para áreas no cubiertas (vault cripto, adapters Orca/Meteora con SDK mocks, lifecycle completo de TaskManager).
+
+## Tests automatizados
+
+Stack: **Vitest 4** ([ADR-028](DECISIONS.md)). Config en `vitest.config.ts` raíz — include `packages/*/src/**/*.{test,spec}.ts`, environment node, testTimeout 10s.
+
+```bash
+pnpm test            # corre una vez
+pnpm test:watch      # re-corre al guardar
+pnpm test:coverage   # genera coverage v8 (HTML + text)
+```
+
+### Suites actuales (53 tests · ~1.8s)
+
+| Suite | Tests | Cubre |
+|---|---:|---|
+| `packages/server/src/security/rpc-url.test.ts` | 14 | URL invalid, schemes no-http(s), credenciales embebidas, loopback default + escape hatch literal, metadata cloud, all-interfaces, IPv6 link-local, LAN privadas permitidas, Tailscale CGNAT, RPCs públicos, case-insensitive, ws(s). Más 7 casos sobre `inferNetworkFromRpcUrl` (B-02). |
+| `packages/server/src/security/unlock-limiter.test.ts` | 7 | Sliding window 5 intentos/5min, bloqueo al sexto, expiración por ventana, reset al unlock exitoso, mensaje con segundos restantes, prune parcial. |
+| `packages/server/src/tasks/buffer.test.ts` | 11 | Máquina de estados del time-buffer (ADR-025) — in/out × buffer 0/positivo/negativo × current null/vivo + secuencia arm→reset→re-arm + TP/SL independientes. |
+| `packages/server/src/tasks/verify.test.ts` | 8 | Parsing happy-path de solDelta + tokenDeltas (con exclusión de cuentas no-owned), error paths (meta null, tx fallida on-chain, indexer lento), retry exitoso + retry agotado, AbortSignal pasado al fetch en cada attempt. Fake timers para evitar esperar backoffs reales. |
+| `packages/server/src/tasks/manager.markError.test.ts` | 5+ | Integration test con sqlite `:memory:` + migrations reales — cubre B-01 (mark* respetan estados decididos por usuario). |
+
+### Bugs reales descubiertos por los tests
+
+- **`assertSafeRpcUrl` no normalizaba corchetes IPv6** que Node 22 deja en `url.hostname` (`[::1]` en vez de `::1`). `http://[::]:7777` y `http://[fe80::1]` PASABAN la validación silenciosamente. Fix con `stripIPv6Brackets`.
+- **`vi.fn().mockResolvedValue(rpcResponse(null))`** reusaba la misma `Response` cuyo body solo puede consumirse una vez. Fix con `mockImplementation(async () => rpcResponse(null))`.
+
+### Reglas de mocking
+
+- **Aceptable mockear**: `fetch` global (`vi.stubGlobal`), tiempo (`vi.useFakeTimers()`), env vars (`vi.stubEnv`).
+- **No mockear**: `node:crypto` (los tests del vault usan scrypt real, ~50-100ms/unlock — aceptable). SQLite (in-memory real con migrations reales).
+- **Métodos privados de `TaskManager`**: acceso vía cast `(mgr as unknown as { method: ... }).method(...)`. Pragmático para tests sin convertir los métodos a `protected`.
+
+### Pendiente de cubrir (priorizado)
+
+1. `wallet/vault.ts` — roundtrip create/unlock + bad passphrase distinguible de tamper (B-09 si lo implementamos).
+2. `engine/core/{retry,loop}.ts` + `engine/config/env.ts` — pure functions, fáciles.
+3. Lifecycle completo de `TaskManager` — `boot()` re-pausa stale states, `pauseAllOnVaultLock`, transiciones atómicas (DB write + appendHistory en transaction, B-04).
+4. Adapters Orca + Meteora con SDK mocks — cuando se decida el approach del mock (golden fixtures vs interfaces stub).
+5. Routers tRPC con `appRouter.createCaller(ctx)` — integration tests con DB en memoria.
+
+## CI
+
+GitHub Actions: `.github/workflows/ci.yml`. En cada push/PR a `main`:
+
+| Job | Pasos | Duración típica |
+|---|---|---:|
+| `test` | pnpm install → typecheck (root + web + server + engine + cli) → vitest | ~1m |
+| `secret-scan` | checkout full history → gitleaks-action | ~10s |
+
+Cancelación concurrente: runs previos del mismo branch/PR se cancelan al llegar uno nuevo.
+
+`.gitleaksignore` versionado con 4 fingerprints documentados como false positives (el mint address público de devUSDC).
 
 ## Smoke tests realizados (2026-05-20, devnet)
 

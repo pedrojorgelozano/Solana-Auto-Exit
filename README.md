@@ -34,8 +34,9 @@ If you do not agree, do not install or use it. The full plain-English disclaimer
 | Mainnet default + UI gate | ✅ Mainnet is default; switching to TEST/REAL is one click with two-step confirmation (ADR-026 + ADR-027) |
 | Light cuaderno UI + EN/ES toggle | ✅ Crema + terracota + Fraunces / Source Serif. Spanish translation toggleable from the header. |
 | Docs in-app (`/docs`) | ✅ Seven editorial articles including the disclaimer |
-| Tauri desktop installer (Win/Mac/Linux) | ⏳ F4 (scaffolding done) |
-| Automated tests | ❌ Backlog |
+| Tauri desktop installer (Win/Mac/Linux) | ⏳ F4.1.b code wired (sidecar + static export + icons); needs Bun + Rust + OS build tools to produce installers — see Quick start (Tauri desktop) below |
+| Automated tests | ✅ 53 baseline (Vitest) covering security guards + task lifecycle. Coverage gaps documented in [`docs/TESTING.md`](docs/TESTING.md) |
+| CI (typecheck + tests + gitleaks) | ✅ GitHub Actions on every push/PR to `main` |
 
 ## Quick start (web UI, devnet)
 

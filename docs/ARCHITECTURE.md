@@ -10,13 +10,14 @@ Diseñado como **herramienta self-hosted, no como servicio**: cada usuario corre
 
 ## Modos de ejecución
 
-Tres formas de correr el mismo motor:
+Cuatro formas de correr el mismo motor:
 
 | Modo | Cuándo | Cómo arrancar |
 |---|---|---|
 | **CLI** | Validación rápida, una posición, en tu máquina. `.env` como fuente de config. | `pnpm start` |
-| **Server local** | Backend para la UI, multi-posición, persistencia. | `pnpm start:server` |
-| **Docker** | "Producción" personal: arranque automático, restart-unless-stopped. | `docker compose up -d` |
+| **Server local + Web** | Backend tRPC + UI Next.js en dev. Multi-posición, persistencia, HMR. | `pnpm dev:server` y `pnpm dev:web` |
+| **Docker** | "Producción" personal headless: arranque automático, restart-unless-stopped. Solo backend, conectas con la UI por separado. | `docker compose up -d` |
+| **Tauri desktop** | Distribución a usuarios finales. Frontend y server empaquetados en un único `.msi`/`.dmg`/`.AppImage`. | `pnpm tauri:build` (requiere Bun + Rust + OS build tools — ver [ADR-029](DECISIONS.md)) |
 
 Todos los modos bindean por defecto a `127.0.0.1` (ver [ADR-016](DECISIONS.md)).
 
@@ -54,6 +55,62 @@ packages/cli  ── consumidor delgado del engine (modo CLI, .env-based)
 scripts/      ── utilidades (gen-wallet, export-base58, inspect-pool,
                  probe-vault, probe-discovery, probe-e2e)
 ```
+
+### Modo Tauri desktop (capa adicional)
+
+Cuando se construye con `pnpm tauri:build`, una capa extra envuelve el stack:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Tauri shell (Rust)                                              │
+│  ├── tauri::Builder con setup() que spawn el sidecar             │
+│  ├── webview con frontend Next.js bundleado (out/ estático)      │
+│  ├── SidecarHandle (Mutex<Option<CommandChild>>) en state        │
+│  └── RunEvent::Exit → kill del sidecar antes de cerrar           │
+└──────────────────┬────────────────────┬─────────────────────────┘
+                   │                    │
+                   │ tauri://localhost  │ spawn child process
+                   ▼                    ▼
+        ┌──────────────────┐   ┌───────────────────────────────┐
+        │ webview          │   │ auto-exit-server (binario     │
+        │ packages/web/out │   │ único producido por bun       │
+        │ + useParams()    │   │ build --compile)              │
+        └────────┬─────────┘   │ ├── DB_PATH=app_data/auto-... │
+                 │             │ ├── WALLET_VAULT_PATH=...     │
+                 │ fetch       │ ├── DRIZZLE_MIGRATIONS=res/.. │
+                 │             │ └── SERVER_PORT=7777          │
+                 └────────────►│ ↳ Hono + tRPC + Drizzle       │
+                               └───────────────────────────────┘
+```
+
+Comunicación: el webview hace fetch a `http://127.0.0.1:7777/trpc/*` (igual que en dev). Los paths runtime (DB, vault, migrations) los resuelve el Rust shell via `app.path().app_data_dir()` y `app.path().resource_dir()` y se los pasa al sidecar como env vars en el momento del spawn. Detalle en [ADR-029](DECISIONS.md).
+
+## Pipeline de build (Tauri desktop)
+
+Tres pasos encadenados que ejecuta `pnpm tauri:build` automáticamente vía `beforeBuildCommand` en `tauri.conf.json`:
+
+```
+pnpm tauri:build
+  ├── pnpm build:tauri-prep          (beforeBuildCommand)
+  │   ├── pnpm build:web-export      → packages/web/out/
+  │   │   └── cross-env TAURI_BUILD=1 next build
+  │   └── pnpm build:server-binary   → packages/tauri/binaries/auto-exit-server-<triple>[.exe]
+  │       └── tsx packages/server/scripts/build-binary.ts
+  │           ├── detect host platform → target triple
+  │           ├── bun build --compile --target=<bunTarget> --outfile <out>
+  │           └── copy drizzle/*.sql → packages/tauri/binaries/drizzle/
+  └── cargo build --release (Rust + bundle)
+      ├── frontend bundled desde packages/web/out/
+      ├── sidecar binary embebido como externalBin
+      ├── drizzle/ copiada como resource
+      └── output → packages/tauri/target/release/bundle/{msi,dmg,appimage,deb}/
+```
+
+Decisiones de cada pieza:
+
+- **`output: 'export'` opt-in vía `TAURI_BUILD=1`**: ver [ADR-030](DECISIONS.md). Dev y Docker no se afectan.
+- **`bun build --compile` por target del host**: ver [ADR-029](DECISIONS.md). Cross-compile no es viable para módulos nativos (`better-sqlite3`); F4.2 usará CI matrix multi-OS.
+- **Iconos**: PNG fuente generado por `packages/tauri/scripts/generate-icon-source.py` (PIL); set completo (ICO, ICNS, iOS, Android, Windows Store) producido por `pnpm exec tauri icon scripts/source.png`.
 
 ## Flujo de una watch-task
 
@@ -295,36 +352,56 @@ solana-auto-exit/
     │   │   └── protocols/
     │   │       ├── {types,registry}.ts
     │   │       ├── orca/{adapter,config}.ts
-    │   │       └── meteora/README.md
+    │   │       └── meteora/{adapter,config,README.md}
     ├── cli/                   (entry CLI, .env-based)
     │   ├── package.json       (name: @solana-auto-exit/cli)
     │   └── src/main.ts
     ├── server/                (backend tRPC + SQLite)
     │   ├── package.json       (name: @solana-auto-exit/server)
     │   ├── drizzle.config.ts
-    │   ├── drizzle/           (migraciones SQL)
-    │   ├── data/              (gitignored: DB + wallet vault)
+    │   ├── drizzle/           (migraciones SQL; bundled como resource en Tauri)
+    │   ├── data/              (gitignored: DB + wallet vault en runtime dev)
+    │   ├── scripts/build-binary.ts  (cross-platform bun build invoker)
     │   └── src/
     │       ├── main.ts
     │       ├── db/{schema,client}.ts
     │       ├── wallet/{vault,import}.ts
-    │       ├── tasks/{manager,types}.ts
+    │       ├── tasks/{manager,types,buffer,verify}.ts
+    │       ├── security/{rpc-url,unlock-limiter}.ts  (defense-in-depth guards)
     │       └── trpc/
     │           ├── {init,context,router}.ts
-    │           └── routers/{wallet,positions,tasks}.ts
-    ├── web/                   (frontend Next.js — F1)
+    │           └── routers/{wallet,positions,tasks,settings}.ts
+    ├── web/                   (frontend Next.js)
     │   ├── package.json       (name: @solana-auto-exit/web)
-    │   ├── next.config.ts
+    │   ├── next.config.ts     (opt-in static export con TAURI_BUILD=1)
     │   ├── postcss.config.mjs
     │   ├── tsconfig.json
-    │   └── src/app/{layout,page}.tsx + globals.css
-    └── tauri/                 (desktop shell — F4.1.a)
+    │   └── src/
+    │       ├── app/
+    │       │   ├── layout.tsx + page.tsx + globals.css
+    │       │   ├── positions/[mint]/{page.tsx, client.tsx}  (server shim + client)
+    │       │   ├── tasks/[id]/{page.tsx, client.tsx}        (server shim + client)
+    │       │   ├── wallet/, settings/, docs/
+    │       ├── components/
+    │       ├── i18n/{en,es,context,LangToggle}.ts
+    │       └── lib/{trpc,format,tokens,constants,status}.ts
+    └── tauri/                 (desktop shell — F4.1.a + F4.1.b)
         ├── package.json       (name: @solana-auto-exit/tauri)
-        ├── Cargo.toml         (tauri 2.0 + perfil release optimizado)
-        ├── tauri.conf.json    (config v2 — ventana, build commands, bundle)
+        ├── Cargo.toml         (tauri 2.0 + tauri-plugin-shell + perfil release optimizado)
+        ├── tauri.conf.json    (externalBin sidecar + resources drizzle + bundle)
         ├── build.rs           (invoca tauri_build::build())
-        └── src/{main,lib}.rs  (entry point + Builder)
+        ├── capabilities/default.json  (shell:allow-spawn restringido al sidecar)
+        ├── icons/             (PNG, ICO, ICNS + iOS + Android + Windows Store)
+        ├── binaries/          (gitignored: sidecar binary y migrations copiadas)
+        ├── scripts/{generate-icon-source.py, source.png}
+        └── src/{main,lib}.rs  (entry + Builder con spawn sidecar + cleanup)
 ```
+
+Notas sobre el layout actual:
+- `packages/server/src/security/` — guards de defense-in-depth (SSRF + brute-force unlock) añadidos en el sprint pre-public. Ver ADR-026/027 + entradas de PROGRESS.
+- `packages/web/src/app/{positions,tasks}/[*]/{page.tsx, client.tsx}` — split en Server Component shim + Client Component para soportar Next.js static export. Ver [ADR-030](DECISIONS.md).
+- `packages/tauri/{binaries, capabilities, scripts}` — infraestructura F4.1.b. `binaries/.gitkeep` versionado, contenido (`.exe` + `drizzle/`) gitignored.
+- Archivos local-only (no en repo, gitignored): `CLAUDE.md` (índice personal), `docs/PROGRESS.md` (bitácora), `docs/sessions/` (notas de sesión).
 
 ## Cómo añadir un protocolo nuevo
 

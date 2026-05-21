@@ -642,3 +642,113 @@ Además, había un problema operativo independiente: el campo `rpcUrl` se guarda
 - **Setup wizard al primer arranque** que pregunte al usuario qué red quiere: rechazado por overhead UX para un default que el 95% va a aceptar tal cual.
 - **Default a "no network seleccionada"** forzando al usuario a elegir explícitamente: rechazado — añade un paso bloqueante que no aporta nada para el caso de uso primario.
 - **Persistir el `rpcUrl` por red** (dos columnas: `rpcUrl_mainnet`, `rpcUrl_devnet`): considerado, descartado por overengineering. El auto-swap heurístico cubre el 99% del caso; los pocos que tengan custom URLs para ambas redes van a recordarlo manualmente.
+
+---
+
+## ADR-028 — Vitest como framework de tests, unit puros + integration sqlite `:memory:`
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada
+
+**Contexto**: El repo arrancó sin tests automatizados (decisión consciente: priorizar el chaining de fases F1-F6 sobre infraestructura de testing). Tras cerrar F6 y antes de abrir el repo a público, una auditoría QA + security identificó hallazgos críticos (race conditions en el watcher, validaciones cruzadas, edge cases de fetch) que justificaban un sprint dedicado a coverage automatizada. Elegir el stack pasó por decidir tres ejes: framework de tests, estilo de tests (unit puros vs integration con dependencias reales) y qué se mockea.
+
+**Decisión**:
+
+1. **Vitest 4 como framework**. Sobre `node:test` (built-in Node 22+) y Jest:
+   - Frente a `node:test`: mejor DX (watch mode, parallel by default, snapshot, mocks built-in via `vi.fn()`, fake timers ergonómicos, reporters ricos), `tsx`-friendly sin loader extra, soporta TypeScript ESM nativo.
+   - Frente a Jest: más rápido en monorepos pnpm, mejor configuración por workspace, sin necesidad de `ts-jest` ni `babel-jest`. La penalización de añadir Vitest como devDep (~20 MB transitivos) compensa con creces el ahorro de boilerplate.
+2. **Estructura por capa**, no por kind. Cada test vive al lado del módulo que prueba:
+   - `packages/server/src/security/rpc-url.test.ts` junto a `rpc-url.ts`.
+   - `packages/server/src/tasks/buffer.test.ts` junto a `buffer.ts`.
+   - Vitest config glob: `packages/*/src/**/*.{test,spec}.ts`.
+3. **Unit puros para funciones puras**, sin mocks salvo `fetch` global cuando es relevante.
+4. **Integration tests con `sqlite :memory:` real** + `migrate(db, { migrationsFolder })` apuntando a los `.sql` versionados. No mockear Drizzle ni SQLite — el coste de spinning up una DB en memoria es ~5ms y los tests cubren el path real (queries, constraints, JSON serialization, foreign keys con cascade).
+5. **No mockear `node:crypto`**. El vault test suite usará scrypt real (N=32768 ~50-100ms/unlock). Aceptable para los pocos tests que ejercen el vault; alternativa (mock crypto) introduciría drift entre tests y producción.
+6. **Mock solo lo que toca red**: `fetch` global via `vi.stubGlobal("fetch", ...)`. SDKs de Orca/Meteora serán mockeados cuando se escriban adapter tests (lo cuál es no-trivial — `setRpc` de @orca-so/whirlpools es estado global del SDK; ver TODO).
+7. **Acceso a métodos privados** via cast `(mgr as unknown as { method: ... })` cuando los tests integration necesiten ejercer guards internos (B-01). Pragmático; alternativa sería hacer `protected` y heredar en test, más boilerplate.
+
+**Consecuencias**:
+- (+) Baseline de 53 tests cubriendo seguridad (rpc-url + unlock-limiter), máquina de estados del watcher (buffer + manager.markError) y RPC parsing (verify). Suite completo ~1.8s.
+- (+) CI workflow (`.github/workflows/ci.yml`) corre `pnpm test` en cada push. Regresiones en estos paths se detectan automáticamente.
+- (+) `evalBuffer` extraído a módulo puro durante este sprint — la búsqueda de testabilidad mejoró el diseño.
+- (−) Coverage parcial. Quedan sin tests: `wallet/vault` (cripto), adapters Orca/Meteora (requieren SDK mocks), `engine/core/{retry,loop}`, lifecycle completo de `TaskManager` (boot, pauseAllOnVaultLock, transiciones), routers tRPC. Documentado en TESTING.md y en TODO.
+- (−) Los tests integration con `:memory:` no detectan problemas de concurrencia real (SQLite WAL, multiple writers). Aceptable porque el server es single-process.
+
+**Alternativas consideradas**:
+- **Jest**: descartado por DX inferior en monorepos pnpm y peor soporte ESM TS.
+- **`node:test`**: descartado por DX (sin watch ergonómico, mocking spartan via `node:test`'s `mock`, sin coverage v8 integrado). Para un proyecto que va a abrir contribuciones, Vitest es la elección estándar de la comunidad.
+- **Solo unit tests, sin integration**: descartado. La race condition B-01 solo es testeable con DB real porque depende del status persistido.
+- **Tests E2E con devnet real**: considerado, queda como manual smoke test (los scripts `scripts/probe-*.ts` ya cumplen ese rol). Añadir CI E2E requeriría un test wallet financiado en devnet + flaky network — no compensa.
+
+---
+
+## ADR-029 — Tauri sidecar pattern: server Node empaquetado con Bun `--compile`
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada · ejecuta [ADR-015](#adr-015--tauri-en-f4-f5-no-desde-f1)
+
+**Contexto**: F4.1.a montó el shell Tauri vacío. F4.1.b debía cerrar el bucle: empaquetar el backend Node (Hono + tRPC + Drizzle + better-sqlite3) dentro del bundle desktop para que el usuario final no necesite Node ni pnpm. La frontera del problema: convertir un workspace TypeScript con ~200 MB de `node_modules` en un único binario ejecutable.
+
+**Decisión**:
+
+1. **Sidecar pattern, no embedding**. El server NO se ejecuta dentro del proceso Tauri (Rust) — se lanza como **child process separado** vía `tauri-plugin-shell` desde el `setup()` del Tauri lib.rs. Tauri solo orquesta: spawn al arrancar, kill al cerrar (`RunEvent::Exit`), pipe stdout/stderr al log del shell.
+2. **Bun `bun build --compile` como empaquetador**. Sobre Node SEA, `pkg`, `nexe`:
+   - Bun produce un binario único que embebe el runtime + el código + los `node_modules` resueltos. Maneja módulos nativos (`better-sqlite3`, módulo C++) razonablemente bien — los `.node` se copian junto al binary o se embeben según el target.
+   - Frente a Node SEA: SEA requiere bundling externo (esbuild + post-build) y copy manual de `.node` files. Más fricción de build por target. Aceptable pero más fragil.
+   - Frente a `pkg`/`nexe`: ambos llevan años sin mantenimiento activo y son notorios por problemas con módulos nativos modernos. Rechazados.
+3. **Naming convention `auto-exit-server-<target-triple>[.exe]`** en `packages/tauri/binaries/`. Tauri exige ese sufijo para resolver el binary correcto del host. Script `packages/server/scripts/build-binary.ts` (cross-platform invoker) detecta `process.platform-process.arch` y mapea al `target-triple` Rust style + al `bunTarget` apropiado.
+4. **Migrations como Tauri resources**, no embebidas. El server actual lee `packages/server/drizzle/*.sql` de filesystem en `runMigrations()` via env `DRIZZLE_MIGRATIONS`. El script de build copia ese folder a `packages/tauri/binaries/drizzle/`; `tauri.conf.json` lista `binaries/drizzle/*` en `resources`; Tauri lo resuelve via `app.path().resource_dir()` y se lo pasa al sidecar en `DRIZZLE_MIGRATIONS` env var. Cero cambios en el código del server.
+5. **Comunicación HTTP, no IPC**. El sidecar sigue escuchando en `127.0.0.1:7777` (igual que en dev). El webview de Tauri carga el frontend bundled (`tauri://localhost`) que llama al server via fetch tRPC. CORS extendido para `tauri://localhost`. Pros: cero refactor del cliente tRPC + dev-mode y prod-mode son idénticos.
+6. **Paths runtime resueltos por Tauri Rust**, no hardcoded. `app.path().app_data_dir()` (writable, per-OS) para `DB_PATH` + `WALLET_VAULT_PATH`. `app.path().resource_dir()` para `DRIZZLE_MIGRATIONS`. Los env vars se setean en el spawn del sidecar.
+7. **Compile en el host de destino**. Cross-compile Bun → otros OSes es teóricamente posible pero deja módulos nativos sin compilar correctamente. Política: el maintainer (o CI por plataforma) compila el binary en la OS donde correrá. Para distribución multi-OS: GitHub Actions matrix con workers Windows/macOS/Linux, cada uno produce su `.exe`/`.dmg`/`.AppImage` con su sidecar nativo. Futuro F4.2.
+
+**Consecuencias**:
+- (+) El usuario final descarga un instalador (`.msi`, `.dmg`, `.AppImage`) y double-click. Cero deps a instalar. La promesa "self-hosted no-custodial" se mantiene íntegra (la app sigue corriendo localhost, la clave sigue cifrada en disco).
+- (+) Cero cambios en el código del server. Las env vars que ya existían (`DB_PATH`, `WALLET_VAULT_PATH`, etc.) son la API entre Rust shell y Node sidecar.
+- (+) Migrations versionadas en repo + bundled como resources = el primer arranque del desktop crea la DB con el schema correcto sin requerir `drizzle-kit` ni Node ni nada del entorno de dev.
+- (−) El binary del sidecar pesará ~50-80 MB (Bun runtime + node_modules consolidados). Aceptable para distribución desktop pero engorda el `.msi`/`.dmg`.
+- (−) Dev experience requiere instalar Bun + Rust + OS build tools. Documentado en README + TODO. No bloquea el flujo `pnpm dev:server` + `pnpm dev:web` actual.
+- (−) Cross-compile no es viable, así que la matriz de release requiere CI multi-OS — fricción extra para F4.2.
+
+**Alternativas consideradas**:
+- **Embedded Node via N-API en Rust** (ejecutar el código Node dentro del proceso Tauri): rechazado por complejidad masiva y por romper el modelo claro de proceso separado (debugging y crash isolation son trivial con sidecar; quedan turbios con embed).
+- **Reescribir el server en Rust** (Hono → axum, Drizzle → diesel, etc.): rechazado por el coste — sería F8+, no F4.1.b. La capa Node es ya estable y testeada.
+- **Distribuir el server como Docker compose + el frontend como electron/webview** apuntando a localhost:7777: rechazado porque exige al usuario instalar Docker (no es razonable para distribución amigo).
+- **Tauri "bundled webview only", sin sidecar** (Tauri carga el frontend, el usuario arranca el server manualmente): rechazado, contradice el goal de "double-click and it just works".
+
+---
+
+## ADR-030 — Next.js `output: 'export'` con `generateStaticParams` placeholder
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada
+
+**Contexto**: Para que Tauri bundlee el frontend Next.js como HTML estático (sin servidor Node corriendo dentro de Tauri sirviendo HTML — eso lo hace el sidecar separado), Next.js debe estar configurado con `output: 'export'`. Pero el repo tiene dos rutas dinámicas en App Router:
+
+- `app/positions/[mint]/page.tsx`
+- `app/tasks/[id]/page.tsx`
+
+El `mint` y el `id` son valores que el usuario descubre en runtime (sus posiciones LP, sus auto-exits creados) — NO se conocen at build time. Next.js con `output: 'export'` exige que cada ruta dinámica tenga `generateStaticParams` que devuelva al menos un path; ese path se materializa como un HTML estático que el cliente puede cargar.
+
+**Decisión**:
+
+1. **Opt-in del export via env var `TAURI_BUILD=1`**. `next.config.ts` lee `process.env.TAURI_BUILD === "1"` y solo en ese caso activa `output: 'export'`. El dev mode normal (`pnpm dev:web`) y el build Docker no se ven afectados. Un solo source de config; evita drift de mantener dos `next.config.*.ts` paralelos.
+2. **Rutas dinámicas split en Server Component shim + Client Component**:
+   - `page.tsx` (Server Component, sin `"use client"`): exporta `generateStaticParams()` devolviendo `[{ mint: "_" }]` (o `[{ id: "_" }]`) — un placeholder único. Exporta `dynamicParams = false`. Renderiza `<PositionPage />` (o `<TaskPage />`) directamente, sin pasar `params`.
+   - `client.tsx` (Client Component, `"use client"`): la lógica actual entera. Lee el `mint`/`id` real via `useParams()` de `next/navigation`.
+3. **Static export produce `out/positions/_/index.html` y `out/tasks/_/index.html`**. Cuando el cliente navega a `/positions/<algún-mint>` via `<Link>`, Next router actualiza el URL con History API sin recargar la página — el placeholder hidrata con el `mint` real leído de `useParams()`. Funciona porque toda la nav es client-side; nunca se hace request HTTP por `/positions/<mint>`.
+4. **Caveat documentado**: refresh (F5) del browser en una URL dinámica → 404 (no existe `out/positions/<real-mint>/index.html`). En Tauri esto no es un flujo común — el usuario no recarga el shell manualmente. Aceptado.
+5. **`images: { unoptimized: true }`** cuando `TAURI_BUILD=1`. Next.js no puede optimizar imágenes sin runtime server.
+
+**Consecuencias**:
+- (+) Frontend bundled estáticamente, sin Node runtime ni Next server dentro de Tauri.
+- (+) Cero refactor de los componentes — la lógica actual (que ya era 100% client-side con `useParams()`) sigue funcionando intacta. Solo se añadió un shim de 8 líneas por ruta dinámica.
+- (+) Dev mode no cambia. `pnpm dev:web` sigue funcionando con HMR y todos los Server Components / route handlers que tenga el repo en el futuro.
+- (−) Refresh en URL dinámica falla. Mitigable con custom protocol handler en Rust (Tauri 2 lo permite) o hash routing — descartado por simplicidad mientras no sea un problema real.
+- (−) Si en el futuro alguna ruta dinámica necesita ser Server Component con data fetched at build time, este patrón no aplica. Hay que volver a evaluar.
+
+**Alternativas consideradas**:
+- **Cambiar `[mint]` y `[id]` a query strings** (`/positions?mint=xxx` y `/tasks?id=yyy`): elimina las rutas dinámicas a nivel de Next.js. Rechazado por requerir refactor de TODOS los `<Link href="...">` y `router.push(...)` del proyecto + romper URLs existentes que el usuario tenga bookmarkeadas.
+- **Hash routing puro** (`/#/positions/<mint>`): Next.js no lo soporta nativamente; requeriría rehacer la capa de routing. Rechazado por coste.
+- **Custom Tauri protocol handler** (rewrite todas las rutas no encontradas a `index.html`): viable pero añade código Rust no trivial. Reservado para si el caveat del refresh se vuelve molesto.
+- **Server Components que reciban `params` y pasen el mint al Client**: cosmético, no resuelve el problema fundamental (Next sigue exigiendo `generateStaticParams`).
