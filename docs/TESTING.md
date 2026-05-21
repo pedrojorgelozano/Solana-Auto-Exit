@@ -188,6 +188,32 @@ Validado el 2026-05-21:
 - QR del address generado con `qrcode.react` se renderiza con fondo blanco + ink oscuro (verificado en navegador). Tamaño 132px, escala bien en mobile.
 - **No validado**: el flujo completo "Generate → escanear QR desde Backpack móvil → fondear → ver balance subir" no se ha hecho como cadena; verificado por partes.
 
+### 17. F4.3 — Mainnet UI gate
+
+Validado el 2026-05-21:
+- `pnpm typecheck` pasa (server + web).
+- Sin `ALLOW_MAINNET_LIVE=true` en el env del server (caso por defecto): `settings.get` devuelve `mainnetGateAllowed: false` y `/settings` renderiza el sub-componente `GateClosed` con el mensaje explicativo + el env-var concreto que hay que setear. El botón "Switch to mainnet" no aparece.
+- Si alguien forzase `settings.update({key:"network", value:"mainnet"})` directamente (cliente tRPC pirata): el handler lanza `FORBIDDEN` ("Mainnet is not enabled on this server"). Verificado por inspección del código + intento manual via devtools console.
+- `tasks.create` con `network: "mainnet"` y env-var ausente lanza también `FORBIDDEN`. Doble red.
+- Con `ALLOW_MAINNET_LIVE=true` activado (no probado en esta sesión pero la lógica es trivialmente correcta): `mainnetGateAllowed: true` en el snapshot, aparece el `SwitchToMainnetAction`, el panel pide checkbox obligatorio antes de habilitar el CTA en `variant=danger`.
+- Defensa-en-profundidad on read: si el server tiene `"mainnet"` guardado en la tabla `settings` pero el env-var ya no está (server reiniciado sin el flag), `settings.get` devuelve `"devnet"`. Verificado por code review.
+- GlobalHeader pinta píldora oxblood con dot pulsante cuando network=mainnet. No tocada en esta sesión (network real sigue siendo devnet), pero el render es deterministic basado en `settings.network`.
+
+### 18. F6.1 — Meteora DLMM adapter read-only + UI aggregation
+
+Validado el 2026-05-21:
+- `pnpm typecheck` pasa tras F6.1.a + F6.1.b (2 typechecks intermedios verdes).
+- `pnpm tsx scripts/probe-meteora.ts 8CLzaUjGcmftioCfN6eqFEG7xowYzfEciMuGUKvJamAp --mainnet` ejecutado contra mainnet con una posición real ajena. El probe:
+  - Detectó que el input era un PDA de posición (owner program = `LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo`).
+  - Extrajo la wallet propietaria del byte layout (offset 40-72): `5CqhWpj3CT17Ji1n7a5qV9dW538oChawJVWZQavg2fTS`.
+  - `listOwnedPositions` devolvió **2 posiciones DLMM** en ~5.5s contra el RPC público.
+  - `getPositionSummary` por cada una: tokens SOL/USDC, precios actuales (87.00 y 86.85 USDC/SOL en el momento del probe), ranges (82.35–86.23 OUT y 72.12–86.85 IN), liquidity (0 SOL + USDC, posiciones 100% en USDC out-of-range arriba), fees pending coherentes.
+  - `getPrice` devolvió el mismo valor que el `currentPrice` del summary (consistencia interna).
+- El log `bigint: Failed to load bindings, pure JS will be used` es esperado (módulo nativo opcional con fallback JS funcional; ADR-024 lo documenta).
+- Bug ESM/CJS de anchor encontrado y resuelto durante la implementación: el primer intento de cargar el SDK falló con `SyntaxError: ... 'BN'`; arreglado con `createRequire` (ver [ADR-024](DECISIONS.md) + comment en `meteora/adapter.ts`).
+- `getPositionSummary` ya **no requiere** `attachWallet()` (refactor F6.1.b): extrae el owner del byte layout. Verificado: la procedure `positions.getSummary` del backend no llama a `attachWallet` y la página `/positions/[mint]` carga el summary correctamente.
+- **No validado E2E en browser**: F6.1.b dejó la UI lista para listar Orca + Meteora en paralelo, pero la bot wallet del server actual no tiene posiciones DLMM en devnet. Validar end-to-end requeriría abrir una posición DLMM real en devnet o mainnet con la bot wallet. Trust actual: typecheck verde + probe contra mainnet + revisión visual del render.
+
 ---
 
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)

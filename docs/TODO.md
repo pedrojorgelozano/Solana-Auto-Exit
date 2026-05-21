@@ -6,6 +6,19 @@
 
 ## Próximo (orden sugerido)
 
+- [ ] **F6.2** — Meteora DLMM `closePosition`. Claim fees + retirar liquidez
+  de todos los bins ocupados + cerrar el PDA. Requiere convertir el
+  `KeyPairSigner` de `@solana/kit` a un `Keypair` de `@solana/web3.js@^1`
+  para firmar (los dos están en `node:crypto`-derivable; conversión via
+  `getBase58Codec().decode(keyBytes)` + `Keypair.fromSecretKey`). Sin
+  swap todavía (eso es F6.3). Quita el `<ReadOnlyProtocolNotice />`
+  del `Editor` para Meteora y abre el `ConfigureForm` con rama
+  protocolo-específica del `protocolConfig` (lbPair + position +
+  decimalsX/Y en lugar de positionMint + decimalsA/B + tokenMintA/B
+  de Orca).
+- [ ] **F6.3** — Meteora DLMM `swapToExit`. Swap en la misma pool DLMM
+  tras el cierre via `swap` / `swapWithPriceImpact` del SDK. Paridad
+  funcional con el adapter Orca.
 - [ ] **F4.1** — Tauri scaffolding. Crear `packages/tauri/`, configuración
   mínima, app que arranca el sidecar del server + carga el bundle del web
   en una ventana nativa. Requiere instalar Rust toolchain (`rustup`). Build
@@ -13,18 +26,12 @@
 - [ ] **F4.2** — Codesign + auto-update vía GitHub Releases. `.msi` (Win),
   `.dmg` (Mac, requiere Apple Developer ID — $99/año), `.AppImage` y `.deb`
   (Linux, sin codesign). Auto-update via `tauri-plugin-updater`.
-- [ ] **F4.3** — Mainnet UI gate. Botón "switch to mainnet" en /settings con
-  confirmación explícita en dos pasos + bloqueo de `tasks.create` si el
-  gate no está activado. Hoy mainnet está bloqueado solo en zod del settings
-  router (ADR-023); con F4.3 abrimos la puerta tras visual audit (ADR-006).
 - [ ] **Abrir el repo a público** (5 min): `gh repo edit --visibility public`.
   Activa GitHub Security advisories automáticamente. Puede ir antes o
   después de F4.1.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
-- [ ] **F6** — Adapter Meteora DLMM. Verificar SDK actual antes de tocar
-  código; confirmar compatibilidad con `@solana/kit@^5` o decidir el shim.
 
 ## Backlog (sin orden)
 
@@ -47,6 +54,15 @@
   el success screen del modal post-Generate. Sería natural mostrarlo
   siempre que la wallet esté unlocked (junto al address, en el unlock
   section).
+- [ ] Optimizar `MeteoraAdapter.getPositionSummary`: hoy llama
+  `DLMM.getAllLbPairPositionsByUser` (recorre todas las posiciones del
+  owner) cada vez. Para una wallet con N posiciones DLMM es O(N) por
+  cada `/tasks/[id]` que carga summary. Usar `wrapPosition(program,
+  key, accountInfo)` del SDK con el `AccountInfo` ya fetched para hacer
+  un solo decode dirigido.
+- [ ] Persistir `tokenMintA/B` en `protocolConfig` también para Meteora
+  cuando F6.2 abra el flujo de tasks. F2.4 lo hizo para Orca; el receipt
+  y la heurística del Dashboard asumen estos campos.
 - [ ] Expandir el token registry de `packages/web/src/lib/tokens.ts` con
   más mints conocidos (devnet Orca pools varios, mainnet USDT, mSOL, JitoSOL,
   bonk, etc.). Posiblemente cargar de Jupiter token list en background.
@@ -79,6 +95,17 @@
 
 Ver [PROGRESS.md](PROGRESS.md).
 
+- **F6.1 — Meteora DLMM adapter read-only + UI aggregation (2026-05-21)**:
+  primer adapter no-Orca. `listOwnedPositions`/`getPositionSummary`/`getPrice`
+  via `@meteora-ag/dlmm`. UI agrega los dos protocolos en paralelo en
+  `/positions` y `/positions/[mint]`. Meteora read-only via
+  `ReadOnlyProtocolNotice` hasta F6.2. Coexistencia de SDKs y workaround
+  ESM/CJS de anchor en [ADR-024](DECISIONS.md). Validado contra mainnet
+  con probe y posición real.
+- **F4.3 — Mainnet UI gate (2026-05-21)**: `ALLOW_MAINNET_LIVE=true` como
+  permiso meta del server + confirmación explícita en dos pasos en
+  `/settings`. `tasks.create` rechaza mainnet sin el gate (doble red).
+  Píldora oxblood prominente en GlobalHeader cuando network=mainnet.
 - **F4.0 — Prep del repo para apertura (2026-05-21)**: LICENSE MIT,
   SECURITY.md con threat model + reporting, README reescrito en inglés
   alineado con estado F0-F3. Repo apto para `gh repo edit --visibility public`.

@@ -88,9 +88,9 @@ En modo CLI ese flujo lo orquesta `runRunner` directamente. En modo server lo or
 - `core/loop.ts` — `loop({ pollMs, tick })`. Iteraciones secuenciales con `await`. Ver [ADR-005](DECISIONS.md).
 - `core/runner.ts` — `runRunner(opts)` para el caso CLI.
 - `protocols/types.ts` — contrato `ProtocolAdapter` + todos los tipos compartidos (`BaseConfig`, `BaseReadOnlyConfig`, `PositionRef`, `PositionSummary`, `ConfigSchema`, `CloseResult`, `SwapExitResult`, etc.).
-- `protocols/registry.ts` — `makeAdapter(name) → ProtocolAdapter`. Único sitio donde el núcleo conoce nombres concretos.
-- `protocols/orca/` — adapter Orca Whirlpools v8.
-- `protocols/meteora/` — stub.
+- `protocols/registry.ts` — `makeAdapter(name) → ProtocolAdapter` + `REGISTERED_PROTOCOLS` (export para que la UI itere). Único sitio donde el núcleo conoce nombres concretos.
+- `protocols/orca/` — adapter Orca Whirlpools v8 (`@orca-so/whirlpools@^8` + `@solana/kit@^5`).
+- `protocols/meteora/` — adapter DLMM read-only (F6.1): `listOwnedPositions`, `getPositionSummary`, `getPrice`. Usa `@meteora-ag/dlmm@^1.9.10` (cargado vía `createRequire` por ADR-024) + `@solana/web3.js@^1`. `closePosition`/`swapToExit` lanzan "not implemented" hasta F6.2/F6.3. Helper estático `MeteoraAdapter.resolveOwnerOf(rpcUrl, address)` para detectar PDAs de posición Meteora y extraer la wallet propietaria.
 - `config/env.ts` — `loadBaseConfig()` para el CLI (el server obtiene config de la DB, no de env).
 - `index.ts` — barrel con la API pública del paquete.
 
@@ -138,10 +138,10 @@ packages/web/src/
 │   ├── not-found.tsx       (404 editorial)
 │   ├── error.tsx           (error boundary global)
 │   ├── wallet/page.tsx     (3 estados + danger zone)
-│   ├── settings/page.tsx   (RPC URL + slippages + poll defaults, form unificado — ADR-023)
+│   ├── settings/page.tsx   (RPC URL + slippages + poll defaults; NetworkPanel con switch a mainnet en 2 pasos cuando ALLOW_MAINNET_LIVE — ADR-023, F4.3)
 │   ├── positions/
-│   │   ├── page.tsx        (lista con symbols + chip "auto-exit set"; EmptyOwnedList pedagógico cuando no hay LPs)
-│   │   └── [mint]/page.tsx (recap + form configure con TP/SL + ExistingWatcher si ya hay uno activo)
+│   │   ├── page.tsx        (lista agregada Orca + Meteora en paralelo, badge oxblood para Meteora — F6.1.b; EmptyOwnedList pedagógico cuando no hay LPs)
+│   │   └── [mint]/page.tsx (recap + form configure con TP/SL + ExistingWatcher si ya hay uno activo; ReadOnlyProtocolNotice si protocol=meteora — F6.1.b)
 │   ├── tasks/
 │   │   ├── page.tsx        (ledger denso con filtros)
 │   │   └── [id]/page.tsx   (dashboard live + receipts editoriales + ActivityTimeline + ActualLine con diff% — ADR-022)
@@ -156,7 +156,7 @@ packages/web/src/
 │       ├── security/page.tsx
 │       └── faq/page.tsx
 ├── components/
-│   ├── GlobalHeader.tsx    (logo + link Docs + ServerStatus + VaultChip)
+│   ├── GlobalHeader.tsx    (logo + links Docs/Settings + ServerStatus + VaultChip; píldora oxblood prominente cuando network=mainnet — F4.3)
 │   ├── PageHeader.tsx
 │   ├── ServerStatus.tsx
 │   ├── VaultChip.tsx

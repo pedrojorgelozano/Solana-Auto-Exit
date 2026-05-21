@@ -475,3 +475,49 @@ Paralelamente, el primer minuto de la herramienta no enseñaba el modelo: el her
 - **Variables de entorno**: descartadas porque queremos editar desde la UI sin reiniciar el server.
 - **JSON blob en una sola row**: descartada porque las escrituras serían pesadas (write-all-or-nothing) y los conflicts de concurrencia más probables.
 - **Permitir "mainnet" en UI con un warning verbose**: descartada por ser exactamente el patrón que ADR-006 quiere prevenir. La UI debe ser literalmente incapaz de pedirle al server `network: "mainnet"` hasta que F4.3 lo abra explícitamente.
+
+---
+
+## ADR-024 — Coexistencia de SDKs Solana en los adapters + workaround ESM/CJS de anchor
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada · refina (no supera) [ADR-001](#) y [ADR-002](#)
+
+**Contexto**: F6.1 introdujo el adapter de Meteora DLMM, que depende de `@meteora-ag/dlmm@^1.9.10`. Esa librería pide `@solana/web3.js@^1` y `@coral-xyz/anchor@0.31.0` como deps, no `@solana/kit@^5`. Esto contradice el pin de [ADR-002](#), que fijó kit v5 porque Orca v8 lo demandaba — pero el pin en realidad solo afectaba al adapter de Orca, no a la arquitectura. Dos problemas concretos al integrar:
+
+1. **Mismatch de SDK**: ¿Cohabita web3.js v1 con kit v5 en el mismo proyecto? La frontera del contrato `ProtocolAdapter` ya pasa primitivos (strings, bigints, plain objects). El contagio sería en `node_modules`, no en el código del núcleo.
+2. **Bug ESM/CJS al cargar el SDK**: el bundle ESM (`dist/index.mjs`) de `@meteora-ag/dlmm` intenta `import { BN } from "@coral-xyz/anchor"` y anchor 0.31.x no re-exporta `BN` como named ESM export → `SyntaxError: The requested module '@coral-xyz/anchor' does not provide an export named 'BN'` al cargar bajo ESM puro. Falla incluso con typecheck verde, en el primer `tsx scripts/probe-meteora.ts`.
+
+**Decisión**:
+
+1. **Cada adapter usa el SDK que prefiera.** El contrato `ProtocolAdapter` está diseñado para esto (ADR-001) y F6.1 lo valida empíricamente. Concretamente:
+   - `packages/engine/package.json` carga **ambos** SDKs como deps directas: `@solana/kit@^5` (lo usa Orca) y `@solana/web3.js@^1` (lo usa Meteora).
+   - Cada adapter encapsula la conversión `string ↔ PublicKey | Address` dentro de sus métodos. El núcleo y el server solo ven strings.
+   - Los tipos como `KeyPairSigner` (kit) que llegan a `attachWallet` se convierten internamente — F6.2 lo hará vía `getBase58Codec().decode(...)` + `Keypair.fromSecretKey()` para Meteora.
+2. **El bug ESM/CJS se resuelve con `createRequire` puntual en el adapter de Meteora.** No tocamos la config de tsx/Node ni el `module` de tsconfig:
+   ```ts
+   import { createRequire } from "node:module";
+   import type * as DLMMNs from "@meteora-ag/dlmm";
+   const requireCjs = createRequire(import.meta.url);
+   const meteoraSdk = requireCjs("@meteora-ag/dlmm") as typeof DLMMNs & {
+     default: typeof DLMMNs.default;
+   };
+   ```
+   Los tipos vienen del `import type` que tsc resuelve a `dist/index.d.ts`; el runtime se carga vía `dist/index.js` (CJS bundle) gracias a `createRequire`. anchor no falla bajo CJS.
+3. **Las deps nativas opcionales que arrastra Meteora se marcan `allowBuilds: false`** en `pnpm-workspace.yaml` (`bigint-buffer`, `bufferutil`, `utf-8-validate`). Todas tienen fallback puro-JS funcional; el log `bigint: Failed to load bindings, pure JS will be used` es esperado.
+
+**Consecuencias**:
+- (+) [ADR-001](#) (núcleo agnóstico, adapter por protocolo) queda validado con un segundo protocolo real, no solo en teoría.
+- (+) Añadir Raydium / Jupiter LP / cualquier otro DEX no requiere migrar Orca ni Meteora. Cada uno aterriza con su propio SDK.
+- (+) El workaround `createRequire` está aislado a una línea con comentario explicativo en `meteora/adapter.ts`. Si alguien lo "limpia" en el futuro, el ADR y el comment lo paran.
+- (+) Las deps nativas opcionales no requieren build tools en Docker para Meteora — los fallbacks JS son suficientes para read-only.
+- (−) `node_modules` crece ~30MB con web3.js v1 + anchor + transitivas (no es despreciable pero asumible para un self-hosted tool).
+- (−) Dos tipos distintos de PublicKey en el codebase (`Address` de kit, `PublicKey` de web3.js v1). Cada adapter convierte en su frontera; no se propaga al núcleo.
+- (−) Si tsx cambia su comportamiento con la "source" field de packages, podríamos necesitar revisitar — pero el `createRequire` es robusto frente a eso porque salta directamente al CJS.
+- (−) El bundle ESM de Meteora podría arreglarse upstream (`import * as anchor from "@coral-xyz/anchor"`); si eso pasa, podemos simplificar a un `import` normal. Lo dejamos como deuda menor.
+
+**Alternativas consideradas**:
+- **Forzar a Meteora a kit v5** (shim): descartada — los `BN.js` y `anchor.Program` pintan profundo en el SDK; reescribir sería medio adapter más.
+- **Sólo importar `dist/index.mjs` con subpath**: descartada porque el problema NO era el resolver (tsx ya respeta `exports`), sino el bug interno de anchor en ESM. La subpath import no resuelve nada nuevo.
+- **Cambiar `module` de tsconfig a CommonJS para todo el monorepo**: descartada — rompería las imports ESM del resto. createRequire es quirúrgico.
+- **Esperar a que Meteora publique una versión que funcione bajo ESM puro**: sin ETA. Anclar Meteora a un fix futuro es deuda diferida; mejor capturar el workaround ahora.
