@@ -18,6 +18,7 @@ import {
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
+import { useT } from "@/i18n/context";
 
 type TaskRow = inferRouterOutputs<AppRouter>["tasks"]["list"][number];
 type Filter = "all" | "active" | "completed" | "errors";
@@ -25,6 +26,8 @@ type Filter = "all" | "active" | "completed" | "errors";
 export default function TasksListPage() {
   const list = trpc.tasks.list.useQuery(undefined, { refetchInterval: 3_000 });
   const [filter, setFilter] = useState<Filter>("all");
+  const { t } = useT();
+  const tl = t.tasksList;
 
   const rows = list.data ?? [];
   const filtered = useMemo(() => filterRows(rows, filter), [rows, filter]);
@@ -33,14 +36,16 @@ export default function TasksListPage() {
   return (
     <main className="mx-auto max-w-5xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
-        eyebrow="History"
-        title="All auto-exits."
-        description="Active, paused, completed and errored — everything this server knows about."
-        back={{ href: "/", label: "Home" }}
+        eyebrow={tl.pageEyebrow}
+        title={tl.pageTitle}
+        description={tl.pageDescription}
+        back={{ href: "/", label: tl.backLabel }}
       />
 
       {list.isLoading ? (
-        <p className="t-small text-[var(--color-text-muted)]">Loading…</p>
+        <p className="t-small text-[var(--color-text-muted)]">
+          {t.common.loading}
+        </p>
       ) : list.error ? (
         <p className="t-small text-[var(--color-danger)]">{list.error.message}</p>
       ) : rows.length === 0 ? (
@@ -50,7 +55,7 @@ export default function TasksListPage() {
           <Filters value={filter} onChange={setFilter} counts={counts} />
           {filtered.length === 0 ? (
             <p className="mt-10 t-small text-[var(--color-text-muted)]">
-              No auto-exits match this filter.
+              {tl.noMatch}
             </p>
           ) : (
             <Ledger rows={filtered} />
@@ -62,19 +67,20 @@ export default function TasksListPage() {
 }
 
 function EmptyState() {
+  const { t } = useT();
+  const tl = t.tasksList;
   return (
     <section className="hairline-t pt-10">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">Empty</div>
-      <h2 className="mt-3 t-h2">No auto-exits yet.</h2>
+      <div className="t-eyebrow text-[var(--color-text-muted)]">
+        {tl.emptyEyebrow}
+      </div>
+      <h2 className="mt-3 t-h2">{tl.emptyTitle}</h2>
       <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-        An auto-exit watches a single LP position and closes it when your
-        take-profit or stop-loss price hits. Configure one on any position
-        the bot wallet owns — it will appear here from creation through
-        completion, including dry-run simulations.
+        {tl.emptyBody}
       </p>
       <div className="mt-6">
         <Link href="/">
-          <Button>Go to positions →</Button>
+          <Button>{tl.emptyCta}</Button>
         </Link>
       </div>
     </section>
@@ -94,11 +100,13 @@ function Filters({
   onChange: (v: Filter) => void;
   counts: Record<Filter, number>;
 }) {
+  const { t } = useT();
+  const f = t.tasksList.filters;
   const opts: { value: Filter; label: string }[] = [
-    { value: "all", label: "All" },
-    { value: "active", label: "Active" },
-    { value: "completed", label: "Completed" },
-    { value: "errors", label: "Errors" },
+    { value: "all", label: f.all },
+    { value: "active", label: f.active },
+    { value: "completed", label: f.completed },
+    { value: "errors", label: f.errors },
   ];
   return (
     <div className="hairline-b mb-6 flex items-baseline justify-between pb-4">
@@ -133,17 +141,19 @@ function Filters({
 // ============================================================================
 
 function Ledger({ rows }: { rows: TaskRow[] }) {
+  const { t } = useT();
+  const c = t.tasksList.cols;
   return (
     <div className="overflow-x-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr className="text-left t-eyebrow text-[var(--color-text-dim)]">
-            <th className="pb-4 pr-4 font-normal">Status</th>
-            <th className="pb-4 pr-4 font-normal">Position</th>
-            <th className="pb-4 pr-4 font-normal">Trigger</th>
-            <th className="pb-4 pr-4 font-normal">Last price</th>
-            <th className="pb-4 pr-4 font-normal text-right">Distance</th>
-            <th className="pb-4 pr-4 font-normal text-right">When</th>
+            <th className="pb-4 pr-4 font-normal">{c.status}</th>
+            <th className="pb-4 pr-4 font-normal">{c.position}</th>
+            <th className="pb-4 pr-4 font-normal">{c.trigger}</th>
+            <th className="pb-4 pr-4 font-normal">{c.lastPrice}</th>
+            <th className="pb-4 pr-4 font-normal text-right">{c.distance}</th>
+            <th className="pb-4 pr-4 font-normal text-right">{c.when}</th>
             <th className="pb-4 font-normal text-right">&nbsp;</th>
           </tr>
         </thead>
@@ -158,8 +168,11 @@ function Ledger({ rows }: { rows: TaskRow[] }) {
 }
 
 function Row({ row }: { row: TaskRow }) {
+  const { t } = useT();
   const view = statusView(row.status as BackendStatus);
   const tone = TONE_CLASSES[view.tone];
+  const statusLabel =
+    t.status[row.status as BackendStatus]?.label ?? row.status;
   // Doble distancia (TP + SL): coherente con la celda Auto-exit del home.
   // Si solo hay un trigger, solo se renderiza ese.
   const current = row.runtime.lastPrice;
@@ -213,9 +226,11 @@ function Row({ row }: { row: TaskRow }) {
               view.pulsing ? "pulse-soft" : ""
             }`}
           />
-          <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
+          <span className={`t-eyebrow ${tone.text}`}>{statusLabel}</span>
           {row.dryRun ? (
-            <span className="t-eyebrow text-[var(--color-warning)]">· sim</span>
+            <span className="t-eyebrow text-[var(--color-warning)]">
+              {t.format.sim}
+            </span>
           ) : null}
         </div>
       </td>
@@ -237,7 +252,9 @@ function Row({ row }: { row: TaskRow }) {
                     : "bg-[var(--color-danger)]"
                 }`}
                 title={
-                  summary.data.isInRange ? "In your range" : "Out of range"
+                  summary.data.isInRange
+                    ? t.format.inRange
+                    : t.format.outOfRange
                 }
               />
               <span className="t-num text-xs text-[var(--color-text-muted)]">
@@ -304,14 +321,14 @@ function Row({ row }: { row: TaskRow }) {
         )}
       </td>
       <td className="py-4 pr-4 align-baseline t-small text-right text-[var(--color-text-muted)]">
-        {formatTimeAgo(when)}
+        {formatTimeAgo(when, t)}
       </td>
       <td className="py-4 align-baseline text-right">
         <Link
           href={`/tasks/${row.id}`}
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)]"
         >
-          open →
+          {t.common.open}
         </Link>
       </td>
     </tr>

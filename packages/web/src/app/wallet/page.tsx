@@ -9,9 +9,12 @@ import { Label, PasswordInput } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress } from "@/lib/format";
+import { useT } from "@/i18n/context";
 
 export default function WalletPage() {
   const utils = trpc.useUtils();
+  const { t } = useT();
+  const w = t.wallet;
   const status = trpc.wallet.status.useQuery(undefined, {
     refetchInterval: 5_000,
   });
@@ -19,10 +22,10 @@ export default function WalletPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
-        eyebrow="Wallet"
-        title="The keypair that signs your closes."
-        description="Encrypted at rest with scrypt + AES-256-GCM. Decrypted in memory only while the wallet is unlocked."
-        back={{ href: "/", label: "Home" }}
+        eyebrow={w.pageEyebrow}
+        title={w.pageTitle}
+        description={w.pageDescription}
+        back={{ href: "/", label: w.backLabel }}
       />
 
       <div className="-mt-6 mb-10">
@@ -30,17 +33,15 @@ export default function WalletPage() {
           href="/docs/security"
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          → How encryption and key storage work
+          {w.encryptionLink}
         </Link>
       </div>
 
       {status.isLoading ? (
-        <p className="t-small text-[var(--color-text-muted)]">
-          Loading wallet status…
-        </p>
+        <p className="t-small text-[var(--color-text-muted)]">{w.loading}</p>
       ) : status.error ? (
         <p className="t-small text-[var(--color-danger)]">
-          Cannot reach the backend: {status.error.message}
+          {w.backendError(status.error.message)}
         </p>
       ) : !status.data ? null : (
         <Panel
@@ -70,26 +71,27 @@ function Panel({
 
 function ConnectCta() {
   const connect = useConnectWallet();
+  const { t } = useT();
+  const w = t.wallet;
   return (
     <div className="space-y-10">
       <Recommendation />
 
       <section className="hairline-t pt-10">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">No wallet</div>
-        <h2 className="mt-3 t-h2">Set up the bot wallet to begin.</h2>
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          {w.noVault.eyebrow}
+        </div>
+        <h2 className="mt-3 t-h2">{w.noVault.title}</h2>
         <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-          Generate a fresh keypair on this machine, or import the private key
-          of a single Solana account from Phantom, Backpack, or the Solana
-          CLI. The key is encrypted with a passphrase and used only to sign
-          the closes you configure.
+          {w.noVault.body}
         </p>
         <div className="mt-6 flex flex-wrap items-baseline gap-4">
-          <Button onClick={connect.open}>Set up bot wallet →</Button>
+          <Button onClick={connect.open}>{w.noVault.cta}</Button>
           <Link
             href="/docs/bot-wallet"
             className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
           >
-            → Read about the three paths
+            {w.noVault.docs}
           </Link>
         </div>
       </section>
@@ -98,16 +100,14 @@ function ConnectCta() {
 }
 
 function Recommendation() {
+  const { t } = useT();
   return (
     <aside className="border-l-2 border-[var(--color-accent)] pl-5">
       <div className="t-eyebrow text-[var(--color-accent-bright)]">
-        Scope
+        {t.wallet.scope.eyebrow}
       </div>
       <p className="mt-2 max-w-xl t-body text-[var(--color-text)]">
-        Whatever key you provide, only <em>that single address</em> is
-        exposed to this server — never a seed phrase, never other accounts.
-        The standard practice is to use an account dedicated to active
-        operations, not the one where you store cold holdings.
+        {t.wallet.scope.body}
       </p>
     </aside>
   );
@@ -124,6 +124,8 @@ function UnlockSection({
   address: string | null;
   refresh: () => void;
 }) {
+  const { t } = useT();
+  const l = t.wallet.locked;
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const unlock = trpc.wallet.unlock.useMutation();
@@ -144,28 +146,17 @@ function UnlockSection({
     <div className="space-y-12">
       <section>
         <div className="t-eyebrow text-[var(--color-text-muted)]">
-          Wallet is locked
+          {l.eyebrow}
         </div>
         <p className="mt-3 max-w-lg t-body text-[var(--color-text-muted)]">
-          A keypair is encrypted on disk
-          {address ? (
-            <>
-              {" "}
-              for{" "}
-              <span className="t-num text-[var(--color-text)]">
-                {truncateAddress(address, 6, 6)}
-              </span>
-              .
-            </>
-          ) : (
-            "."
-          )}{" "}
-          Enter the passphrase to load it into memory.
+          {address
+            ? l.bodyWithAddress(truncateAddress(address, 6, 6))
+            : l.bodyNoAddress}
         </p>
 
         <form onSubmit={submit} className="mt-8 max-w-md space-y-6">
           <div>
-            <Label htmlFor="passphrase">Passphrase</Label>
+            <Label htmlFor="passphrase">{l.passphraseLabel}</Label>
             <PasswordInput
               id="passphrase"
               autoComplete="current-password"
@@ -177,7 +168,7 @@ function UnlockSection({
           {error ? <FieldError>{error}</FieldError> : null}
           <div className="flex items-center justify-end">
             <Button type="submit" disabled={unlock.isPending}>
-              {unlock.isPending ? "Unlocking…" : "Unlock"}
+              {unlock.isPending ? l.unlocking : l.unlock}
             </Button>
           </div>
         </form>
@@ -199,6 +190,8 @@ function UnlockedSection({
   address: string;
   refresh: () => void;
 }) {
+  const { t } = useT();
+  const u = t.wallet.unlocked;
   const lock = trpc.wallet.lock.useMutation();
 
   const onLock = async () => {
@@ -210,16 +203,15 @@ function UnlockedSection({
     <div className="space-y-12">
       <section>
         <div className="t-eyebrow text-[var(--color-positive)]">
-          Wallet unlocked
+          {u.eyebrow}
         </div>
         <h2 className="mt-3 t-h2 break-all t-num">{address}</h2>
         <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-          The keypair is in memory. It will be used to sign close and swap
-          transactions for armed auto-exits. Lock when you&apos;re done.
+          {u.body}
         </p>
         <div className="mt-6 flex items-center justify-end">
           <Button variant="secondary" onClick={onLock} disabled={lock.isPending}>
-            {lock.isPending ? "Locking…" : "Lock"}
+            {lock.isPending ? u.locking : u.lock}
           </Button>
         </div>
       </section>
@@ -240,6 +232,8 @@ function DangerZone({
   reason: "reset" | "lost-passphrase";
   refresh: () => void;
 }) {
+  const { t } = useT();
+  const d = t.wallet.danger;
   const del = trpc.wallet.delete.useMutation();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -250,19 +244,17 @@ function DangerZone({
   };
 
   const explanation =
-    reason === "reset"
-      ? "Permanently delete the encrypted wallet file. The wallet on-chain is not affected — only this server's encrypted copy is removed."
-      : "If you don't remember the passphrase, deleting the encrypted file is the only way out. The wallet on-chain stays safe; you just lose this server's encrypted copy.";
+    reason === "reset" ? d.explainReset : d.explainLostPass;
 
   return (
     <section className="hairline-t pt-8">
       <div className="flex items-baseline justify-between gap-3">
-        <div className="t-eyebrow text-[var(--color-danger)]">Danger zone</div>
+        <div className="t-eyebrow text-[var(--color-danger)]">{d.eyebrow}</div>
         <Link
           href="/docs/bot-wallet#deleting-the-wallet"
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          → What deleting actually does
+          {d.docsLink}
         </Link>
       </div>
       <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
@@ -272,13 +264,13 @@ function DangerZone({
       {confirmingDelete ? (
         <div className="mt-6 flex items-center gap-3">
           <span className="t-small text-[var(--color-danger)]">
-            Delete the encrypted wallet file?
+            {d.confirmDelete}
           </span>
           <Button variant="ghost" onClick={() => setConfirmingDelete(false)}>
-            Cancel
+            {d.cancel}
           </Button>
           <Button variant="danger" onClick={onDelete} disabled={del.isPending}>
-            {del.isPending ? "Deleting…" : "Yes, delete"}
+            {del.isPending ? t.common.deleting : d.yesDelete}
           </Button>
         </div>
       ) : (
@@ -288,7 +280,7 @@ function DangerZone({
             size="sm"
             onClick={() => setConfirmingDelete(true)}
           >
-            Delete wallet
+            {d.deleteCta}
           </Button>
         </div>
       )}

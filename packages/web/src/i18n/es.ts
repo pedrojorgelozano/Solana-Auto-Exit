@@ -447,4 +447,292 @@ export const es: typeof en = {
       },
     },
   },
+
+  tasksList: {
+    pageEyebrow: "Histórico",
+    pageTitle: "Todos los auto-exits.",
+    pageDescription:
+      "Activos, pausados, completados y con error — todo lo que este servidor sabe.",
+    backLabel: "Inicio",
+    noMatch: "Ningún auto-exit coincide con este filtro.",
+    emptyEyebrow: "Vacío",
+    emptyTitle: "Aún no hay auto-exits.",
+    emptyBody:
+      "Un auto-exit vigila una posición LP y la cierra cuando se alcanza tu precio de take-profit o stop-loss. Configura uno sobre cualquier posición que tenga la bot wallet — aparecerá aquí desde la creación hasta el cierre, incluyendo simulaciones dry-run.",
+    emptyCta: "Ir a posiciones →",
+    filters: {
+      all: "Todos",
+      active: "Activos",
+      completed: "Completados",
+      errors: "Errores",
+    },
+    cols: {
+      status: "Estado",
+      position: "Posición",
+      trigger: "Trigger",
+      lastPrice: "Último precio",
+      distance: "Distancia",
+      when: "Cuándo",
+    },
+  },
+
+  settings: {
+    pageEyebrow: "Ajustes",
+    pageTitle: "Defaults para este servidor.",
+    pageDescription:
+      "Los defaults de RPC, slippage y polling pre-rellenan el formulario de auto-exit. El form deja sobrescribirlos por task; esto es solo el punto de partida.",
+    backLabel: "Inicio",
+
+    networkSection: {
+      eyebrow: "Red & RPC",
+      title: "Dónde lee la cadena este servidor.",
+    },
+    defaultsSection: {
+      eyebrow: "Defaults de auto-exit",
+      title: "Pre-rellenados al configurar uno.",
+    },
+
+    networkLabel: "Red",
+    test: "TEST",
+    real: "REAL",
+    testCopy:
+      "Modo test — los auto-exits corren en Solana devnet. Sin fondos reales en riesgo.",
+    realCopy:
+      "Modo real — los auto-exits firman en Solana mainnet con fondos reales.",
+    realLocked: "El modo real está bloqueado en este servidor.",
+    realLockedHow: "→ Cómo activarlo",
+    realLockedDisabled: "Bloqueado — activar en el entorno del servidor",
+    switchTestPrompt:
+      "¿Volver a modo test? Los nuevos auto-exits correrán en Solana devnet.",
+
+    confirmReal: {
+      title: "Confirma el cambio a modo real",
+      body: "Cada auto-exit que crees a partir de ahora firmará transacciones en Solana mainnet con fondos reales. Las transacciones de cierre cuestan SOL real; los movimientos de precio afectan dinero real. No hay deshacer en un cierre disparado.",
+      bullet1Strong: "URL del RPC",
+      bullet1Rest:
+        " de abajo a un endpoint mainnet (Helius, QuickNode, Triton, o tu propio nodo). La URL pública de devnet no funciona.",
+      bullet1Prefix: "Actualiza la ",
+      bullet2:
+        "Las tasks existentes mantienen su red original — no se auto-migran. Solo los nuevos auto-exits serán en mainnet.",
+      bullet3: "Re-testea tu estrategia en devnet antes de pulsar el switch.",
+      understood:
+        "Entiendo que esto firmará transacciones con fondos reales y he actualizado mi URL del RPC.",
+      cancel: "Cancelar",
+      switching: "Cambiando…",
+      confirmCta: "Confirmar · usar fondos reales",
+    },
+
+    rpc: {
+      label: "URL del RPC",
+      hint: "cualquier endpoint Solana JSON-RPC",
+      mainnetWarning:
+        "El endpoint público de mainnet-beta tiene rate-limits muy estrictos y no es fiable para un watcher. Usa Helius, QuickNode, Triton, o un nodo propio.",
+      devnetWarning:
+        "El endpoint público de devnet tiene rate-limits. Para uso sostenido cambia a Helius, QuickNode, Triton, o un nodo propio.",
+      useDefault: (network: string) => `usar default ${network}`,
+    },
+
+    slippage: {
+      label: "Slippage de cierre",
+      legacyStored: (bps: number) =>
+        `Valor guardado: ${bps} bps. Elige un preset para actualizarlo.`,
+      copy05:
+        "estricto; fiable solo en pairs de stablecoins profundas (USDC/USDT). Los triggers pueden no completarse en minutos volátiles.",
+      copy1:
+        "Funciona para la mayoría de pairs en volatilidad normal. Buen equilibrio entre protección y fiabilidad.",
+      copy1Recommended: "default recomendado",
+      copy2:
+        "para pairs volátiles (low-cap, pools memecoin). El precio tiene que moverse mucho para que el cierre revierta.",
+      copy5:
+        "solo cuando el cierre",
+      copy5Must: "tiene que",
+      copy5Rest:
+        " completarse. Acepta un peaje alto de price impact a cambio de riesgo de reversión casi cero.",
+      docsLink: "→ Cómo afecta el slippage al cierre",
+    },
+
+    exitSlippage: {
+      label: "Slippage del swap de salida",
+      legacyStored: (bps: number) =>
+        `Valor guardado: ${bps} bps. Elige un preset para actualizarlo.`,
+      copyPart1:
+        "Solo se usa cuando un auto-exit elige también un token de salida. Misma escala que arriba — misma recomendación: ",
+      copyPart2: " para pairs habituales, ",
+      copyPart3: " cuando el pool es poco profundo o volátil.",
+    },
+
+    poll: {
+      label: "Intervalo de poll",
+      legacyStored: (s: string) =>
+        `Valor guardado: ${s}s. Elige un preset para actualizarlo — el default anterior de 5s era demasiado agresivo en la mayoría de RPCs.`,
+      copy10: " · reacción más rápida. Solo merece la pena para triggers ",
+      copy10Without: "sin",
+      copy10Rest:
+        " time buffer y en un RPC de pago (8.6k requests/día por task — quema el tier gratis de Helius en 12 días).",
+      copy30: " · ",
+      copy30Recommended: "default recomendado",
+      copy30Rest:
+        ". Capta todo movimiento relevante (los precios LP no saltan 5% en 20s) y cabe con holgura en el tier gratis de Helius con varios watchers corriendo.",
+      copy1min:
+        " · barato en RPC. Perfecto si usas time buffers — la espera del buffer de horas eclipsa la cadencia del polling.",
+      copy5min:
+        " · solo para buffers muy largos (días) o pools estables y lentos. Con triggers sin buffer puedes perder el cruce.",
+      docsLink: "→ Intervalo de poll, coste RPC y buffers",
+    },
+
+    perTaskNote:
+      "Los slippages de arriba se pueden sobrescribir por task en el formulario de configure. El intervalo de poll es global del servidor; el form no expone override por task. Cambiar un default aquí solo afecta a nuevos auto-exits.",
+
+    resetPrompt:
+      "¿Resetear URL del RPC, slippage e intervalo de poll a sus defaults?\n\nTu elección de red (TEST / REAL) se mantiene — cámbiala desde el toggle de arriba si lo necesitas.",
+    resetCta: "Resetear a defaults",
+  },
+
+  wallet: {
+    pageEyebrow: "Wallet",
+    pageTitle: "El keypair que firma tus cierres.",
+    pageDescription:
+      "Cifrada en disco con scrypt + AES-256-GCM. Descifrada en memoria solo mientras la wallet está desbloqueada.",
+    backLabel: "Inicio",
+    encryptionLink: "→ Cómo funciona el cifrado y el almacenamiento de claves",
+    loading: "Cargando estado de la wallet…",
+    backendError: (msg: string) => `No se puede contactar con el backend: ${msg}`,
+
+    scope: {
+      eyebrow: "Alcance",
+      body:
+        "Sea cual sea la clave que des, solo esa única address queda expuesta a este servidor — nunca una seed phrase, nunca otras cuentas. La práctica habitual es usar una cuenta dedicada a operaciones activas, no aquella donde guardas holdings en frío.",
+    },
+
+    noVault: {
+      eyebrow: "Sin wallet",
+      title: "Configura la bot wallet para empezar.",
+      body:
+        "Genera un keypair nuevo en esta máquina, o importa la clave privada de una única cuenta de Solana desde Phantom, Backpack, o la Solana CLI. La clave se cifra con un passphrase y se usa solo para firmar los cierres que configures.",
+      cta: "Configurar bot wallet →",
+      docs: "→ Leer sobre los tres caminos",
+    },
+
+    locked: {
+      eyebrow: "Wallet bloqueada",
+      bodyWithAddress: (addr: string) =>
+        `Un keypair está cifrado en disco para ${addr}. Introduce el passphrase para cargarlo en memoria.`,
+      bodyNoAddress:
+        "Un keypair está cifrado en disco. Introduce el passphrase para cargarlo en memoria.",
+      passphraseLabel: "Passphrase",
+      unlocking: "Desbloqueando…",
+      unlock: "Desbloquear",
+    },
+
+    unlocked: {
+      eyebrow: "Wallet desbloqueada",
+      body:
+        "El keypair está en memoria. Se usará para firmar las transacciones de cierre y swap de los auto-exits armados. Bloquea cuando termines.",
+      locking: "Bloqueando…",
+      lock: "Bloquear",
+    },
+
+    danger: {
+      eyebrow: "Zona peligrosa",
+      docsLink: "→ Qué hace realmente el borrado",
+      explainReset:
+        "Borra permanentemente el archivo de wallet cifrada. La wallet on-chain no se ve afectada — solo se elimina la copia cifrada de este servidor.",
+      explainLostPass:
+        "Si no recuerdas el passphrase, borrar el archivo cifrado es la única salida. La wallet on-chain sigue segura; solo pierdes la copia cifrada de este servidor.",
+      confirmDelete: "¿Borrar el archivo de wallet cifrada?",
+      cancel: "Cancelar",
+      yesDelete: "Sí, borrar",
+      deleteCta: "Borrar wallet",
+    },
+  },
+
+  modal: {
+    closeAria: "Cerrar",
+    title: "Configurar bot wallet",
+    intro:
+      "Una cuenta cuya clave vive cifrada en esta máquina. El bot la usa para firmar cierres cuando los triggers se disparan — incluso cuando no estás presente.",
+    notPhantom:
+      "No es un \"connect wallet\" tipo Phantom. El bot no puede mostrar un popup de firma a las 3 de la mañana — necesita la clave en disco. Aquí tienes los tres caminos para ponerla:",
+    tabs: {
+      generate: "Generar",
+      importKey: "Importar clave",
+      advancedJson: "Avanzado · JSON",
+    },
+    generate: {
+      title: "Generar un keypair nuevo",
+      body:
+        "Creamos un keypair ed25519 nuevo en esta máquina, lo ciframos con tu passphrase, y te enseñamos el secreto una vez para que lo guardes en tu password manager. Tras eso, en disco solo queda el archivo cifrado.",
+      hint: "≥ 8 caracteres",
+      passphraseLabel: "Passphrase",
+      confirmLabel: "Confirmar",
+      errorShort: "El passphrase debe tener al menos 8 caracteres.",
+      errorMismatch: "Los passphrases no coinciden.",
+      generating: "Generando…",
+      submitCta: "Generar y cifrar",
+      finePrint:
+        "Recomendado si no tienes ya una cuenta operacional dedicada.",
+    },
+    importBase58: {
+      title: "Importar una clave (base58)",
+      body:
+        "Pega la clave privada de una única cuenta de Solana en formato base58 — típicamente la que Phantom o Backpack exportan por cuenta (≈ 88 caracteres). No se aceptan seed phrases, así que solo esta única address llega a este servidor.",
+    },
+    importJson: {
+      title: "Avanzado — array JSON de bytes",
+      body:
+        "Pega el contenido de wallet.json de Solana CLI — un array JSON de 64 enteros, p.ej. [12, 45, 200, …]. Mismo alcance que la pestaña Importar clave: representa una única cuenta.",
+    },
+    importCommon: {
+      secretLabel: "Clave secreta",
+      secretHintBase58: "≈ 88 caracteres base58",
+      secretHintJson: "[12, 34, 56, …]  · 64 enteros",
+      placeholderBase58: "3suF5rw3…",
+      placeholderJson: "[12, 45, 200, …, 8]",
+      passphraseLabel: "Passphrase",
+      confirmLabel: "Confirmar",
+      passphraseHint: "≥ 8 caracteres",
+      errorShort: "El passphrase debe tener al menos 8 caracteres.",
+      errorMismatch: "Los passphrases no coinciden.",
+      importing: "Importando…",
+      submitCta: "Cifrar y desbloquear",
+    },
+    importWarning: {
+      eyebrow: "Alcance operacional",
+      body:
+        "La clave se guarda cifrada en disco en esta máquina y se descifra en memoria solo mientras la vault está desbloqueada. Si tanto tu passphrase como el archivo de vault fueran comprometidos a la vez, los activos en esta única address podrían moverse por el atacante — nada más en tu wallet, ninguna otra cuenta, ninguna address derivada de seed.",
+      body2:
+        "La práctica habitual es importar una cuenta dedicada a operaciones activas (una cuenta \"caliente\" separada de las cold holdings), no la cuenta donde guardas todo.",
+      readMore: "→ Leer el blast radius preciso",
+    },
+    success: {
+      title: "Guarda tu secreto. Ahora.",
+      bodyIntro:
+        "Se ha generado una bot wallet nueva, cifrada con tu passphrase, y desbloqueada. Abajo tienes la clave secreta.",
+      bodyStrong: "Es la única vez que la verás.",
+      secretEyebrow: "Clave secreta · base58",
+      reveal: "mostrar",
+      hide: "ocultar",
+      copy: "copiar",
+      copied: "copiada",
+      savedCheckbox:
+        "He guardado la clave secreta en un sitio seguro (password manager, backup offline). Entiendo que no se mostrará de nuevo.",
+      nextEyebrow: "Siguiente",
+      step1Body:
+        "Importa este secreto en Phantom o Backpack como cuenta nueva (Settings → Add wallet → Import private key). La bot wallet queda al lado de tu cuenta principal y puedes usarla desde ahí.",
+      step2BodyPrefix: "Fondea ",
+      step2BodySuffix:
+        " con SOL (para fees) y los tokens que quieras que gestione.",
+      step3Body:
+        "Abre una posición LP en Orca con la cuenta del bot seleccionada en tu wallet. Aparecerá bajo Positions aquí para configurar un auto-exit.",
+      alternative:
+        "Alternativa: transfiere el NFT de una posición existente desde cualquier cuenta que controles a esta address.",
+      continueCta: "Continuar",
+    },
+    address: {
+      label: "Address",
+      balance: "Balance",
+      faucetCta: "→ Conseguir SOL de devnet del faucet",
+      scanHint: "escanea para enviar fondos",
+    },
+  },
 };

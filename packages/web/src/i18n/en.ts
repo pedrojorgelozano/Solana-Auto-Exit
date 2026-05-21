@@ -468,4 +468,304 @@ export const en = {
       },
     },
   },
+
+  // ============================================================================
+  // /tasks — historical list
+  // ============================================================================
+  tasksList: {
+    pageEyebrow: "History",
+    pageTitle: "All auto-exits.",
+    pageDescription:
+      "Active, paused, completed and errored — everything this server knows about.",
+    backLabel: "Home",
+    noMatch: "No auto-exits match this filter.",
+    emptyEyebrow: "Empty",
+    emptyTitle: "No auto-exits yet.",
+    emptyBody:
+      "An auto-exit watches a single LP position and closes it when your take-profit or stop-loss price hits. Configure one on any position the bot wallet owns — it will appear here from creation through completion, including dry-run simulations.",
+    emptyCta: "Go to positions →",
+    filters: {
+      all: "All",
+      active: "Active",
+      completed: "Completed",
+      errors: "Errors",
+    },
+    cols: {
+      status: "Status",
+      position: "Position",
+      trigger: "Trigger",
+      lastPrice: "Last price",
+      distance: "Distance",
+      when: "When",
+    },
+  },
+
+  // ============================================================================
+  // /settings — server defaults + network panel
+  // ============================================================================
+  settings: {
+    pageEyebrow: "Settings",
+    pageTitle: "Defaults for this server.",
+    pageDescription:
+      "RPC, slippage and polling defaults pre-fill the auto-exit form. The form lets you override per-task; this is just the starting point.",
+    backLabel: "Home",
+
+    networkSection: {
+      eyebrow: "Network & RPC",
+      title: "Where this server reads the chain.",
+    },
+    defaultsSection: {
+      eyebrow: "Auto-exit defaults",
+      title: "Pre-filled when you set one up.",
+    },
+
+    networkLabel: "Network",
+    test: "TEST",
+    real: "REAL",
+    testCopy:
+      "Test mode — auto-exits run on Solana devnet. No real funds at risk.",
+    realCopy: "Real mode — auto-exits sign on Solana mainnet with real funds.",
+    realLocked: "Real mode is locked on this server.",
+    realLockedHow: "→ How to enable it",
+    realLockedDisabled: "Locked — enable in server environment",
+    switchTestPrompt:
+      "Switch back to test mode? New auto-exits will run on Solana devnet.",
+
+    confirmReal: {
+      title: "Confirm switch to real mode",
+      body: "Every auto-exit you create after this will sign transactions on Solana mainnet with real funds. Close transactions cost real SOL; price moves affect real money. There is no undo on a triggered close.",
+      bullet1Strong: "RPC URL",
+      bullet1Rest:
+        " below to a mainnet endpoint (Helius, QuickNode, Triton, or your own node). The public devnet URL won't work.",
+      bullet1Prefix: "Update ",
+      bullet2:
+        "Existing tasks keep their original network — they don't auto-migrate. Only new auto-exits will be on mainnet.",
+      bullet3: "Re-test your strategy on devnet before flipping the switch.",
+      understood:
+        "I understand this will sign transactions with real funds and I've updated my RPC URL.",
+      cancel: "Cancel",
+      switching: "Switching…",
+      confirmCta: "Confirm · use real funds",
+    },
+
+    rpc: {
+      label: "RPC URL",
+      hint: "any Solana JSON-RPC endpoint",
+      mainnetWarning:
+        "The public mainnet-beta endpoint is heavily rate-limited and not reliable for a watcher. Use Helius, QuickNode, Triton, or a node you run.",
+      devnetWarning:
+        "The public devnet endpoint is rate-limited. For sustained use swap to Helius, QuickNode, Triton, or a node you run.",
+      useDefault: (network: string) => `use ${network} default`,
+    },
+
+    slippage: {
+      label: "Close slippage",
+      legacyStored: (bps: number) =>
+        `Currently stored: ${bps} bps. Pick a preset to update.`,
+      copy05:
+        "tight; reliable only on deep stablecoin pairs (USDC/USDT). Triggers may fail to complete in volatile minutes.",
+      copy1:
+        "Works for most pairs in normal volatility. Solid balance between protection and reliability.",
+      copy1Recommended: "recommended default",
+      copy2:
+        "for volatile pairs (low-cap, memecoin pools). The price has to drift a lot for the close to revert.",
+      copy5:
+        "only when the close",
+      copy5Must: "must",
+      copy5Rest:
+        " complete. Accepts a high price impact tax in exchange for near-zero revert risk.",
+      docsLink: "→ How slippage affects close transactions",
+    },
+
+    exitSlippage: {
+      label: "Exit-swap slippage",
+      legacyStored: (bps: number) =>
+        `Currently stored: ${bps} bps. Pick a preset to update.`,
+      copyPart1:
+        "Only used when an auto-exit also selects an exit token. Same scale as above — same recommendation: ",
+      copyPart2: " for everyday pairs, ",
+      copyPart3: " when the pool is shallow or volatile.",
+    },
+
+    poll: {
+      label: "Poll interval",
+      legacyStored: (s: string) =>
+        `Currently stored: ${s}s. Pick a preset to update — the previous default of 5s was too aggressive on most RPC providers.`,
+      copy10:
+        " · fastest reaction. Only worth it for triggers ",
+      copy10Without: "without",
+      copy10Rest:
+        " time buffer and on a paid RPC (8.6k requests/day per task — burns Helius free tier in 12 days).",
+      copy30: " · ",
+      copy30Recommended: "recommended default",
+      copy30Rest:
+        ". Catches every relevant move (LP prices don't jump 5% in 20s) and fits comfortably in Helius free tier with a few watchers running.",
+      copy1min:
+        " · cheap on RPC. Perfect when you're using time buffers — the hours-long buffer wait dwarfs the polling cadence.",
+      copy5min:
+        " · only for very long buffers (days) or stable, slow pools. With buffer-less triggers you may miss the cross.",
+      docsLink: "→ Polling interval, RPC cost, and buffers",
+    },
+
+    perTaskNote:
+      "Slippage settings above can be overridden per-task on the configure form. Poll interval is server-wide; the form does not expose a per-task override. Changing a default here only affects new auto-exits.",
+
+    resetPrompt:
+      "Reset RPC URL, slippage and poll interval to defaults?\n\nYour network choice (TEST / REAL) is preserved — switch it from the toggle above if you need to.",
+    resetCta: "Reset to defaults",
+  },
+
+  // ============================================================================
+  // /wallet
+  // ============================================================================
+  wallet: {
+    pageEyebrow: "Wallet",
+    pageTitle: "The keypair that signs your closes.",
+    pageDescription:
+      "Encrypted at rest with scrypt + AES-256-GCM. Decrypted in memory only while the wallet is unlocked.",
+    backLabel: "Home",
+    encryptionLink: "→ How encryption and key storage work",
+    loading: "Loading wallet status…",
+    backendError: (msg: string) => `Cannot reach the backend: ${msg}`,
+
+    scope: {
+      eyebrow: "Scope",
+      body:
+        "Whatever key you provide, only that single address is exposed to this server — never a seed phrase, never other accounts. The standard practice is to use an account dedicated to active operations, not the one where you store cold holdings.",
+    },
+
+    noVault: {
+      eyebrow: "No wallet",
+      title: "Set up the bot wallet to begin.",
+      body:
+        "Generate a fresh keypair on this machine, or import the private key of a single Solana account from Phantom, Backpack, or the Solana CLI. The key is encrypted with a passphrase and used only to sign the closes you configure.",
+      cta: "Set up bot wallet →",
+      docs: "→ Read about the three paths",
+    },
+
+    locked: {
+      eyebrow: "Wallet is locked",
+      bodyWithAddress: (addr: string) =>
+        `A keypair is encrypted on disk for ${addr}. Enter the passphrase to load it into memory.`,
+      bodyNoAddress:
+        "A keypair is encrypted on disk. Enter the passphrase to load it into memory.",
+      passphraseLabel: "Passphrase",
+      unlocking: "Unlocking…",
+      unlock: "Unlock",
+    },
+
+    unlocked: {
+      eyebrow: "Wallet unlocked",
+      body:
+        "The keypair is in memory. It will be used to sign close and swap transactions for armed auto-exits. Lock when you're done.",
+      locking: "Locking…",
+      lock: "Lock",
+    },
+
+    danger: {
+      eyebrow: "Danger zone",
+      docsLink: "→ What deleting actually does",
+      explainReset:
+        "Permanently delete the encrypted wallet file. The wallet on-chain is not affected — only this server's encrypted copy is removed.",
+      explainLostPass:
+        "If you don't remember the passphrase, deleting the encrypted file is the only way out. The wallet on-chain stays safe; you just lose this server's encrypted copy.",
+      confirmDelete: "Delete the encrypted wallet file?",
+      cancel: "Cancel",
+      yesDelete: "Yes, delete",
+      deleteCta: "Delete wallet",
+    },
+  },
+
+  // ============================================================================
+  // ConnectWalletModal
+  // ============================================================================
+  modal: {
+    closeAria: "Close",
+    title: "Set up bot wallet",
+    intro:
+      "An account whose key lives encrypted on this machine. The bot uses it to sign closes when triggers fire — including while you're away.",
+    notPhantom:
+      "Not a Phantom-style \"connect wallet\". The bot can't pop up a signing prompt at 3am — it needs the key on disk. Here are the three ways to put one there:",
+    tabs: {
+      generate: "Generate",
+      importKey: "Import key",
+      advancedJson: "Advanced · JSON",
+    },
+    generate: {
+      title: "Generate a fresh keypair",
+      body:
+        "We create a new ed25519 keypair on this machine, encrypt it with your passphrase, and show you the secret once so you can save it in your password manager. After that, only the encrypted file remains on disk.",
+      hint: "≥ 8 characters",
+      passphraseLabel: "Passphrase",
+      confirmLabel: "Confirm",
+      errorShort: "Passphrase must be at least 8 characters.",
+      errorMismatch: "Passphrases don't match.",
+      generating: "Generating…",
+      submitCta: "Generate and encrypt",
+      finePrint:
+        "Recommended if you don't already have a dedicated operational account.",
+    },
+    importBase58: {
+      title: "Import a key (base58)",
+      body:
+        "Paste the private key of a single Solana account in base58 form — typically the one Phantom or Backpack exports for a specific account (≈ 88 characters). Seed phrases are not accepted, so only this one address ever reaches this server.",
+    },
+    importJson: {
+      title: "Advanced — JSON byte array",
+      body:
+        "Paste the wallet.json contents from Solana CLI — a JSON array of 64 integers, e.g. [12, 45, 200, …]. Same scope as the Import key tab: this represents a single account.",
+    },
+    importCommon: {
+      secretLabel: "Secret key",
+      secretHintBase58: "≈ 88 base58 characters",
+      secretHintJson: "[12, 34, 56, …]  · 64 integers",
+      placeholderBase58: "3suF5rw3…",
+      placeholderJson: "[12, 45, 200, …, 8]",
+      passphraseLabel: "Passphrase",
+      confirmLabel: "Confirm",
+      passphraseHint: "≥ 8 characters",
+      errorShort: "Passphrase must be at least 8 characters.",
+      errorMismatch: "Passphrases don't match.",
+      importing: "Importing…",
+      submitCta: "Encrypt and unlock",
+    },
+    importWarning: {
+      eyebrow: "Operational scope",
+      body:
+        "The key is held encrypted at rest on this machine and decrypted in memory only while the vault is unlocked. If both your passphrase and the vault file were compromised, the assets at this single address could be moved by the attacker — nothing else in your wallet, no other accounts, no seed-derived addresses.",
+      body2:
+        "Standard practice is to import an account dedicated to active operations (a \"hot\" account separate from cold holdings), not the account where you store everything.",
+      readMore: "→ Read the precise blast radius",
+    },
+    success: {
+      title: "Save your secret. Now.",
+      bodyIntro:
+        "A new bot wallet has been generated, encrypted with your passphrase, and unlocked. Below is the secret key.",
+      bodyStrong: "This is the only time you'll see it.",
+      secretEyebrow: "Secret key · base58",
+      reveal: "reveal",
+      hide: "hide",
+      copy: "copy",
+      copied: "copied",
+      savedCheckbox:
+        "I've saved the secret key in a safe place (password manager, offline backup). I understand it won't be shown again.",
+      nextEyebrow: "Next",
+      step1Body:
+        "Import this secret into Phantom or Backpack as a new account (Settings → Add wallet → Import private key). The bot wallet then sits alongside your main and you can use it from there.",
+      step2BodyPrefix: "Fund it at ",
+      step2BodySuffix:
+        " with SOL (for fees) and the tokens you want it to manage.",
+      step3Body:
+        "Open an LP position on Orca while the bot account is selected in your wallet. It will appear under Positions here for auto-exit setup.",
+      alternative:
+        "Alternative: transfer the NFT of an existing position from any account you control to this address.",
+      continueCta: "Continue",
+    },
+    address: {
+      label: "Address",
+      balance: "Balance",
+      faucetCta: "→ Get devnet SOL from the faucet",
+      scanHint: "scan to send funds",
+    },
+  },
 };

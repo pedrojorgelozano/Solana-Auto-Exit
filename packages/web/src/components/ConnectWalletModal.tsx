@@ -9,11 +9,13 @@ import { FieldError } from "@/components/ui/Card";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress, formatTokenAmount } from "@/lib/format";
+import { useT } from "@/i18n/context";
 
 type Tab = "generate" | "base58" | "json";
 
 export function ConnectWalletModal() {
   const { isOpen, close } = useConnectWallet();
+  const { t } = useT();
 
   // Lock body scroll while open.
   useEffect(() => {
@@ -46,7 +48,7 @@ export function ConnectWalletModal() {
       {/* Backdrop */}
       <button
         type="button"
-        aria-label="Close"
+        aria-label={t.modal.closeAria}
         className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-default"
         onClick={close}
       />
@@ -61,6 +63,7 @@ export function ConnectWalletModal() {
 
 function ModalContent() {
   const { close } = useConnectWallet();
+  const { t } = useT();
   const [tab, setTab] = useState<Tab>("generate");
   // Cuando una mutation acaba bien, mostramos el "success" — para generate
   // mostramos también el secret.
@@ -80,20 +83,20 @@ function ModalContent() {
 
   return (
     <>
-      <ModalHeader title="Set up the bot's wallet" onClose={close} />
+      <ModalHeader title={t.modal.title} onClose={close} />
 
       <Preamble />
 
       {/* Tabs */}
       <div className="flex border-b border-[var(--color-hairline)]">
         <TabButton active={tab === "generate"} onClick={() => setTab("generate")}>
-          Generate
+          {t.modal.tabs.generate}
         </TabButton>
         <TabButton active={tab === "base58"} onClick={() => setTab("base58")}>
-          Import key
+          {t.modal.tabs.importKey}
         </TabButton>
         <TabButton active={tab === "json"} onClick={() => setTab("json")}>
-          Advanced · JSON
+          {t.modal.tabs.advancedJson}
         </TabButton>
       </div>
 
@@ -121,17 +124,13 @@ function ModalContent() {
 
 function Preamble() {
   const { close } = useConnectWallet();
+  const { t } = useT();
   return (
     <div className="border-b border-[var(--color-hairline)] bg-[var(--color-bg)]/40 px-6 py-5">
       <p className="t-small text-[var(--color-text-muted)]">
-        This is the wallet the bot uses to sign close transactions
-        autonomously — including while you&apos;re asleep.{" "}
-        <span className="text-[var(--color-text)]">
-          It is not a Phantom-style connect.
-        </span>{" "}
-        Adapters need you to approve every signature, which doesn&apos;t work
-        for a watcher. The key lives encrypted on this machine; the bot
-        decrypts it in memory when needed. Pick how you want to provide one.
+        {t.modal.intro}
+        <br />
+        <span className="text-[var(--color-text)]">{t.modal.notPhantom}</span>
       </p>
       <div className="mt-3">
         <Link
@@ -139,7 +138,7 @@ function Preamble() {
           onClick={close}
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
-          → Why a bot wallet?
+          {t.home.eyebrow.whatIs}
         </Link>
       </div>
     </div>
@@ -151,16 +150,19 @@ function Preamble() {
 // ============================================================================
 
 function ModalHeader({ title, onClose }: { title: string; onClose: () => void }) {
+  const { t } = useT();
   return (
     <div className="flex items-center justify-between p-6 border-b border-[var(--color-hairline)]">
       <div>
-        <div className="t-eyebrow text-[var(--color-accent-bright)]">Wallet</div>
+        <div className="t-eyebrow text-[var(--color-accent-bright)]">
+          {t.wallet.pageEyebrow}
+        </div>
         <h2 className="mt-1 t-h2">{title}</h2>
       </div>
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close"
+        aria-label={t.modal.closeAria}
         className="h-9 w-9 inline-flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
       >
         <svg
@@ -214,6 +216,8 @@ function GenerateTab({
 }: {
   onSuccess: (address: string, secret: string) => void;
 }) {
+  const { t } = useT();
+  const g = t.modal.generate;
   const [passphrase, setPassphrase] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -230,11 +234,11 @@ function GenerateTab({
     e.preventDefault();
     setError(null);
     if (passphrase.length < 8) {
-      setError("Passphrase must be at least 8 characters.");
+      setError(g.errorShort);
       return;
     }
     if (passphrase !== confirm) {
-      setError("Passphrases don't match.");
+      setError(g.errorMismatch);
       return;
     }
     try {
@@ -247,18 +251,14 @@ function GenerateTab({
   return (
     <form onSubmit={submit} className="space-y-6">
       <p className="t-body text-[var(--color-text-muted)]">
-        A fresh ed25519 keypair, created on this machine and encrypted with
-        your passphrase. You&apos;ll see the secret <strong>once</strong>{" "}
-        — save it in your password manager. Same format Phantom and Backpack
-        accept, so you can also import the secret into them as a new account
-        and open LP positions from it. <span className="text-[var(--color-text-dim)]">Best when you don&apos;t
-        already have a dedicated operational account.</span>
+        {g.body}{" "}
+        <span className="text-[var(--color-text-dim)]">{g.finePrint}</span>
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="gen-passphrase" hint="≥ 8 characters">
-            Passphrase
+          <Label htmlFor="gen-passphrase" hint={g.hint}>
+            {g.passphraseLabel}
           </Label>
           <PasswordInput
             id="gen-passphrase"
@@ -270,7 +270,7 @@ function GenerateTab({
           />
         </div>
         <div>
-          <Label htmlFor="gen-confirm">Confirm</Label>
+          <Label htmlFor="gen-confirm">{g.confirmLabel}</Label>
           <PasswordInput
             id="gen-confirm"
             autoComplete="new-password"
@@ -286,7 +286,7 @@ function GenerateTab({
 
       <div className="flex items-center justify-end pt-2">
         <Button type="submit" disabled={gen.isPending}>
-          {gen.isPending ? "Generating…" : "Generate and encrypt"}
+          {gen.isPending ? g.generating : g.submitCta}
         </Button>
       </div>
     </form>
@@ -304,6 +304,8 @@ function ImportTab({
   kind: "base58" | "jsonArray";
   onSuccess: () => void;
 }) {
+  const { t } = useT();
+  const ic = t.modal.importCommon;
   const [secret, setSecret] = useState("");
   const [passphrase, setPassphrase] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -317,11 +319,11 @@ function ImportTab({
     e.preventDefault();
     setError(null);
     if (passphrase.length < 8) {
-      setError("Passphrase must be at least 8 characters.");
+      setError(ic.errorShort);
       return;
     }
     if (passphrase !== confirm) {
-      setError("Passphrases don't match.");
+      setError(ic.errorMismatch);
       return;
     }
     try {
@@ -343,8 +345,8 @@ function ImportTab({
     <form onSubmit={submit} className="space-y-6">
       <p className="t-body text-[var(--color-text-muted)]">
         {kind === "base58"
-          ? "Paste the private key of a single Solana account in base58 form — typically the one Phantom or Backpack exports for a specific account (≈ 88 characters). Seed phrases are not accepted, so only this one address ever reaches this server."
-          : "Paste the wallet.json contents from Solana CLI — a JSON array of 64 integers, e.g. [12, 45, 200, …]. Same scope as the Import key tab: this represents a single account."}
+          ? t.modal.importBase58.body
+          : t.modal.importJson.body}
       </p>
 
       <ImportWarning />
@@ -352,13 +354,9 @@ function ImportTab({
       <div>
         <Label
           htmlFor="import-secret"
-          hint={
-            kind === "base58"
-              ? "≈ 88 base58 characters"
-              : "[12, 34, 56, …]  · 64 integers"
-          }
+          hint={kind === "base58" ? ic.secretHintBase58 : ic.secretHintJson}
         >
-          Secret key
+          {ic.secretLabel}
         </Label>
         {kind === "base58" ? (
           <PasswordInput
@@ -367,7 +365,7 @@ function ImportTab({
             spellCheck={false}
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            placeholder="3suF5rw3…"
+            placeholder={ic.placeholderBase58}
             required
             className="t-num"
           />
@@ -379,7 +377,7 @@ function ImportTab({
             spellCheck={false}
             value={secret}
             onChange={(e) => setSecret(e.target.value)}
-            placeholder="[12, 45, 200, …, 8]"
+            placeholder={ic.placeholderJson}
             required
           />
         )}
@@ -387,8 +385,8 @@ function ImportTab({
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-          <Label htmlFor="import-pass" hint="≥ 8 characters">
-            Passphrase
+          <Label htmlFor="import-pass" hint={ic.passphraseHint}>
+            {ic.passphraseLabel}
           </Label>
           <PasswordInput
             id="import-pass"
@@ -400,7 +398,7 @@ function ImportTab({
           />
         </div>
         <div>
-          <Label htmlFor="import-confirm">Confirm</Label>
+          <Label htmlFor="import-confirm">{ic.confirmLabel}</Label>
           <PasswordInput
             id="import-confirm"
             autoComplete="new-password"
@@ -416,7 +414,7 @@ function ImportTab({
 
       <div className="flex items-center justify-end pt-2">
         <Button type="submit" disabled={busy}>
-          {busy ? "Encrypting…" : "Import and unlock"}
+          {busy ? ic.importing : ic.submitCta}
         </Button>
       </div>
     </form>
@@ -428,27 +426,19 @@ function ImportTab({
 // ============================================================================
 
 function ImportWarning() {
+  const { t } = useT();
+  const w = t.modal.importWarning;
   return (
     <div className="border-l-2 border-[var(--color-warning)] bg-[var(--color-warning-bg)] px-5 py-4">
-      <div className="t-eyebrow text-[var(--color-warning)]">
-        Operational scope
-      </div>
-      <p className="mt-2 t-small text-[var(--color-text)]">
-        The key is held encrypted at rest on this machine and decrypted in
-        memory only while the vault is unlocked. If both your passphrase and
-        the vault file were compromised, the assets at <em>this single
-        address</em> could be moved by the attacker — nothing else in your
-        wallet, no other accounts, no seed-derived addresses.
-      </p>
+      <div className="t-eyebrow text-[var(--color-warning)]">{w.eyebrow}</div>
+      <p className="mt-2 t-small text-[var(--color-text)]">{w.body}</p>
       <p className="mt-3 t-small text-[var(--color-text-muted)]">
-        Standard practice is to import an account dedicated to active
-        operations (a &ldquo;hot&rdquo; account separate from cold holdings),
-        not the account where you store everything.{" "}
+        {w.body2}{" "}
         <Link
           href="/docs/bot-wallet#blast-radius"
           className="text-[var(--color-accent-bright)] hover:underline"
         >
-          → Read the precise blast radius
+          {w.readMore}
         </Link>
       </p>
     </div>
@@ -468,6 +458,8 @@ function GenerateSuccess({
   secretBase58: string;
   onDone: () => void;
 }) {
+  const { t } = useT();
+  const su = t.modal.success;
   const [shown, setShown] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copiedAddr, setCopiedAddr] = useState(false);
@@ -490,12 +482,10 @@ function GenerateSuccess({
 
   return (
     <>
-      <ModalHeader title="Save your secret. Now." onClose={onDone} />
+      <ModalHeader title={su.title} onClose={onDone} />
       <div className="p-8 space-y-8">
         <p className="t-body text-[var(--color-text)]">
-          A new bot wallet has been generated, encrypted with your passphrase,
-          and unlocked. Below is the secret key. <strong>This is the only
-          time you&apos;ll see it.</strong>
+          {su.bodyIntro} <strong>{su.bodyStrong}</strong>
         </p>
 
         {/* Address — con QR + balance + faucet */}
@@ -509,7 +499,7 @@ function GenerateSuccess({
         <div className="border-l-2 border-[var(--color-danger)] pl-5">
           <div className="flex items-center justify-between">
             <span className="t-eyebrow text-[var(--color-danger)]">
-              Secret key · base58
+              {su.secretEyebrow}
             </span>
             <div className="flex items-center gap-3">
               <button
@@ -517,14 +507,14 @@ function GenerateSuccess({
                 onClick={() => setShown(!shown)}
                 className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
               >
-                {shown ? "hide" : "reveal"}
+                {shown ? su.hide : su.reveal}
               </button>
               <button
                 type="button"
                 onClick={() => copy(secretBase58, "secret")}
                 className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
               >
-                {copiedSecret ? "copied" : "copy"}
+                {copiedSecret ? su.copied : su.copy}
               </button>
             </div>
           </div>
@@ -541,50 +531,40 @@ function GenerateSuccess({
             onChange={(e) => setSaved(e.target.checked)}
             className="mt-0.5 h-4 w-4"
           />
-          <span className="t-body text-[var(--color-text)]">
-            I&apos;ve saved the secret key in a safe place (password manager,
-            offline backup). I understand it won&apos;t be shown again.
-          </span>
+          <span className="t-body text-[var(--color-text)]">{su.savedCheckbox}</span>
         </label>
 
         {/* Next step hint */}
         <div className="border-l-2 border-[var(--color-accent)] pl-5">
           <div className="t-eyebrow text-[var(--color-accent-bright)]">
-            Next
+            {su.nextEyebrow}
           </div>
           <ol className="mt-3 space-y-2 t-small text-[var(--color-text-muted)]">
             <li>
               <span className="text-[var(--color-text-dim)]">01 ·</span>{" "}
-              Import this secret into Phantom or Backpack as a{" "}
-              <em>new account</em> (Settings → Add wallet → Import private
-              key). The bot wallet then sits alongside your main and you can
-              fund it + open LP positions from it via the wallet UI you
-              already know.
+              {su.step1Body}
             </li>
             <li>
-              <span className="text-[var(--color-text-dim)]">02 ·</span> Fund
-              it at{" "}
+              <span className="text-[var(--color-text-dim)]">02 ·</span>
+              {su.step2BodyPrefix}
               <span className="t-num text-[var(--color-text)]">
                 {truncateAddress(address, 6, 6)}
-              </span>{" "}
-              with SOL (for fees) and the tokens you want it to manage.
+              </span>
+              {su.step2BodySuffix}
             </li>
             <li>
-              <span className="text-[var(--color-text-dim)]">03 ·</span> Open
-              an LP position on Orca while the bot account is selected in your
-              wallet. It will appear under <em>Positions</em> here for
-              auto-exit setup.
+              <span className="text-[var(--color-text-dim)]">03 ·</span>{" "}
+              {su.step3Body}
             </li>
           </ol>
           <p className="mt-3 t-small text-[var(--color-text-dim)]">
-            Alternative: transfer the NFT of an existing position from any
-            account you control to this address.
+            {su.alternative}
           </p>
         </div>
 
         <div className="flex items-center justify-end">
           <Button onClick={onDone} disabled={!saved}>
-            Continue
+            {su.continueCta}
           </Button>
         </div>
       </div>
@@ -605,6 +585,9 @@ function AddressBlock({
   copied: boolean;
   onCopy: () => void;
 }) {
+  const { t } = useT();
+  const a = t.modal.address;
+  const su = t.modal.success;
   const settings = trpc.settings.get.useQuery();
   const balance = trpc.wallet.balance.useQuery(
     { address },
@@ -621,14 +604,14 @@ function AddressBlock({
         <div>
           <div className="flex items-center justify-between">
             <span className="t-eyebrow text-[var(--color-text-muted)]">
-              Address
+              {a.label}
             </span>
             <button
               type="button"
               onClick={onCopy}
               className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
             >
-              {copied ? "copied" : "copy"}
+              {copied ? su.copied : su.copy}
             </button>
           </div>
           <div className="mt-2 t-num break-all text-[var(--color-text)]">
@@ -638,7 +621,7 @@ function AddressBlock({
 
         <div className="flex items-baseline justify-between hairline-t pt-3">
           <span className="t-eyebrow text-[var(--color-text-muted)]">
-            Balance
+            {a.balance}
           </span>
           <span className="t-num text-[var(--color-text)]">
             {balance.isLoading ? "…" : `${balanceText} SOL`}
@@ -652,7 +635,7 @@ function AddressBlock({
             rel="noopener noreferrer"
             className="inline-block t-eyebrow text-[var(--color-accent-bright)] hover:underline"
           >
-            → Get devnet SOL from the faucet
+            {a.faucetCta}
           </a>
         ) : null}
       </div>
@@ -670,7 +653,7 @@ function AddressBlock({
           />
         </div>
         <span className="mt-3 t-eyebrow text-[var(--color-text-dim)]">
-          scan to send funds
+          {a.scanHint}
         </span>
       </div>
     </div>

@@ -628,6 +628,8 @@ function CloseReceipt({
   mintB: string;
   verified: VerifiedDeltas | null;
 }) {
+  const { t } = useT();
+  const r = t.taskDetail.receipt;
   // Para "Received": delta neto on-chain de cada mint. SOL nativo va por
   // solDelta; SPL por tokenDeltas[mint].
   const actualARaw = verified ? rawDeltaForMint(verified, mintA) : null;
@@ -638,15 +640,16 @@ function CloseReceipt({
       <div className="flex items-baseline justify-between">
         <div>
           <div className="t-eyebrow text-[var(--color-positive)]">
-            Position closed {data.dryRun ? "· simulated" : ""}
+            {r.closedHeader}
+            {data.dryRun ? r.closedSimulated : ""}
           </div>
-          <h3 className="mt-2 t-h2">Recovered from pool</h3>
+          <h3 className="mt-2 t-h2">{r.recoveredTitle}</h3>
         </div>
         {data.txId ? <SolscanLink sig={data.txId} /> : null}
       </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
-        <Receipt label={`Received ${tokenSymbol(mintA)}`}>
+        <Receipt label={r.receivedLabel(tokenSymbol(mintA))}>
           {formatAmountWithSymbol(data.estimatedTokenA, mintA, decimalsA, 6)}
           <ActualLine
             rawActual={actualARaw}
@@ -656,7 +659,7 @@ function CloseReceipt({
             showDiff={mintA !== SOL_MINT}
           />
         </Receipt>
-        <Receipt label={`Received ${tokenSymbol(mintB)}`}>
+        <Receipt label={r.receivedLabel(tokenSymbol(mintB))}>
           {formatAmountWithSymbol(data.estimatedTokenB, mintB, decimalsB, 6)}
           <ActualLine
             rawActual={actualBRaw}
@@ -666,19 +669,17 @@ function CloseReceipt({
             showDiff={mintB !== SOL_MINT}
           />
         </Receipt>
-        <Receipt label="Fees A">
+        <Receipt label={r.feesA}>
           {formatAmountWithSymbol(data.feesTokenA, mintA, decimalsA, 6)}
         </Receipt>
-        <Receipt label="Fees B">
+        <Receipt label={r.feesB}>
           {formatAmountWithSymbol(data.feesTokenB, mintB, decimalsB, 6)}
         </Receipt>
       </dl>
 
       {verified && mintA === SOL_MINT ? (
         <p className="mt-6 t-small text-[var(--color-text-dim)]">
-          The actual SOL delta includes tx fees deducted and any rent recovered
-          from closed accounts, which is why it can differ from the quoted
-          liquidity amount.
+          {r.solDeltaNote}
         </p>
       ) : null}
 
@@ -704,14 +705,16 @@ function SwapReceipt({
   decimalsB: number;
   verified: VerifiedDeltas | null;
 }) {
+  const { t } = useT();
+  const sw = t.taskDetail.swap;
   if (data.skipped) {
     return (
       <section className="hairline-t pt-8">
         <div className="t-eyebrow text-[var(--color-text-muted)]">
-          Exit swap · skipped
+          {sw.skippedTitle}
         </div>
         <p className="mt-2 t-small text-[var(--color-text-muted)]">
-          {data.notes ?? "Nothing to swap."}
+          {data.notes ?? sw.skippedFallback}
         </p>
       </section>
     );
@@ -730,7 +733,8 @@ function SwapReceipt({
       <div className="flex items-baseline justify-between">
         <div>
           <div className="t-eyebrow text-[var(--color-positive)]">
-            Swapped {data.dryRun ? "· simulated" : ""}
+            {sw.header}
+            {data.dryRun ? sw.simulated : ""}
           </div>
           <h3 className="mt-2 t-h2">
             {fromSym} <span className="text-[var(--color-text-muted)]">→</span>{" "}
@@ -763,7 +767,7 @@ function SwapReceipt({
         }
         return (
           <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3">
-            <Receipt label="Input">
+            <Receipt label={sw.input}>
               {data.inputAmount
                 ? formatAmountWithSymbol(
                     data.inputAmount,
@@ -780,7 +784,7 @@ function SwapReceipt({
                 showDiff
               />
             </Receipt>
-            <Receipt label="Output (estimated)">
+            <Receipt label={sw.outputEstimated}>
               {data.estimatedOutput
                 ? formatAmountWithSymbol(
                     data.estimatedOutput,
@@ -797,7 +801,7 @@ function SwapReceipt({
                 showDiff
               />
             </Receipt>
-            <Receipt label="Output (minimum)">
+            <Receipt label={sw.outputMinimum}>
               {data.minimumOutput
                 ? formatAmountWithSymbol(
                     data.minimumOutput,
@@ -845,6 +849,8 @@ function SolscanLink({ sig }: { sig: string }) {
     </Link>
   );
 }
+// Nota: "tx" + signature truncada se mantiene en ambos idiomas — abreviatura
+// universal en blockchain. No requiere traducción.
 
 // ============================================================================
 // Verified deltas — payload del evento `verified` que emitimos en el backend
@@ -901,13 +907,15 @@ function ActualLine({
   mint: string;
   showDiff?: boolean;
 }) {
+  const { t } = useT();
   if (rawActual === null || rawActual === "0") return null;
   const sign = rawActual.startsWith("-") ? "" : "+";
   const display = `${sign}${formatTokenAmount(rawActual, decimals, 6)} ${tokenSymbol(mint)}`;
   const diff = showDiff ? computeDiffPct(rawActual, rawQuoted) : null;
   return (
     <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
-      actual {display}
+      {t.taskDetail.receipt.actual}
+      {display}
       {diff !== null ? (
         <span
           className={`ml-2 ${
@@ -1155,7 +1163,8 @@ function ActivityTimeline({ taskId }: { taskId: string }) {
 }
 
 function EventRow({ ev }: { ev: HistoryEvent }) {
-  const desc = describeEvent(ev);
+  const { t } = useT();
+  const desc = describeEvent(ev, t);
   const timestamp =
     typeof ev.timestamp === "string"
       ? new Date(ev.timestamp).getTime()
@@ -1164,7 +1173,7 @@ function EventRow({ ev }: { ev: HistoryEvent }) {
   return (
     <li className="grid grid-cols-12 items-baseline gap-4 py-4">
       <div className="col-span-4 md:col-span-2 t-num text-[var(--color-text-muted)]">
-        {formatTimeAgo(timestamp)}
+        {formatTimeAgo(timestamp, t)}
       </div>
       <div className="col-span-8 md:col-span-2">
         <span className={`t-eyebrow ${desc.tone}`}>{desc.label}</span>
@@ -1181,13 +1190,19 @@ function EventRow({ ev }: { ev: HistoryEvent }) {
   );
 }
 
-function describeEvent(ev: HistoryEvent): {
+function describeEvent(
+  ev: HistoryEvent,
+  t: ReturnType<typeof useT>["t"],
+): {
   tone: string;
   label: string;
   description: React.ReactNode;
   txId?: string;
 } {
   const data = (ev.data as Record<string, unknown> | null) ?? {};
+  const tl = t.taskDetail.timeline;
+  const triggerKindTp = "Take-profit";
+  const triggerKindSl = "Stop-loss";
 
   switch (ev.event) {
     case "created": {
@@ -1196,74 +1211,80 @@ function describeEvent(ev: HistoryEvent): {
         typeof data.positionId === "string" ? data.positionId : null;
       return {
         tone: "text-[var(--color-text-muted)]",
-        label: "Created",
+        label: tl.labels.created,
         description:
           protocol && positionId
-            ? `Auto-exit created on ${protocol} for ${truncateAddress(positionId, 4, 4)}.`
-            : "Auto-exit created.",
+            ? tl.descriptions.createdWith(
+                protocol,
+                truncateAddress(positionId, 4, 4),
+              )
+            : tl.descriptions.createdGeneric,
       };
     }
     case "started":
       return {
         tone: "text-[var(--color-positive)]",
-        label: "Started",
-        description: "Watching the pool price.",
+        label: tl.labels.started,
+        description: tl.descriptions.started,
       };
     case "resumed":
       return {
         tone: "text-[var(--color-positive)]",
-        label: "Resumed",
-        description: "Watcher resumed after a pause.",
+        label: tl.labels.resumed,
+        description: tl.descriptions.resumed,
       };
     case "paused": {
       const reason = typeof data.reason === "string" ? data.reason : "user";
       const msg =
         reason === "user"
-          ? "Paused by user."
+          ? tl.descriptions.pausedUser
           : reason === "vault-locked"
-            ? "Paused — the vault was locked while the watcher was running."
+            ? tl.descriptions.pausedVaultLocked
             : reason === "server-restart"
-              ? "Paused at boot — vault was locked after the server restarted."
-              : `Paused (${reason}).`;
+              ? tl.descriptions.pausedServerRestart
+              : tl.descriptions.pausedOther(reason);
       return {
         tone: "text-[var(--color-warning)]",
-        label: "Paused",
+        label: tl.labels.paused,
         description: msg,
       };
     }
     case "stopped":
       return {
         tone: "text-[var(--color-text-muted)]",
-        label: "Stopped",
-        description: "Stopped manually. No further ticks.",
+        label: tl.labels.stopped,
+        description: tl.descriptions.stopped,
       };
     case "triggered": {
       const tb =
-        data.triggeredBy === "stop_loss" ? "Stop-loss" : "Take-profit";
+        data.triggeredBy === "stop_loss" ? triggerKindSl : triggerKindTp;
       return {
         tone: "text-[var(--color-warning)]",
-        label: "Triggered",
-        description: `${tb} threshold crossed — preparing to close.`,
+        label: tl.labels.triggered,
+        description: tl.descriptions.triggered(tb),
       };
     }
     case "buffer_armed": {
-      const kind = data.kind === "stop_loss" ? "Stop-loss" : "Take-profit";
+      const isSl = data.kind === "stop_loss";
       const bufMs =
         typeof data.bufferMs === "number" ? data.bufferMs : null;
+      const duration = bufMs ? formatBuffer(bufMs, t) : "";
       return {
         tone: "text-[var(--color-accent-bright)]",
-        label: "Buffer started",
-        description: bufMs
-          ? `${kind} target crossed. Waiting ${formatBuffer(bufMs)} of sustained price before closing.`
-          : `${kind} target crossed. Buffer started.`,
+        label: tl.labels.bufferStarted,
+        description: isSl
+          ? tl.descriptions.bufferArmedSl(duration)
+          : tl.descriptions.bufferArmedTp(duration),
       };
     }
     case "buffer_reset": {
-      const kind = data.kind === "stop_loss" ? "Stop-loss" : "Take-profit";
+      const isSl = data.kind === "stop_loss";
       return {
         tone: "text-[var(--color-text-muted)]",
-        label: "Buffer reset",
-        description: `${kind} target no longer crossed — buffer cronómetro reset to zero.`,
+        label: tl.labels.bufferReset,
+        description: isSl
+          ? tl.descriptions.bufferResetSl
+          : tl.descriptions.bufferResetTp,
       };
     }
     case "closed": {
@@ -1271,10 +1292,10 @@ function describeEvent(ev: HistoryEvent): {
       const txId = typeof data.txId === "string" ? data.txId : undefined;
       return {
         tone: "text-[var(--color-positive)]",
-        label: "Closed",
+        label: tl.labels.closed,
         description: dryRun
-          ? "Position closed in simulation — no transaction sent."
-          : "Position closed on-chain.",
+          ? tl.descriptions.closedDry
+          : tl.descriptions.closedReal,
         txId,
       };
     }
@@ -1285,12 +1306,12 @@ function describeEvent(ev: HistoryEvent): {
       const notes = typeof data.notes === "string" ? data.notes : null;
       return {
         tone: "text-[var(--color-positive)]",
-        label: "Swapped",
+        label: tl.labels.swapped,
         description: skipped
-          ? `Exit swap skipped${notes ? ` — ${notes}` : "."}`
+          ? tl.descriptions.swapSkipped(notes)
           : dryRun
-            ? "Swap quoted in simulation — no transaction sent."
-            : "Proceeds swapped on-chain.",
+            ? tl.descriptions.swapDry
+            : tl.descriptions.swapReal,
         txId,
       };
     }
@@ -1315,20 +1336,22 @@ function describeEvent(ev: HistoryEvent): {
       }
       return {
         tone: "text-[var(--color-positive)]",
-        label: kind === "swap" ? "Swap verified" : "Close verified",
+        label: kind === "swap" ? tl.labels.verifiedSwap : tl.labels.verifiedClose,
         description:
           parts.length > 0
-            ? `On-chain delta: ${parts.join(" · ")}`
-            : "On-chain queried — no balance changes detected.",
+            ? tl.descriptions.verifiedDeltas(parts.join(" · "))
+            : tl.descriptions.verifiedNoChanges,
         txId: sig,
       };
     }
     case "error": {
       const message =
-        typeof data.message === "string" ? data.message : "Unknown error.";
+        typeof data.message === "string"
+          ? data.message
+          : tl.descriptions.errorGeneric;
       return {
         tone: "text-[var(--color-danger)]",
-        label: "Error",
+        label: tl.labels.error,
         description: message,
       };
     }
@@ -1336,9 +1359,7 @@ function describeEvent(ev: HistoryEvent): {
       return {
         tone: "text-[var(--color-text-muted)]",
         label: ev.event,
-        description: Object.keys(data).length
-          ? JSON.stringify(data)
-          : "",
+        description: Object.keys(data).length ? JSON.stringify(data) : "",
       };
   }
 }
