@@ -6,13 +6,20 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **F4.1** — Tauri scaffolding. Crear `packages/tauri/`, configuración
-  mínima, app que arranca el sidecar del server + carga el bundle del web
-  en una ventana nativa. Requiere instalar Rust toolchain (`rustup`). Build
-  dev primero en Windows, luego Mac/Linux.
-- [ ] **F4.2** — Codesign + auto-update vía GitHub Releases. `.msi` (Win),
-  `.dmg` (Mac, requiere Apple Developer ID — $99/año), `.AppImage` y `.deb`
-  (Linux, sin codesign). Auto-update via `tauri-plugin-updater`.
+- [ ] **F4.1.b** — Tauri sidecar + static export + iconos. (1)
+  Empaquetar el server Hono/Node como binario único (probablemente
+  `bun build --compile` o Node SEA), configurar Tauri para spawnearlo
+  desde `setup()` y matarlo al cerrar. (2) Configurar Next.js
+  `output: 'export'` + `generateStaticParams` en `[mint]` y `[id]`
+  para que `tauri build` pueda bundlear el frontend como estático.
+  (3) Iconos placeholder (Tauri exige PNG/ICO/ICNS para el bundle).
+  Requiere F4.1.a (hecho) + Rust toolchain instalado en la máquina.
+- [ ] **F4.2** — Builds unsigned para distribución + auto-update.
+  `.msi` (Win), `.dmg` (Mac), `.AppImage`/`.deb` (Linux) **sin codesign
+  del SO** — el usuario decidió distribuir solo a amigos técnicos, asi
+  que aceptamos el "Open Anyway" de primera ejecución. Auto-update via
+  `tauri-plugin-updater` con keypair propia (gratis, independiente
+  del codesign de Apple/Microsoft). GitHub Releases como hosting.
 - [ ] **Abrir el repo a público** (5 min): `gh repo edit --visibility public`.
   Activa GitHub Security advisories automáticamente. Puede ir antes o
   después de F4.1.
@@ -69,7 +76,6 @@
   invocación directa de `node + tsx` para evitar DEP0190.
 - [ ] Cifrado opcional del SQLite del server (SQLCipher) para entornos donde
   el disco no esté full-disk-encrypted.
-- [ ] Auto-update de Tauri vía GitHub Releases (F5).
 - [ ] Validación en backend de "un auto-exit activo por posición" (hoy solo
   en UI). Es espejo de la regla — añadir refine en `tasks.create` o
   check explícito en `TaskManager.createTask`.
@@ -82,6 +88,12 @@
 
 Ver [PROGRESS.md](PROGRESS.md).
 
+- **F4.1.a — Tauri scaffolding (2026-05-21)**: `packages/tauri/` con
+  manifest Rust + `tauri.conf.json` v2 + entry points + scripts. `pnpm
+  tauri:dev` listo para abrir ventana nativa cuando el usuario instale
+  Rust + VS Build Tools. Ejecuta [ADR-015](DECISIONS.md). Pendientes:
+  F4.1.b (sidecar + static export + iconos) y F4.2 (builds unsigned +
+  auto-update con keypair propia).
 - **F6.3 — Meteora `swapToExit` (2026-05-21)**: swap quote vía
   `dlmm.swapQuote(...)`, real path vía `dlmm.swap({...})` con `Keypair`
   de web3.js v1. Sección "Output token" del ConfigureForm reactivada para

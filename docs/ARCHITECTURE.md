@@ -189,6 +189,38 @@ packages/web/src/
 
 **Onboarding pedagógico editorial** (ADR-021): cuando no hay wallet, la home renderiza `FirstRunHome` con eyebrow + display + tres steps "How it works" + CTAs. El modal pasa de "Connect bot wallet recomendado / Import peligroso" a tres caminos honestos al mismo nivel (Generate / Import key / Advanced · JSON) con `ImportWarning` que explica el blast radius con precisión (= la address concreta, no la wallet entera; la app no acepta seed phrases). Empty states de `/positions` y `/tasks` enseñan la cadena (positions vacío → cómo meter LPs; tasks vacío → ir a positions). Documentación in-app vive en `app/docs/` con 6 artículos editoriales y un sidebar. Links contextuales ("→ Why a bot wallet?", "→ What simulation actually does", etc) sembrados en los puntos donde aparecen conceptos no obvios — sustituto editorial del tour overlay clásico.
 
+### `packages/tauri` (desktop shell — F4.1.a, scaffolding)
+
+Wrapper nativo que empaqueta el frontend Next.js + el server como app desktop. Implementa la decisión estratégica de [ADR-015](DECISIONS.md) ("Tauri en F4-F5, no desde F1"). Sexto miembro del workspace pnpm.
+
+**Stack**:
+- [Tauri v2](https://v2.tauri.app/) (Rust): `tauri = "2.0"` + `tauri-build = "2.0"`.
+- WebView2 en Windows / WKWebView en Mac / WebKitGTK en Linux (cero Chromium bundleado — binario final ~10MB en lugar de ~150MB de Electron).
+- `@tauri-apps/cli@^2.0.0` como devDep del package para invocar `tauri dev` / `tauri build`.
+
+**Layout**:
+```
+packages/tauri/
+├── package.json          (declara @tauri-apps/cli como devDep)
+├── Cargo.toml            (tauri 2.0, perfil release optimizado: lto, opt-level=s, strip, panic=abort)
+├── tauri.conf.json       (identifier com.autoexit.desktop, ventana 1280x820, beforeDevCommand → pnpm dev:web, devUrl → http://localhost:3000)
+├── build.rs              (invoca tauri_build::build() — genera bindings IPC)
+├── src/
+│   ├── main.rs           (entry point con #![windows_subsystem="windows"] en release)
+│   └── lib.rs            (Tauri Builder + setup() placeholder — F4.1.b spawneará el sidecar aquí)
+├── target/               (build artifacts Rust — gitignored)
+└── gen/                  (assets generados por Tauri — gitignored)
+```
+
+**Estado F4.1.a**: `pnpm tauri:dev` arranca el web dev server vía `beforeDevCommand` y abre una ventana nativa apuntando a `localhost:3000`. La app se ve como en el navegador pero en su propia ventana del SO. Requiere Rust toolchain + (en Windows) Microsoft C++ Build Tools instalados en la máquina de dev.
+
+**Pendiente F4.1.b**:
+1. **Sidecar bundling**: empaquetar el server Hono/Node como binario único (probablemente `bun build --compile` o Node SEA) y spawnearlo desde el `setup()` de `src/lib.rs`. Hoy el usuario necesita `pnpm dev:server` corriendo en otra terminal.
+2. **Next.js static export**: añadir `output: 'export'` en `next.config.ts` + `generateStaticParams` en `[mint]` y `[id]` para que el bundle se compile estáticamente. `tauri.conf.json` ya tiene `frontendDist: "../web/out"` apuntando al output esperado.
+3. **Iconos**: PNG/ICO/ICNS para `bundle.icon`. Tauri usa defaults en dev pero los exige para `tauri build`.
+
+**Pendiente F4.2**: builds unsigned (sin codesign del SO) + auto-update con keypair propia vía GitHub Releases. Decidido distribuir solo a amigos técnicos sin pagar a Apple/Microsoft (aceptamos "Open Anyway" de primera ejecución).
+
 ## Contrato `ProtocolAdapter`
 
 ```ts
@@ -282,12 +314,18 @@ solana-auto-exit/
     │       └── trpc/
     │           ├── {init,context,router}.ts
     │           └── routers/{wallet,positions,tasks}.ts
-    └── web/                   (frontend Next.js — F1)
-        ├── package.json       (name: @solana-auto-exit/web)
-        ├── next.config.ts
-        ├── postcss.config.mjs
-        ├── tsconfig.json
-        └── src/app/{layout,page}.tsx + globals.css
+    ├── web/                   (frontend Next.js — F1)
+    │   ├── package.json       (name: @solana-auto-exit/web)
+    │   ├── next.config.ts
+    │   ├── postcss.config.mjs
+    │   ├── tsconfig.json
+    │   └── src/app/{layout,page}.tsx + globals.css
+    └── tauri/                 (desktop shell — F4.1.a)
+        ├── package.json       (name: @solana-auto-exit/tauri)
+        ├── Cargo.toml         (tauri 2.0 + perfil release optimizado)
+        ├── tauri.conf.json    (config v2 — ventana, build commands, bundle)
+        ├── build.rs           (invoca tauri_build::build())
+        └── src/{main,lib}.rs  (entry point + Builder)
 ```
 
 ## Cómo añadir un protocolo nuevo

@@ -242,6 +242,21 @@ Validado el 2026-05-21:
 - La lógica de `swapForY` (decide qué dirección llamar al SDK) y la suma `LP withdraw + fees` por lado funcionan correctamente.
 - **Real path NO validado E2E**: requiere posición DLMM propia. Trust: typecheck verde + `dlmm.swap({...})` recibe exactamente los mismos args que el quote (mismos binArraysPubkey, mismo inAmount, mismo minOutAmount), así que si el quote es coherente, el real path solo añade firma + envío.
 
+### 21. F4.1.a — Tauri scaffolding
+
+Validado el 2026-05-21:
+- `pnpm install` desde la raíz reconoce el nuevo package (`packages/tauri/`). Workspace pnpm crece a 6 packages (engine, cli, server, web, tauri + root). No hay errores de resolución.
+- `pnpm --filter @solana-auto-exit/tauri exec tauri --version` imprime `tauri-cli 2.11.2`. La CLI se invoca correctamente desde el package.
+- `pnpm typecheck` verde (los archivos Rust quedan fuera del scope tsc).
+- Inspección manual de los archivos generados:
+  - `tauri.conf.json` parsea como JSON válido (schema `https://schema.tauri.app/config/2`).
+  - `Cargo.toml` es un manifest TOML válido con perfil release optimizado (`lto`, `opt-level = "s"`, `strip`, `panic = "abort"`, `codegen-units = 1`).
+  - `src/main.rs` y `src/lib.rs` son el patrón estándar v2 (main wrapper que llama a `lib::run()`).
+
+**No validado E2E**: el usuario aún no ha instalado Rust toolchain ni Microsoft C++ Build Tools en su máquina Windows. Hasta que lo haga, `pnpm tauri:dev` no puede compilar el crate. La primera vez compilará ~1-2 min descargando crates (`tauri`, `wry`, ~200 deps transitivas) y abrirá una ventana nativa. Si truena por algún detalle del SDK de Windows o las features de Tauri, hay que iterar — F4.1.a es el código fuente; F4.1.a-validation es lo que sigue cuando el usuario tenga el toolchain.
+
+Sidecar (F4.1.b) y bundle de producción siguen pendientes — `pnpm tauri:build` fallará hoy por (a) frontend sin static export, (b) backend sin bundlear, (c) iconos sin crear. Todos los pendientes están listados en el README del package.
+
 ---
 
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)
