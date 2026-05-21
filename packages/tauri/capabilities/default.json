@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permisos por defecto del shell Tauri. Suficiente para que la UI ejecute la app y para que el setup() spawn el sidecar del server.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "auto-exit-server",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
+    "shell:allow-kill"
+  ]
+}

@@ -78,7 +78,28 @@ The container:
 - Persists SQLite + encrypted vault in `./packages/server/data/` (volume mounted to the host).
 - Restarts automatically (`unless-stopped`) on host reboot or container crash.
 
-Today the Docker image bundles only the backend. Run `pnpm dev:web` separately, or wait for F4 (Tauri) which packages both as a single desktop app.
+Today the Docker image bundles only the backend. Run `pnpm dev:web` separately, or build the Tauri desktop bundle (next section) which packages both.
+
+## Quick start (Tauri desktop, in progress)
+
+Building the desktop installer locally requires three toolchains beyond Node + pnpm:
+
+- **Bun** (any recent) — compiles the backend into a single-file binary that ships as a Tauri sidecar.
+  - Windows: `powershell -c "irm bun.sh/install.ps1 | iex"`
+  - macOS / Linux: `curl -fsSL https://bun.sh/install | bash`
+- **Rust** stable — compiles the Tauri shell. Install via [rustup.rs](https://rustup.rs/).
+- **OS-specific build deps** — Windows: Visual Studio Build Tools 2022 with "Desktop development with C++" + Windows 10/11 SDK. macOS: Xcode CLT (`xcode-select --install`). Linux: webkit2gtk-4.1, libsoup-3, libayatana-appindicator3, build-essential.
+
+Once installed:
+
+```bash
+pnpm tauri:dev      # iterate with hot-reload (frontend HMR, server respawn on file changes)
+pnpm tauri:build    # produce installers in packages/tauri/target/release/bundle/
+```
+
+`pnpm tauri:build` runs three steps: static-export the Next frontend (`build:web-export`), compile the server to a sidecar with Bun (`build:server-binary`), and bundle everything into the platform installer (`.msi` on Windows, `.dmg` on macOS, `.AppImage`/`.deb` on Linux).
+
+The build is **not** code-signed today (Apple Developer ID and Microsoft EV certificates are paid). First launch will show a Gatekeeper / SmartScreen warning that the user must accept once. See [`docs/TODO.md`](docs/TODO.md) and [`SECURITY.md`](SECURITY.md) for the planned hardening path.
 
 ## Quick start (CLI, legacy)
 

@@ -35,6 +35,14 @@ next-env.d.ts
 **/target/
 packages/tauri/gen/
 
+# Sidecar binary del server (generado por bun build) y copia de migrations.
+# Se versiona solo el .gitkeep para que el dir exista en repo.
+packages/tauri/binaries/auto-exit-server-*
+packages/tauri/binaries/drizzle/
+
+# Next.js static export output (input para tauri build)
+packages/web/out/
+
 # Local tooling (gitleaks binary, scan reports). El binario se descarga
 # bajo demanda; el report es output del scan y no se commitea.
 .tools/

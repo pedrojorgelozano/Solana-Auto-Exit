@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm --filter @solana-auto-exit/web dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "pnpm --filter @solana-auto-exit/web build",
+    "beforeBuildCommand": "pnpm build:tauri-prep",
     "frontendDist": "../web/out"
   },
   "app": {
@@ -37,6 +37,12 @@
     "longDescription": "Watches Orca and Meteora liquidity positions on Solana and closes them when price hits a take-profit or stop-loss trigger. Runs locally; key encrypted on disk.",
     "copyright": "Copyright (c) 2026 Pedro Lozano",
     "publisher": "Pedro Lozano",
+    "externalBin": [
+      "binaries/auto-exit-server"
+    ],
+    "resources": [
+      "binaries/drizzle/*"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

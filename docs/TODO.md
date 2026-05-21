@@ -6,14 +6,11 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **F4.1.b** — Tauri sidecar + static export + iconos. (1)
-  Empaquetar el server Hono/Node como binario único (probablemente
-  `bun build --compile` o Node SEA), configurar Tauri para spawnearlo
-  desde `setup()` y matarlo al cerrar. (2) Configurar Next.js
-  `output: 'export'` + `generateStaticParams` en `[mint]` y `[id]`
-  para que `tauri build` pueda bundlear el frontend como estático.
-  (3) Iconos placeholder (Tauri exige PNG/ICO/ICNS para el bundle).
-  Requiere F4.1.a (hecho) + Rust toolchain instalado en la máquina.
+- [ ] **Verificar el build Tauri end-to-end** (queda al maintainer).
+  El código de F4.1.b está cableado pero requiere instalar Bun + Rust +
+  Windows Build Tools en la máquina para producir un binary real.
+  Pasos: `pnpm build:tauri-prep` (debe pasar sin error) y luego
+  `pnpm tauri:dev` (debe abrir la ventana y arrancar el sidecar).
 - [ ] **F4.2** — Builds unsigned para distribución + auto-update.
   `.msi` (Win), `.dmg` (Mac), `.AppImage`/`.deb` (Linux) **sin codesign
   del SO** — el usuario decidió distribuir solo a amigos técnicos, asi
@@ -88,6 +85,29 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **F4.1.b — Tauri sidecar + static export + iconos (2026-05-21)**:
+  - Next.js: `output: 'export'` activado por env `TAURI_BUILD=1`; rutas
+    dinámicas `[mint]` y `[id]` refactorizadas a `page.tsx` Server
+    Component (con `generateStaticParams` placeholder + `dynamicParams
+    = false`) + `client.tsx` con la lógica actual. Build de export
+    funciona, ver `packages/web/out/`.
+  - Server: nuevo `scripts/build-binary.ts` que invoca `bun build
+    --compile` con el target triple del host; output a
+    `packages/tauri/binaries/auto-exit-server-<triple>[.exe]` +
+    copia de `drizzle/` para que Tauri lo bundlee como resource.
+    Falta verificar el binary real (requiere Bun instalado).
+  - Tauri: `lib.rs` con `setup()` que spawn el sidecar via
+    `tauri-plugin-shell`, le pasa `DB_PATH`, `WALLET_VAULT_PATH`,
+    `DRIZZLE_MIGRATIONS` resueltos por `app.path()`, y registra
+    `RunEvent::Exit` para matarlo al cerrar. Capabilities/permissions
+    en `capabilities/default.json`. `tauri.conf.json` con
+    `externalBin` + `resources`.
+  - Iconos: PNG fuente 1024×1024 generado con Python+PIL (letra "A"
+    terracota sobre crema, estilo brand); set completo (PNG, ICO,
+    ICNS, iOS, Android) generado con `pnpm exec tauri icon`.
+  - Scripts raíz: `build:web-export`, `build:server-binary`,
+    `build:tauri-prep` (el último se ejecuta automáticamente como
+    `beforeBuildCommand` en `tauri.conf.json`).
 - **F4.1.a — Tauri scaffolding (2026-05-21)**: `packages/tauri/` con
   manifest Rust + `tauri.conf.json` v2 + entry points + scripts. `pnpm
   tauri:dev` listo para abrir ventana nativa cuando el usuario instale
