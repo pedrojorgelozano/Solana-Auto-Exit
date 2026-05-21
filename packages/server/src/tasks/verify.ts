@@ -55,6 +55,13 @@ interface RawTransaction {
 }
 
 /**
+ * Timeout por request individual. Sin esto un RPC colgado bloquea el watcher
+ * indefinidamente; con 15s + backoff lineal el peor caso son ~95s antes de
+ * dar el receipt por perdido y marcar la verificación como fallida.
+ */
+const FETCH_TIMEOUT_MS = 15_000;
+
+/**
  * Trae el receipt de la tx vía RPC. Reintenta hasta `maxAttempts` con
  * backoff lineal por si el indexer aún no la tiene tras la confirmación.
  */
@@ -78,6 +85,7 @@ async function fetchTransaction(
             { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 },
           ],
         }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       });
       if (!res.ok) {
         lastErr = new Error(`RPC HTTP ${res.status}`);

@@ -48,8 +48,20 @@ export function assertSafeRpcUrl(rawUrl: string): void {
     );
   }
 
-  // `url.hostname` para IPv6 viene sin los brackets — ej "::1" no "[::1]".
-  const host = url.hostname.toLowerCase();
+  // Credenciales embebidas (`https://user:pass@host`): se filtrarían en
+  // cualquier log que muestre el rpcUrl. Si necesitas autenticar contra un
+  // RPC, usa cabeceras (Helius/Triton usan el path ?api-key=) o un proxy
+  // que las inyecte. Una passphrase en la URL es siempre el patrón malo.
+  if (url.username !== "" || url.password !== "") {
+    throw new Error(
+      "rpcUrl must not contain embedded credentials (user:pass@host). Use a token in the query string or an authenticating proxy instead.",
+    );
+  }
+
+  // Node 22 URL parser deja los corchetes en hostname para literales IPv6
+  // (ej "[::1]" en vez de "::1"). Hay que normalizar antes de pasarlos a
+  // `isIP()` o comparar contra `"::"` / `"::1"`. Bug encontrado por tests.
+  const host = stripIPv6Brackets(url.hostname.toLowerCase());
 
   if (isAllInterfaces(host)) {
     throw new Error(`rpcUrl host "${host}" is not allowed (all-interfaces).`);
@@ -70,6 +82,10 @@ export function assertSafeRpcUrl(rawUrl: string): void {
 }
 
 const ALLOWED_SCHEMES = new Set(["http:", "https:", "ws:", "wss:"]);
+
+function stripIPv6Brackets(h: string): string {
+  return h.startsWith("[") && h.endsWith("]") ? h.slice(1, -1) : h;
+}
 
 function allowLoopback(): boolean {
   return process.env.ALLOW_LOOPBACK_RPC === "true";

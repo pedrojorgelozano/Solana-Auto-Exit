@@ -156,6 +156,10 @@ export const walletRouter = router({
           method: "getBalance",
           params: [input.address],
         }),
+        // Sin timeout un RPC colgado bloquea esta query y todas las que
+        // dependen del mismo proceso event loop. 10s es bastante para un
+        // simple getBalance.
+        signal: AbortSignal.timeout(10_000),
       });
       const body = (await res.json()) as {
         result?: { value: number };

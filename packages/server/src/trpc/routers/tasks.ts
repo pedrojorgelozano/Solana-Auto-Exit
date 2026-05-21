@@ -30,7 +30,10 @@ const createTaskInput = z
       .nullable()
       .optional(),
     slippageBps: z.number().int().min(0).max(10_000),
-    pollMs: z.number().int().min(1_000),
+    // pollMs alineado con el rango de settings.update: el watcher revisa
+    // precios cada pollMs; valores fuera de [1s, 10min] no tienen utilidad
+    // operativa (tight loop a un lado, latencia ridícula al otro).
+    pollMs: z.number().int().min(1_000).max(600_000),
     dryRun: z.boolean(),
 
     exitTokenMint: z.string().min(32).optional(),
@@ -128,8 +131,15 @@ export const tasksRouter = router({
   }),
 
   pause: publicProcedure.input(idInput).mutation(({ ctx, input }) => {
-    ctx.taskManager.pauseTask(input.id);
-    return { ok: true };
+    try {
+      ctx.taskManager.pauseTask(input.id);
+      return { ok: true };
+    } catch (err) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }),
 
   stop: publicProcedure.input(idInput).mutation(({ ctx, input }) => {
@@ -145,7 +155,14 @@ export const tasksRouter = router({
   }),
 
   delete: publicProcedure.input(idInput).mutation(({ ctx, input }) => {
-    ctx.taskManager.deleteTask(input.id);
-    return { ok: true };
+    try {
+      ctx.taskManager.deleteTask(input.id);
+      return { ok: true };
+    } catch (err) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
   }),
 });

@@ -17,6 +17,7 @@ import { tasks, history, type TaskRow } from "../db/schema.js";
 import type { WalletVault } from "../wallet/vault.js";
 import type { CreateTaskInput, TaskEvent } from "./types.js";
 import { verifyTxBalances } from "./verify.js";
+import { evalBuffer as evalBufferPure, type TriggerKind } from "./buffer.js";
 
 /**
  * Estados que el TaskManager considera "activos" — son los que se deberían
@@ -502,44 +503,28 @@ export class TaskManager {
   }
 
   /**
-   * Time buffer state machine (ADR-025). Devuelve true si el trigger debe
-   * disparar el cierre en este tick. Muta `entry` con el timestamp del primer
-   * cruce y emite eventos `buffer_armed` / `buffer_reset` para el timeline.
-   *
-   * - `inZone=true` + sin buffer → ready inmediato (comportamiento legacy).
-   * - `inZone=true` + buffer + sin cronómetro → arma cronómetro, no ready aún.
-   * - `inZone=true` + buffer + cronómetro vivo → ready cuando han pasado bufferMs.
-   * - `inZone=false` + cronómetro vivo → reset duro a null. No ready.
+   * Wrapper sobre `evalBufferPure` (módulo ./buffer.ts) que persiste el
+   * evento resultante en history. La lógica de estado vive en el módulo
+   * puro para poder testearla sin dependencias. Ver ADR-025 + B-06.
    */
   private evalBuffer(
     taskId: string,
-    kind: "take_profit" | "stop_loss",
+    kind: TriggerKind,
     inZone: boolean,
     bufferMs: number | null,
     entry: RunningEntry,
     now: number,
   ): boolean {
-    const slot = kind === "take_profit" ? "tpFirstCrossedAt" : "slFirstCrossedAt";
-    const current = entry[slot];
-
-    if (!inZone) {
-      if (current !== null) {
-        entry[slot] = null;
-        this.appendHistory(taskId, "buffer_reset", { kind });
-      }
-      return false;
+    const { ready, event } = evalBufferPure(entry, kind, inZone, bufferMs, now);
+    if (event?.kind === "armed") {
+      this.appendHistory(taskId, "buffer_armed", {
+        kind: event.trigger,
+        bufferMs: event.bufferMs,
+      });
+    } else if (event?.kind === "reset") {
+      this.appendHistory(taskId, "buffer_reset", { kind: event.trigger });
     }
-
-    // En zona. Sin buffer = dispara inmediato.
-    if (!bufferMs || bufferMs <= 0) return true;
-
-    if (current === null) {
-      entry[slot] = now;
-      this.appendHistory(taskId, "buffer_armed", { kind, bufferMs });
-      return false;
-    }
-
-    return now - current >= bufferMs;
+    return ready;
   }
 
   // ===========================================================================
@@ -569,10 +554,27 @@ export class TaskManager {
     };
   }
 
+  /**
+   * Conjunto de estados "terminales por decisión del usuario" — si el row ya
+   * está en uno de estos, los mark* del watcher no deben sobrescribirlo. El
+   * usuario pulsó Pause/Stop o la task acabó en done; cualquier evento tardío
+   * (un retry final del cierre que falla, una verificación que tira) llega
+   * cuando la intención ya cambió. Se persiste el evento en history para
+   * auditoría pero no se pisa el status. Ver B-01.
+   */
+  private isUserDecidedStatus(status: string): boolean {
+    return status === "paused" || status === "stopped" || status === "done";
+  }
+
   private markTriggered(
     id: string,
     triggeredBy: "take_profit" | "stop_loss",
   ): void {
+    const current = this.getTask(id);
+    if (current && this.isUserDecidedStatus(current.status)) {
+      this.appendHistory(id, "triggered", { triggeredBy, suppressed: true });
+      return;
+    }
     this.db
       .update(tasks)
       .set({
@@ -587,6 +589,13 @@ export class TaskManager {
   }
 
   private markClosing(id: string): void {
+    const current = this.getTask(id);
+    if (current && this.isUserDecidedStatus(current.status)) {
+      // Si llegamos a markClosing tras una pausa, el close ya está en marcha
+      // (no podemos cancelar firmas en vuelo). Dejamos el status como está y
+      // que el flujo termine; el closeResult sí se persiste para auditoría.
+      return;
+    }
     this.db
       .update(tasks)
       .set({ status: "closing", updatedAt: new Date() })
@@ -600,6 +609,13 @@ export class TaskManager {
     _preserveCloseResult = false,
   ): void {
     const msg = err instanceof Error ? err.message : String(err);
+    const current = this.getTask(id);
+    if (current && this.isUserDecidedStatus(current.status)) {
+      // El usuario ya decidió el estado final. Persistimos el error en el
+      // timeline pero no lo elevamos a `error` status.
+      this.appendHistory(id, "error", { message: msg, suppressed: true });
+      return;
+    }
     this.db
       .update(tasks)
       .set({
