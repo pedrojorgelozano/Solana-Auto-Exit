@@ -412,3 +412,66 @@ Paralelamente, el primer minuto de la herramienta no enseñaba el modelo: el her
 - **Documentación solo en GitHub README** — descartado por requerir abandonar la app y por no servir cuando F4 entregue Tauri offline.
 - **MDX desde el principio** — descartado por overengineering para 6 artículos cortos; queda en backlog para cuando el contenido crezca.
 - **`/welcome` post-creación** — descartado; el success screen del modal ya cubre el "qué hago ahora" con sus tres pasos, y los empty states refuerzan la cadena.
+
+---
+
+## ADR-022 — On-chain verification post-tx: best-effort + event-only persistence
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada
+
+**Contexto**: Tras un cierre o swap reales, el `closeResult`/`swapResult` que devuelve el adapter contiene solo el *quote* del SDK de Orca (estimaciones pre-firma). El usuario quiere ver qué entró realmente en la bot wallet — saber si el quote fue fiel, si el slippage mordió, o si algún detalle inesperado se llevó parte de los fondos. Tres preguntas de diseño abiertas: (1) ¿cuándo y cómo verificar? (2) ¿persistir en una columna nueva del task row o en un evento de `history`? (3) ¿qué hacer si la verificación falla o el RPC no devuelve la tx?
+
+**Decisión**: Verificación on-chain como paso *best-effort* dentro de `TaskManager.executeClose`, ejecutado solo cuando `dryRun === false` y hay `txId`:
+
+1. **Fuente de verdad**: el receipt de la tx (`getTransaction` vía JSON-RPC directo, sin Kit) — preBalances/postBalances para SOL nativo, preTokenBalances/postTokenBalances filtrados por `owner === botWallet` para SPL. No usamos snapshots pre/post separados.
+2. **Helper**: `packages/server/src/tasks/verify.ts` con `verifyTxBalances(rpcUrl, signature, owner)`. Retry lineal 5x con backoff `500ms × (i+1)` porque a veces el indexer del RPC tarda 1-2s tras la confirmación. Devuelve `{ fee: bigint, solDelta: bigint, tokenDeltas: Record<mint, bigint> }`.
+3. **Persistencia**: nuevo evento `verified` en la tabla `history` con payload `{ kind, signature, fee, solDelta, tokenDeltas, quoted }`. **Sin columna nueva** en `tasks`. La UI (`/tasks/[id]`) busca el evento por kind+signature y renderiza un `ActualLine` debajo de cada cell del receipt.
+4. **Fallo silencioso**: si el RPC tarda más de los 5 retries o devuelve error, se loguea y se sigue. El task ya está en `done`/`error` por otra vía; perder la verificación no rompe el watcher.
+5. **Diff %**: computado en el cliente, no en el backend. Hoy hardcoded a warning si `|diff| ≥ 0.01%` (ver TODO backlog para hacerlo configurable). Para SOL no mostramos diff % porque el `solDelta` incluye tx fee + rent recovery, sería ruido.
+
+**Consecuencias**:
+- (+) Cero migración de schema. Solo `TaskEvent` añade `"verified"` y el código del manager.
+- (+) Auditable retroactivamente — el evento queda en `history`, persistente y enlazable a la tx.
+- (+) Verification falla silenciosamente sin afectar el flujo crítico (close + swap).
+- (+) JSON-RPC directo evita pagar el ciclo de `@solana/kit` para una llamada que no necesita tipos elaborados.
+- (−) No se puede hacer una query SQL "tasks con diff > 1%" sin parsear JSON de la history — si en el futuro queremos métricas agregadas, habría que materializar columnas o hacer un view.
+- (−) Diff threshold hardcoded en el frontend. Cualquier ajuste exige redeploy del bundle.
+- (−) Si el indexer del RPC NUNCA termina de tener la tx (raro pero posible en mainnet con RPCs públicos), nunca emitimos `verified`. El receipt seguirá mostrando solo quoted.
+
+**Alternativas consideradas**:
+- **Columna `verifyResult` JSON en `tasks`**: descartada por requerir migración y por mezclar quote (que es del SDK) con post-tx truth (que es del RPC) — dos fuentes distintas en el mismo row.
+- **Snapshot manual pre/post**: descartado porque doblamos las RPC calls y abrimos race conditions (¿qué pasa si entre el snapshot y la tx alguien más transfiere a esa address?). El receipt de la tx ya nos da pre y post atómicamente.
+- **Verificación bloqueante con error si falla**: descartada porque convertiría un fallo del RPC en un task `error`, cuando la realidad es que el cierre ya está hecho on-chain — la verificación es solo un audit. La transparencia ("el RPC no me devolvió la tx") no debería corromper el estado funcional.
+
+---
+
+## ADR-023 — Settings como key-value table; mainnet bloqueado en UI hasta F4
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada · refina la separación entre configuración global y per-task de [ADR-013](#)
+
+**Contexto**: F3 introduce un `/settings` page que persiste valores por defecto (RPC URL, slippage, intervalo de poll) entre sesiones. Dos opciones de modelado: (a) tabla con columnas tipadas (`settings_rpc_url`, `settings_slippage`, etc.) o (b) tabla genérica key/value. Además, una decisión sensible: el schema permite `network: "mainnet"` en cada task, pero exponer "mainnet" como opción en la UI antes de tener Tauri + codesign + audit visual es invitar a un usuario a perder dinero real por confusión.
+
+**Decisión**:
+
+1. **Tabla `settings` con shape (`key` PK, `value` text)** — clave/valor genérica. Decisión ya estaba en el schema desde F0 pero sin usar; en F3.1 se activa.
+2. **Snapshot tipado en el servidor**: el router define un `SettingsSnapshot` interface con keys conocidas (`network`, `rpcUrl`, `defaultSlippageBps`, etc.). `get` aplica defaults hardcoded a las keys ausentes. `update` usa zod discriminated union para validar cada key. La UI consume el snapshot, no las filas raw.
+3. **Mainnet bloqueado en UI**: el zod schema de `update` solo acepta `value: z.literal("devnet")` para la key `network`. Es decir, no se puede setear `mainnet` desde la UI ni de pasada. El gate de ADR-006 (`ALLOW_MAINNET_LIVE=true`) sigue siendo el último filtro a nivel CLI; en UI lo cerramos por construcción hasta F4.3 (mainnet UI gate explícito con confirmación en dos pasos).
+4. **Defaults centralizados en el router** (`DEFAULTS` constant). Las constantes en `packages/web/src/lib/constants.ts` quedan como fallback cuando la query de settings aún no resolvió.
+5. **Snapshot de tarea sigue siendo per-row**: cada `task.rpcUrl` y `task.network` se serializa con el valor vigente al crear el task. Cambiar el RPC en `/settings` no afecta a tasks ya armadas (la decisión de [ADR-013](#)). Las nuevas heredan el default actual.
+
+**Consecuencias**:
+- (+) Migración cero al añadir keys nuevas. Cada nueva key es un literal en el `KEYS` map + un caso en el discriminated union de zod.
+- (+) Mainnet inaccesible desde la UI por construcción, no solo por convención. Un cliente tRPC pirata tampoco puede setearlo (zod lo rechaza).
+- (+) El boundary "configuración global vs snapshot per-task" queda explícito — sin riesgo de mutar una task viva al editar settings.
+- (+) Defaults visibles en un solo sitio (`DEFAULTS` en el router) para auditar/cambiar.
+- (−) `value` en SQLite es siempre `text`. Para enteros (slippage, poll) hacemos `parseInt(value, 10) || fallback` en `get`. Aceptable mientras las keys sean pocas y conocidas.
+- (−) Cualquier UI o cliente que quiera "switch to mainnet" tendrá que esperar a F4.3. Hoy es por diseño — abriremos cuando codesign + audit visual estén en su sitio.
+- (−) Al haber dos fuentes de "qué settings hay" (el `KEYS` map del router + el form del frontend), un cambio en una requiere espejo en la otra. No es DRY, pero la separación servidor/cliente lo justifica.
+
+**Alternativas consideradas**:
+- **Tabla con columnas tipadas**: descartada por requerir migración cada vez que añadamos una key (RPC API key futura, exit-token default, etc.).
+- **Variables de entorno**: descartadas porque queremos editar desde la UI sin reiniciar el server.
+- **JSON blob en una sola row**: descartada porque las escrituras serían pesadas (write-all-or-nothing) y los conflicts de concurrencia más probables.
+- **Permitir "mainnet" en UI con un warning verbose**: descartada por ser exactamente el patrón que ADR-006 quiere prevenir. La UI debe ser literalmente incapaz de pedirle al server `network: "mainnet"` hasta que F4.3 lo abra explícitamente.

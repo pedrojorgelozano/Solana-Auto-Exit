@@ -101,18 +101,20 @@ Un solo archivo `src/main.ts` que: `loadBaseConfig` + leer `wallet.json` + `make
 ### `packages/server` (servicio backend, F0)
 
 - `src/main.ts` — bootstrap: `runMigrations` + `WalletVault` + `TaskManager.boot()` + Hono + tRPC + listen + shutdown limpio.
-- `src/db/schema.ts` — Drizzle: tablas `tasks` (config + estado + resultados), `history` (eventos), `settings`.
+- `src/db/schema.ts` — Drizzle: tablas `tasks` (config + estado + resultados), `history` (eventos), `settings` (key/value).
 - `src/db/client.ts` — abre SQLite con WAL + foreign_keys, aplica migraciones.
 - `src/wallet/vault.ts` — `WalletVault` con scrypt + AES-256-GCM. Métodos `create / unlock / lock / delete / status / getKeypair / isUnlocked`. Ver [ADR-012](DECISIONS.md).
 - `src/wallet/import.ts` — `bytesFromBase58`, `bytesFromJsonArray` para alimentar al vault.
-- `src/tasks/manager.ts` — `TaskManager`. Ver [ADR-013](DECISIONS.md).
-- `src/tasks/types.ts` — `CreateTaskInput`, `TaskStatus`, `TaskEvent`.
+- `src/tasks/manager.ts` — `TaskManager`. Ver [ADR-013](DECISIONS.md). Emite eventos a `history` y, tras un close/swap real, llama a `verifyAndRecord` (ver `verify.ts`).
+- `src/tasks/verify.ts` — verificación on-chain post-tx ([ADR-022](DECISIONS.md)). `verifyTxBalances(rpcUrl, signature, owner)` llama `getTransaction` por JSON-RPC, parsea pre/post balances + token balances, devuelve `{ fee, solDelta, tokenDeltas }` con `bigint`. Retry lineal 5x.
+- `src/tasks/types.ts` — `CreateTaskInput`, `TaskStatus`, `TaskEvent` (incluye `"verified"`).
 - `src/trpc/init.ts` — `initTRPC` con context + `errorFormatter` que preserva `error.message`.
 - `src/trpc/context.ts` — `AppContext = { db, vault, taskManager }`.
-- `src/trpc/router.ts` — compone `health` + `walletRouter` + `positionsRouter` + `tasksRouter`.
-- `src/trpc/routers/wallet.ts` — `status / generate / create / unlock / lock / delete`. `generate` produce ed25519 vía `node:crypto`, cifra con la passphrase y devuelve el secret en base58 una sola vez (ADR-020).
+- `src/trpc/router.ts` — compone `health` + `walletRouter` + `positionsRouter` + `tasksRouter` + `settingsRouter`.
+- `src/trpc/routers/wallet.ts` — `status / generate / create / unlock / lock / delete / balance`. `generate` produce ed25519 vía `node:crypto`, cifra con la passphrase y devuelve el secret en base58 una sola vez (ADR-020). `balance` consulta `getBalance` al RPC del settings (usado por el AddressBlock del modal post-Generate).
 - `src/trpc/routers/positions.ts` — `listOwned / getSummary / configSchema`.
-- `src/trpc/routers/tasks.ts` — `create / list / get / start / pause / stop / delete`. El input de `create` valida con dos `.refine` que al menos uno de `takeProfitPrice`/`stopLossPrice` esté definido y, si ambos, TP > SL (ADR-018).
+- `src/trpc/routers/tasks.ts` — `create / list / get / history / start / pause / stop / delete`. El input de `create` valida con dos `.refine` que al menos uno de `takeProfitPrice`/`stopLossPrice` esté definido y, si ambos, TP > SL (ADR-018). `history` devuelve los eventos de la task más recientes primero ([ADR-022](DECISIONS.md)).
+- `src/trpc/routers/settings.ts` — `get / update / reset`. Snapshot tipado con defaults aplicados para keys ausentes. `update` con discriminated union por key; `network` bloqueado a `"devnet"` por zod ([ADR-023](DECISIONS.md)).
 - `drizzle/` — migraciones SQL versionadas. La inicial fue `0000_flat_flatman.sql`; tras introducir TP/SL se regeneró como `0000_lumpy_morbius.sql` (DB de dev wipeada — ADR-018).
 
 `packages/server/package.json` expone `exports["./api"]` apuntando a `src/trpc/router.ts` para que el web pueda importar el tipo `AppRouter` sin alcanzar la implementación.
@@ -136,12 +138,13 @@ packages/web/src/
 │   ├── not-found.tsx       (404 editorial)
 │   ├── error.tsx           (error boundary global)
 │   ├── wallet/page.tsx     (3 estados + danger zone)
+│   ├── settings/page.tsx   (RPC URL + slippages + poll defaults, form unificado — ADR-023)
 │   ├── positions/
 │   │   ├── page.tsx        (lista con symbols + chip "auto-exit set"; EmptyOwnedList pedagógico cuando no hay LPs)
 │   │   └── [mint]/page.tsx (recap + form configure con TP/SL + ExistingWatcher si ya hay uno activo)
 │   ├── tasks/
 │   │   ├── page.tsx        (ledger denso con filtros)
-│   │   └── [id]/page.tsx   (dashboard live + receipts editoriales)
+│   │   └── [id]/page.tsx   (dashboard live + receipts editoriales + ActivityTimeline + ActualLine con diff% — ADR-022)
 │   └── docs/               (documentación in-app editorial — ADR-021)
 │       ├── layout.tsx                       (sidebar + content)
 │       ├── page.tsx                         (índice con los 6 artículos)

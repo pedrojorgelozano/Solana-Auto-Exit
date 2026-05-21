@@ -6,22 +6,20 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **F2** — Verificación on-chain del Result + History persistida visible.
-  Tras un cierre real, refrescar balances on-chain via RPC y compararlos con
-  el quote del closeResult/swapResult; mostrar diff en la UI. History
-  detallada por task con eventos timestamped (created, started, ticked,
-  triggered, closed, swapped, error, paused, resumed, stopped).
-- [ ] **F3** — Settings page (parte de onboarding completada en 2026-05-21).
-  RPC URL configurable (mainnet/devnet/custom), slippage por defecto,
-  intervalo de poll por defecto. Onboarding más amable post-Generate
-  con QR del address, link a faucet devnet. La parte pedagógica del
-  onboarding (first-run hero, /docs in-app, empty states, links
-  contextuales) ya está hecha — ver [ADR-021](DECISIONS.md).
-- [ ] **F4** — Tauri wrapper. Build firmado para Win/Mac/Linux,
-  auto-update vía GitHub Releases, SECURITY.md publicado, repo público,
-  gate de Mainnet activado tras audit visual. **Al abrir el repo**:
-  publicar el README sirviendo el mismo contenido que `/docs` in-app
-  (ver backlog: migración a markdown single-source).
+- [ ] **F4.1** — Tauri scaffolding. Crear `packages/tauri/`, configuración
+  mínima, app que arranca el sidecar del server + carga el bundle del web
+  en una ventana nativa. Requiere instalar Rust toolchain (`rustup`). Build
+  dev primero en Windows, luego Mac/Linux.
+- [ ] **F4.2** — Codesign + auto-update vía GitHub Releases. `.msi` (Win),
+  `.dmg` (Mac, requiere Apple Developer ID — $99/año), `.AppImage` y `.deb`
+  (Linux, sin codesign). Auto-update via `tauri-plugin-updater`.
+- [ ] **F4.3** — Mainnet UI gate. Botón "switch to mainnet" en /settings con
+  confirmación explícita en dos pasos + bloqueo de `tasks.create` si el
+  gate no está activado. Hoy mainnet está bloqueado solo en zod del settings
+  router (ADR-023); con F4.3 abrimos la puerta tras visual audit (ADR-006).
+- [ ] **Abrir el repo a público** (5 min): `gh repo edit --visibility public`.
+  Activa GitHub Security advisories automáticamente. Puede ir antes o
+  después de F4.1.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
@@ -39,10 +37,16 @@
 - [ ] Renombrar `Recommendation` en `packages/web/src/app/wallet/page.tsx`
   a algo como `ScopePanel`. Su contenido visible ya es "Scope" tras la
   pieza 2; sin impacto funcional, solo coherencia de naming.
-- [ ] Persistir `tokenMintA` y `tokenMintB` del pool en el task row para
-  no usar la heurística "SOL en A, devUSDC en B" en `/tasks/[id]`. Esto
-  exige resolverlo en `tasks.create` (fetch del pool y serializar mints en
-  el row) o en el adapter al `resolvePosition`.
+- [ ] Diff threshold del receipt configurable. Hoy el ActualLine de F2.3
+  colorea warning si `|diff| ≥ 0.01%` hardcoded. Mover a `/settings` como
+  `diffWarningThresholdBps` (o equivalente).
+- [ ] "Test RPC connection" button en `/settings`. Hoy zod valida que sea
+  URL pero no que sea reachable. Un botón que haga un `getHealth` o
+  `getSlot` y muestre latencia + versión.
+- [ ] Live balance polling también en `/wallet` page. Hoy solo aparece en
+  el success screen del modal post-Generate. Sería natural mostrarlo
+  siempre que la wallet esté unlocked (junto al address, en el unlock
+  section).
 - [ ] Expandir el token registry de `packages/web/src/lib/tokens.ts` con
   más mints conocidos (devnet Orca pools varios, mainnet USDT, mSOL, JitoSOL,
   bonk, etc.). Posiblemente cargar de Jupiter token list en background.
@@ -75,6 +79,21 @@
 
 Ver [PROGRESS.md](PROGRESS.md).
 
+- **F4.0 — Prep del repo para apertura (2026-05-21)**: LICENSE MIT,
+  SECURITY.md con threat model + reporting, README reescrito en inglés
+  alineado con estado F0-F3. Repo apto para `gh repo edit --visibility public`.
+- **F3 — Settings page + onboarding amable (2026-05-21)**: settings router
+  con get/update/reset, página `/settings` editorial con form unificado,
+  wire de defaults en el configure form y `/positions`, AddressBlock con
+  QR + faucet link + balance live polling en el success screen del modal
+  post-Generate. Decisión en [ADR-023](DECISIONS.md).
+- **F2 — On-chain verification + actual vs quoted + persisted mints
+  (2026-05-21)**: history endpoint + timeline editorial en `/tasks/[id]`,
+  `verifyTxBalances` parsea `getTransaction` para computar deltas reales
+  de la bot wallet, evento `verified` se renderiza como ActualLine en
+  CloseReceipt/SwapReceipt con diff % coloreado, `tokenMintA/B`
+  persistidos en `protocolConfig` para eliminar la heurística SOL/devUSDC.
+  Decisión en [ADR-022](DECISIONS.md).
 - **Onboarding redesign (2026-05-21)**: home first-run pedagógico, modal
   con tres caminos honestos + warning técnico corregido (blast radius =
   address concreta), empty states con explicación de cómo meter posiciones

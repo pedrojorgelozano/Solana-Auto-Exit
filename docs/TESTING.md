@@ -156,6 +156,38 @@ Validado el 2026-05-21:
 - Links contextuales navegan correctamente a los artículos correspondientes; el link desde el modal cierra el modal antes de navegar (vía `onClick={close}`).
 - **No validado E2E on-chain** en esta sesión — la sesión fue puramente de UX y copy. La mecánica de auto-exit no se tocó.
 
+### 14. F2.1 — History endpoint + activity timeline
+
+Validado el 2026-05-21:
+- `pnpm typecheck` (root + web) pasa.
+- Backend ya emitía eventos a la tabla `history` desde F0.6 — el cambio es exponerlos. Procedure `tasks.history.query({ id })` validada con el typecheck del tipo `inferRouterOutputs<AppRouter>["tasks"]["history"]` que infiere correctamente el shape `Array<{ id, taskId, timestamp, event, data }>`.
+- Componente `ActivityTimeline` montado al final del Dashboard de `/tasks/[id]`. Polling cada 5s (lento porque los eventos son raros). Si no hay eventos, no renderiza nada (tasks recién creadas vienen con un evento `created`, así que en la práctica siempre hay al menos uno).
+- Render verificado para cada tipo de evento via `describeEvent`: created, started, resumed, paused (con sub-razones user/vault-locked/server-restart), stopped, triggered (con `triggeredBy`), closed (con `dryRun` + SolscanLink), swapped (con `dryRun`/`skipped`/`txId`), error (con mensaje).
+- **No validado E2E on-chain** — la lógica ya existía en F0.6 (los eventos se insertaban); F2.1 solo añade exposición + render.
+
+### 15. F2.2 + F2.3 + F2.4 — On-chain verification + receipts + persisted mints
+
+Validado el 2026-05-21:
+- `pnpm typecheck` pasa tras cada sub-pieza (3 typechecks intermedios verdes).
+- `verifyTxBalances` revisado contra el shape del response de `getTransaction` con `encoding: "jsonParsed", maxSupportedTransactionVersion: 0`: extrae `meta.fee`, `meta.preBalances/postBalances` por accountKey index, y `meta.preTokenBalances/postTokenBalances` filtrados por `owner === botWallet` y agregados por mint. Devuelve `bigint`, serializado a string en el evento `history`.
+- Retry lineal 5x con backoff `500ms × (i+1)` ejercitado vía pipe-test: el handler captura `Tx not yet indexed` como caso retryable y `RPC HTTP <code>` / errores de fetch como retryable también.
+- `verifyAndRecord` solo se llama si `!row.dryRun && typeof closeResult.txId === "string"` (similar para swap). En dry-run no hay tx, así que no hay nada que verificar.
+- `ActualLine` renderizado verificado manualmente abriendo un task `done` en devnet de un experimento previo y comprobando que el quoted aparece arriba y el actual con diff debajo. Para tasks anteriores a F2.2 que no tienen evento `verified`, el `ActualLine` simplemente no se renderiza.
+- Heurística "SOL en A, devUSDC en B" eliminada del Dashboard: `protocolConfig.tokenMintA/B` se leen del task row. Para tasks creados antes de F2.4 que no tienen los mints en `protocolConfig`, el fallback heurístico previo sigue activo (`mintA = SOL_MINT`, `mintB = exitTokenMint ?? devUSDC`).
+- **No validado E2E on-chain en esta sesión** — la verification se ejercitará la próxima vez que se dispare un close real en devnet. Pendiente para una validación dedicada cuando haya tx fresca.
+
+### 16. F3 — Settings page + onboarding amable
+
+Validado el 2026-05-21:
+- `pnpm typecheck` pasa tras cada sub-pieza (4 typechecks intermedios verdes).
+- Settings router: `settings.get` devuelve los defaults hardcoded cuando la tabla está vacía. `settings.update` con cada key del discriminated union zod testeable manualmente vía la página `/settings`. `settings.reset` borra todas las filas.
+- Tabla `settings` en SQLite (key/value text) ya estaba en el schema desde F0; F3.1 la activa. Sin migración necesaria.
+- `/settings` page renderiza el form unificado con los cuatro inputs (RPC URL + tres slippage/poll). Dirty-tracking funciona — el botón "Save changes" se habilita solo cuando hay cambios. Tras save, feedback "Saved." durante 2.5s. Reset to defaults pide confirmación.
+- Wire de defaults verificado: con un `defaultSlippageBps=75` en settings, el ConfigureForm de un `/positions/[mint]` pre-llena el slippage a 75 (ningún chip de preset queda highlighted porque 75 no está entre 50/100/200/500, pero el valor se acepta).
+- `wallet.balance` consultado con éxito tras Generate: el modal post-Generate muestra `0 SOL` mientras la wallet está vacía y refresca cada 5s. La URL del faucet de devnet (`https://faucet.solana.com/?walletAddress=...&amount=1&network=devnet`) abre con el address pre-rellenado.
+- QR del address generado con `qrcode.react` se renderiza con fondo blanco + ink oscuro (verificado en navegador). Tamaño 132px, escala bien en mobile.
+- **No validado**: el flujo completo "Generate → escanear QR desde Backpack móvil → fondear → ver balance subir" no se ha hecho como cadena; verificado por partes.
+
 ---
 
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)
