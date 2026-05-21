@@ -214,6 +214,34 @@ Validado el 2026-05-21:
 - `getPositionSummary` ya **no requiere** `attachWallet()` (refactor F6.1.b): extrae el owner del byte layout. Verificado: la procedure `positions.getSummary` del backend no llama a `attachWallet` y la página `/positions/[mint]` carga el summary correctamente.
 - **No validado E2E en browser**: F6.1.b dejó la UI lista para listar Orca + Meteora en paralelo, pero la bot wallet del server actual no tiene posiciones DLMM en devnet. Validar end-to-end requeriría abrir una posición DLMM real en devnet o mainnet con la bot wallet. Trust actual: typecheck verde + probe contra mainnet + revisión visual del render.
 
+### 19. F6.2 — Meteora `closePosition` (dry-run + real path + UI)
+
+Validado el 2026-05-21:
+- `pnpm typecheck` pasa tras cada sub-pieza (3 typechecks intermedios verdes: F6.2.a, F6.2.b, F6.2.c).
+- **F6.2.a (dry-run)**: `pnpm tsx scripts/probe-meteora.ts <PDA> --mainnet --close-dry-run` ejecutado contra la posición real del amigo. El probe extrae el owner del byte layout, llama `closePosition(dryRun=true)`, y devuelve un quote idéntico a la liquidez + fees que ya muestra `getPositionSummary` para esa posición. Consistencia interna verificada.
+- **F6.2.b (real path)**: NO validado end-to-end. Implementación typecheck-verde + verificación lógica:
+  - `WalletVault.getRawSecret()` devuelve los bytes en memoria, `lock()` los pone a cero (audit visual del código).
+  - `MeteoraAdapter.attachWallet` con `rawSecret` construye `Keypair.fromSecretKey(...)` y compara `signingKeypair.publicKey.toBase58() === wallet.address` (sanity de paridad).
+  - El path "owner de la posición != signing wallet" lanza error explícito antes de tocar el SDK.
+  - El edge case "SDK devuelve 0 txs" se maneja sin error (caso "posición ya cerrada").
+  - El path real con `dlmm.removeLiquidity({ shouldClaimAndClose: true, bps: 10000 })` no se ha ejercido contra mainnet/devnet porque no tenemos una posición DLMM propia que cerrar.
+- **F6.2.c (UI)**: typecheck verde. La sección "Output token" del `ConfigureForm` se mostró con el warning Meteora-specific en este sub-paso (luego reactivada en F6.3). El `protocolConfig` por rama (Orca vs Meteora) lo validó tsc al pasar.
+- **Pendiente E2E**: cuando un usuario arme un auto-exit Meteora con `dryRun=false` real, ese close ejercitará el path entero (signer conversion + removeLiquidity + sign + send).
+
+### 20. F6.3 — Meteora `swapToExit` (paridad funcional con Orca)
+
+Validado el 2026-05-21:
+- `pnpm typecheck` pasa.
+- `pnpm tsx scripts/probe-meteora.ts 8CLzaUjGcmftioCfN6eqFEG7xowYzfEciMuGUKvJamAp --mainnet --swap-dry-run` ejecutado contra mainnet. El probe encadena `closePosition(dryRun)` → `swapToExit(dryRun)` en **ambas direcciones**. Resultados:
+  - **`closePosition(dryRun)`**: receive 0.001477065 SOL + 11.924276 USDC, fees 0.000121595 SOL + 0.01389 USDC. (Misma posición que F6.1, drift mínimo del valor por movimiento de precio entre sesiones).
+  - **`swapToExit(USDC → SOL, dryRun)`**: in 11.938166 USDC (LP + fees), estOut 0.137180 SOL, minOut 0.135808 SOL (slippage 100bps aplicado, deja -0.99% al min).
+  - **`swapToExit(SOL → USDC, dryRun)`**: in 0.001599 SOL, estOut 0.138303 USDC, minOut 0.136919 USDC.
+- Verificación numérica: a precio 86.85 USDC/SOL y fee del pool 0.2%:
+  - USDC → SOL: 11.94 / 86.85 = 0.1375 SOL bruto → 0.137 con fee. ✓
+  - SOL → USDC: 0.001599 × 86.85 = 0.1389 USDC bruto → 0.138 con fee. ✓
+- La lógica de `swapForY` (decide qué dirección llamar al SDK) y la suma `LP withdraw + fees` por lado funcionan correctamente.
+- **Real path NO validado E2E**: requiere posición DLMM propia. Trust: typecheck verde + `dlmm.swap({...})` recibe exactamente los mismos args que el quote (mismos binArraysPubkey, mismo inAmount, mismo minOutAmount), así que si el quote es coherente, el real path solo añade firma + envío.
+
 ---
 
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)

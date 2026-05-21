@@ -90,7 +90,7 @@ En modo CLI ese flujo lo orquesta `runRunner` directamente. En modo server lo or
 - `protocols/types.ts` — contrato `ProtocolAdapter` + todos los tipos compartidos (`BaseConfig`, `BaseReadOnlyConfig`, `PositionRef`, `PositionSummary`, `ConfigSchema`, `CloseResult`, `SwapExitResult`, etc.).
 - `protocols/registry.ts` — `makeAdapter(name) → ProtocolAdapter` + `REGISTERED_PROTOCOLS` (export para que la UI itere). Único sitio donde el núcleo conoce nombres concretos.
 - `protocols/orca/` — adapter Orca Whirlpools v8 (`@orca-so/whirlpools@^8` + `@solana/kit@^5`).
-- `protocols/meteora/` — adapter DLMM read-only (F6.1): `listOwnedPositions`, `getPositionSummary`, `getPrice`. Usa `@meteora-ag/dlmm@^1.9.10` (cargado vía `createRequire` por ADR-024) + `@solana/web3.js@^1`. `closePosition`/`swapToExit` lanzan "not implemented" hasta F6.2/F6.3. Helper estático `MeteoraAdapter.resolveOwnerOf(rpcUrl, address)` para detectar PDAs de posición Meteora y extraer la wallet propietaria.
+- `protocols/meteora/` — adapter DLMM con **paridad funcional con Orca** tras F6.1 + F6.2 + F6.3: `listOwnedPositions`, `getPositionSummary`, `getPrice`, `closePosition` (claim fees + remove liquidity + close PDA en una transaction batch vía `removeLiquidity({ shouldClaimAndClose: true })`), `swapToExit` (en el mismo pool DLMM vía `dlmm.swap(...)`). Usa `@meteora-ag/dlmm@^1.9.10` (cargado vía `createRequire` por [ADR-024](DECISIONS.md)) + `@solana/web3.js@^1` + `bn.js@^5.2`. Helper estático `MeteoraAdapter.resolveOwnerOf(rpcUrl, address)` para detectar PDAs de posición Meteora y extraer la wallet propietaria. Firma con `Keypair` de web3.js v1 construido desde los 64 bytes del vault (ver `WalletVault.getRawSecret()`).
 - `config/env.ts` — `loadBaseConfig()` para el CLI (el server obtiene config de la DB, no de env).
 - `index.ts` — barrel con la API pública del paquete.
 
@@ -103,7 +103,7 @@ Un solo archivo `src/main.ts` que: `loadBaseConfig` + leer `wallet.json` + `make
 - `src/main.ts` — bootstrap: `runMigrations` + `WalletVault` + `TaskManager.boot()` + Hono + tRPC + listen + shutdown limpio.
 - `src/db/schema.ts` — Drizzle: tablas `tasks` (config + estado + resultados), `history` (eventos), `settings` (key/value).
 - `src/db/client.ts` — abre SQLite con WAL + foreign_keys, aplica migraciones.
-- `src/wallet/vault.ts` — `WalletVault` con scrypt + AES-256-GCM. Métodos `create / unlock / lock / delete / status / getKeypair / isUnlocked`. Ver [ADR-012](DECISIONS.md).
+- `src/wallet/vault.ts` — `WalletVault` con scrypt + AES-256-GCM. Métodos `create / unlock / lock / delete / status / getKeypair / getRawSecret / isUnlocked`. Tras F6.2.b también cachea los 64 bytes del secret durante unlock para adapters que firman con `Keypair` de web3.js v1 (Meteora); `lock()` los pone a cero antes de soltar la referencia. Ver [ADR-012](DECISIONS.md) y [ADR-024](DECISIONS.md).
 - `src/wallet/import.ts` — `bytesFromBase58`, `bytesFromJsonArray` para alimentar al vault.
 - `src/tasks/manager.ts` — `TaskManager`. Ver [ADR-013](DECISIONS.md). Emite eventos a `history` y, tras un close/swap real, llama a `verifyAndRecord` (ver `verify.ts`).
 - `src/tasks/verify.ts` — verificación on-chain post-tx ([ADR-022](DECISIONS.md)). `verifyTxBalances(rpcUrl, signature, owner)` llama `getTransaction` por JSON-RPC, parsea pre/post balances + token balances, devuelve `{ fee, solDelta, tokenDeltas }` con `bigint`. Retry lineal 5x.
@@ -141,7 +141,7 @@ packages/web/src/
 │   ├── settings/page.tsx   (RPC URL + slippages + poll defaults; NetworkPanel con switch a mainnet en 2 pasos cuando ALLOW_MAINNET_LIVE — ADR-023, F4.3)
 │   ├── positions/
 │   │   ├── page.tsx        (lista agregada Orca + Meteora en paralelo, badge oxblood para Meteora — F6.1.b; EmptyOwnedList pedagógico cuando no hay LPs)
-│   │   └── [mint]/page.tsx (recap + form configure con TP/SL + ExistingWatcher si ya hay uno activo; ReadOnlyProtocolNotice si protocol=meteora — F6.1.b)
+│   │   └── [mint]/page.tsx (recap + form configure con TP/SL + ExistingWatcher si ya hay uno activo; `protocolConfig` y `tasks.create` se construyen por rama de protocolo — Orca vs Meteora — F6.2.c)
 │   ├── tasks/
 │   │   ├── page.tsx        (ledger denso con filtros)
 │   │   └── [id]/page.tsx   (dashboard live + receipts editoriales + ActivityTimeline + ActualLine con diff% — ADR-022)
@@ -199,7 +199,10 @@ interface ProtocolAdapter {
   // Schema + setup
   getConfigSchema(): ConfigSchema;
   setupRpc(common: BaseReadOnlyConfig): Promise<void>;
-  attachWallet(wallet: KeyPairSigner): void;
+  // `rawSecret` opcional: adapters cuyo SDK firma con `Keypair` de
+  // web3.js v1 (Meteora) lo necesitan; los que firman con `KeyPairSigner`
+  // de kit (Orca) lo ignoran. F6.2.b + ADR-024.
+  attachWallet(wallet: KeyPairSigner, rawSecret?: Uint8Array): void;
 
   // Discovery (read-only; solo requiere setupRpc)
   listOwnedPositions(owner: string): Promise<PositionRef[]>;
@@ -208,7 +211,7 @@ interface ProtocolAdapter {
 
   // CLI-style lifecycle (compat con packages/cli)
   loadProtocolConfig(env: NodeJS.ProcessEnv): unknown;
-  init(common: BaseConfig, protocolConfig: unknown, wallet: KeyPairSigner): Promise<void>;
+  init(common: BaseConfig, protocolConfig: unknown, wallet: KeyPairSigner, rawSecret?: Uint8Array): Promise<void>;
   resolvePosition(): Promise<ResolvedPosition>;
 
   // Watcher operations

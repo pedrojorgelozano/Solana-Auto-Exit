@@ -6,19 +6,6 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **F6.2** — Meteora DLMM `closePosition`. Claim fees + retirar liquidez
-  de todos los bins ocupados + cerrar el PDA. Requiere convertir el
-  `KeyPairSigner` de `@solana/kit` a un `Keypair` de `@solana/web3.js@^1`
-  para firmar (los dos están en `node:crypto`-derivable; conversión via
-  `getBase58Codec().decode(keyBytes)` + `Keypair.fromSecretKey`). Sin
-  swap todavía (eso es F6.3). Quita el `<ReadOnlyProtocolNotice />`
-  del `Editor` para Meteora y abre el `ConfigureForm` con rama
-  protocolo-específica del `protocolConfig` (lbPair + position +
-  decimalsX/Y en lugar de positionMint + decimalsA/B + tokenMintA/B
-  de Orca).
-- [ ] **F6.3** — Meteora DLMM `swapToExit`. Swap en la misma pool DLMM
-  tras el cierre via `swap` / `swapWithPriceImpact` del SDK. Paridad
-  funcional con el adapter Orca.
 - [ ] **F4.1** — Tauri scaffolding. Crear `packages/tauri/`, configuración
   mínima, app que arranca el sidecar del server + carga el bundle del web
   en una ventana nativa. Requiere instalar Rust toolchain (`rustup`). Build
@@ -95,6 +82,20 @@
 
 Ver [PROGRESS.md](PROGRESS.md).
 
+- **F6.3 — Meteora `swapToExit` (2026-05-21)**: swap quote vía
+  `dlmm.swapQuote(...)`, real path vía `dlmm.swap({...})` con `Keypair`
+  de web3.js v1. Sección "Output token" del ConfigureForm reactivada para
+  Meteora. Validado dry-run contra mainnet en ambas direcciones
+  (SOL↔USDC). **F6 cerrada al 100%**: paridad funcional con Orca.
+- **F6.2 — Meteora `closePosition` + UI integration (2026-05-21)**:
+  - F6.2.a dry-run: lee `positionData` y devuelve quote sin firmar.
+  - F6.2.b real: `WalletVault.getRawSecret()` expone los 64 bytes;
+    contracto `attachWallet(signer, rawSecret?)`; `MeteoraAdapter`
+    construye `Keypair` de web3.js v1 y llama
+    `dlmm.removeLiquidity({ shouldClaimAndClose: true })`.
+  - F6.2.c UI: elimina `ReadOnlyProtocolNotice`, `ConfigureForm` acepta
+    `posRef` y construye `protocolConfig` por rama. Aplicación directa
+    de [ADR-024](DECISIONS.md).
 - **F6.1 — Meteora DLMM adapter read-only + UI aggregation (2026-05-21)**:
   primer adapter no-Orca. `listOwnedPositions`/`getPositionSummary`/`getPrice`
   via `@meteora-ag/dlmm`. UI agrega los dos protocolos en paralelo en
