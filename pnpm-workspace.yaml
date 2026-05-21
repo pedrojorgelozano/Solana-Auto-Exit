@@ -3,11 +3,19 @@ packages:
 
 # esbuild (dependencia transitiva de tsx) necesita un postinstall para descargar
 # su binario nativo. Lo aprobamos explícitamente.
+#
+# bigint-buffer / bufferutil / utf-8-validate son módulos nativos OPCIONALES
+# (vienen como deps transitivas del SDK de Meteora vía @solana/web3.js@1 y ws);
+# todos tienen fallback puro-JS funcional, así que NO los compilamos nativo.
+# El log "bigint: Failed to load bindings, pure JS will be used" es esperado.
 allowBuilds:
   better-sqlite3: true
+  bigint-buffer: false
+  bufferutil: false
   esbuild: true
   # sharp lo usa Next.js para optimización de imágenes (build nativo opcional).
   sharp: true
+  utf-8-validate: false
 
 # pnpm tiene un "minimum release age" de seguridad para deps recientes;
 # excluimos tsx para que la versión instalada arranque sin esperas.

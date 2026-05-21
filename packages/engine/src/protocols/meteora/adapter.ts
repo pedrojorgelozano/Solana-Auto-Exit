@@ -1,0 +1,327 @@
+/**
+ * Meteora DLMM adapter — read-only (F6.1).
+ *
+ * Coexiste con el adapter de Orca a pesar de usar SDKs incompatibles:
+ * Orca → @solana/kit@5, Meteora → @solana/web3.js@1. La frontera del
+ * ProtocolAdapter pasa primitivos (string, bigint), así que cada adapter
+ * encapsula su SDK sin contagio. Ver discusión en F6.1 / ADR-024 (pendiente).
+ *
+ * Estado: listOwnedPositions + getPositionSummary + getPrice. closePosition
+ * y swapToExit lanzan "not implemented" — F6.2/F6.3 los abrirán.
+ */
+
+import { createRequire } from "node:module";
+import { Connection, PublicKey } from "@solana/web3.js";
+import type * as DLMMNs from "@meteora-ag/dlmm";
+import type { KeyPairSigner } from "@solana/kit";
+
+/**
+ * El bundle ESM (.mjs) de @meteora-ag/dlmm intenta `import { BN } from
+ * "@coral-xyz/anchor"` y anchor 0.31.x no re-exporta BN como named ESM
+ * export → SyntaxError al cargar bajo ESM puro. Usamos `createRequire`
+ * para forzar el CJS bundle (dist/index.js) que sí funciona con anchor
+ * vía CJS->ESM interop estándar de Node.
+ *
+ * Los tipos vienen del `import type` arriba (TypeScript ignora el
+ * runtime resolver y resuelve a `dist/index.d.ts`).
+ */
+const requireCjs = createRequire(import.meta.url);
+const meteoraSdk = requireCjs("@meteora-ag/dlmm") as typeof DLMMNs & {
+  default: typeof DLMMNs.default;
+};
+const DLMM: typeof DLMMNs.default = meteoraSdk.default ?? (meteoraSdk as unknown as typeof DLMMNs.default);
+const getPriceOfBinByBinId: typeof DLMMNs.getPriceOfBinByBinId = meteoraSdk.getPriceOfBinByBinId;
+
+import type {
+  BaseConfig,
+  BaseReadOnlyConfig,
+  CloseResult,
+  ConfigSchema,
+  PositionRef,
+  PositionSummary,
+  ProtocolAdapter,
+  ResolvedPosition,
+  SwapExitResult,
+  TokenInfo,
+} from "../types.js";
+import { type MeteoraConfig, loadMeteoraConfig } from "./config.js";
+
+/** Mainnet program id del DLMM (también la usa devnet). */
+const LBCLMM_PROGRAM_ID = "LBUZKhRxPF3XUpBCjp4YzTKgLccjZhTSDM9YuVaPwxo";
+
+export class MeteoraAdapter implements ProtocolAdapter {
+  readonly name = "meteora";
+  readonly displayName = "Meteora DLMM";
+
+  private connection: Connection | undefined;
+  private walletAddress: string | undefined;
+  private meteoraConfig: MeteoraConfig | undefined;
+
+  /**
+   * Si `address` es un PDA de posición Meteora (owner program = LBCLMM),
+   * lee el byte layout y devuelve la wallet propietaria. Si es cualquier
+   * otra cosa (wallet normal, mint, sin existir), devuelve `address` tal
+   * cual. Útil para probes y para detectar pegados de Solscan en la UI.
+   *
+   * Layout del position account: discriminator(8) + lbPair(32) + owner(32) + ...
+   */
+  static async resolveOwnerOf(
+    rpcUrl: string,
+    address: string,
+  ): Promise<{ owner: string; via: "direct" | "position" }> {
+    const conn = new Connection(rpcUrl, "confirmed");
+    const info = await conn.getAccountInfo(new PublicKey(address));
+    if (!info) return { owner: address, via: "direct" };
+    if (info.owner.toBase58() === LBCLMM_PROGRAM_ID) {
+      const ownerKey = new PublicKey(info.data.subarray(40, 72));
+      return { owner: ownerKey.toBase58(), via: "position" };
+    }
+    return { owner: address, via: "direct" };
+  }
+
+  // ===========================================================================
+  // Schema + setup
+  // ===========================================================================
+
+  getConfigSchema(): ConfigSchema {
+    return {
+      protocol: this.name,
+      fields: [
+        {
+          key: "METEORA_LB_PAIR",
+          label: "LbPair address",
+          type: "address",
+          required: true,
+          description: "Public key of the DLMM pool (LbPair account).",
+          group: "position",
+        },
+        {
+          key: "METEORA_POSITION",
+          label: "Position address",
+          type: "address",
+          required: true,
+          description:
+            "Public key of the position account (PDA derived from owner + lbPair).",
+          group: "position",
+        },
+        {
+          key: "METEORA_DECIMALS_X",
+          label: "Token X decimals",
+          type: "integer",
+          required: false,
+          defaultValue: 9,
+          min: 0,
+          max: 18,
+          group: "position",
+        },
+        {
+          key: "METEORA_DECIMALS_Y",
+          label: "Token Y decimals",
+          type: "integer",
+          required: false,
+          defaultValue: 6,
+          min: 0,
+          max: 18,
+          group: "position",
+        },
+      ],
+    };
+  }
+
+  async setupRpc(common: BaseReadOnlyConfig): Promise<void> {
+    this.connection = new Connection(common.rpcUrl, "confirmed");
+  }
+
+  attachWallet(wallet: KeyPairSigner): void {
+    // F6.1 read-only: solo guardamos la address para listOwnedPositions.
+    // F6.2+ convertirá la kit-signer a un Keypair web3.js v1 para firmar.
+    this.walletAddress = wallet.address;
+  }
+
+  // ===========================================================================
+  // Discovery
+  // ===========================================================================
+
+  async listOwnedPositions(owner: string): Promise<PositionRef[]> {
+    const conn = this.getConnection();
+    const ownerKey = new PublicKey(owner);
+    // El SDK devuelve Map<lbPair, PositionInfo>; cada PositionInfo agrega
+    // todas las posiciones del usuario en ese par (puede tener varias con
+    // distintos rangos de bins).
+    const map = await DLMM.getAllLbPairPositionsByUser(conn, ownerKey);
+
+    const refs: PositionRef[] = [];
+    for (const [lbPairStr, info] of map.entries()) {
+      const xMint = info.lbPair.tokenXMint.toBase58();
+      const yMint = info.lbPair.tokenYMint.toBase58();
+      const binStep = info.lbPair.binStep;
+      for (const pos of info.lbPairPositionsData) {
+        refs.push({
+          protocol: this.name,
+          id: pos.publicKey.toBase58(),
+          label: this.formatPoolLabel(xMint, yMint, binStep),
+          poolId: lbPairStr,
+        });
+      }
+    }
+    return refs;
+  }
+
+  async getPositionSummary(ref: PositionRef): Promise<PositionSummary> {
+    const conn = this.getConnection();
+    const lbPairKey = new PublicKey(ref.poolId);
+    const dlmm = await DLMM.create(conn, lbPairKey);
+
+    // Recargamos las posiciones del owner (también podríamos usar
+    // PositionV2Wrapper.fetch para una sola, pero esto reutiliza el
+    // path validado del SDK).
+    const owner = this.walletAddress
+      ? new PublicKey(this.walletAddress)
+      : null;
+    if (!owner) {
+      throw new Error(
+        "MeteoraAdapter.getPositionSummary: wallet no asignada. Llama attachWallet() antes.",
+      );
+    }
+    const all = await DLMM.getAllLbPairPositionsByUser(conn, owner);
+    const info = all.get(ref.poolId);
+    if (!info) {
+      throw new Error(
+        `MeteoraAdapter.getPositionSummary: el wallet ${owner.toBase58()} no tiene posiciones en ${ref.poolId}.`,
+      );
+    }
+    const position = info.lbPairPositionsData.find(
+      (p) => p.publicKey.toBase58() === ref.id,
+    );
+    if (!position) {
+      throw new Error(
+        `MeteoraAdapter.getPositionSummary: posición ${ref.id} no encontrada en ${ref.poolId}.`,
+      );
+    }
+
+    const activeBin = await dlmm.getActiveBin();
+    const currentPrice = Number.parseFloat(activeBin.pricePerToken);
+    const binStep = info.lbPair.binStep;
+    const lowerPrice = Number.parseFloat(
+      dlmm.fromPricePerLamport(
+        getPriceOfBinByBinId(position.positionData.lowerBinId, binStep).toNumber(),
+      ),
+    );
+    const upperPrice = Number.parseFloat(
+      dlmm.fromPricePerLamport(
+        getPriceOfBinByBinId(position.positionData.upperBinId, binStep).toNumber(),
+      ),
+    );
+
+    const tokenA: TokenInfo = {
+      mint: info.lbPair.tokenXMint.toBase58(),
+      decimals: info.tokenX.mint.decimals,
+    };
+    const tokenB: TokenInfo = {
+      mint: info.lbPair.tokenYMint.toBase58(),
+      decimals: info.tokenY.mint.decimals,
+    };
+
+    return {
+      ref,
+      tokenA,
+      tokenB,
+      currentPrice,
+      range: { min: lowerPrice, max: upperPrice },
+      isInRange:
+        currentPrice >= lowerPrice && currentPrice <= upperPrice,
+      liquidity: {
+        tokenA: position.positionData.totalXAmount,
+        tokenB: position.positionData.totalYAmount,
+      },
+      feesPending: {
+        tokenA: position.positionData.feeX.toString(),
+        tokenB: position.positionData.feeY.toString(),
+      },
+    };
+  }
+
+  // ===========================================================================
+  // CLI-style lifecycle
+  // ===========================================================================
+
+  loadProtocolConfig(env: NodeJS.ProcessEnv): unknown {
+    return loadMeteoraConfig(env);
+  }
+
+  async init(
+    common: BaseConfig,
+    protocolConfig: unknown,
+    wallet: KeyPairSigner,
+  ): Promise<void> {
+    await this.setupRpc(common);
+    this.attachWallet(wallet);
+    this.meteoraConfig = protocolConfig as MeteoraConfig;
+  }
+
+  async resolvePosition(): Promise<ResolvedPosition> {
+    if (!this.meteoraConfig) {
+      throw new Error(
+        "MeteoraAdapter.resolvePosition: protocolConfig no cargado. Llama init().",
+      );
+    }
+    return {
+      id: this.meteoraConfig.position,
+      poolLabel: `meteora · ${this.meteoraConfig.lbPair.slice(0, 6)}…`,
+      raw: this.meteoraConfig,
+    };
+  }
+
+  // ===========================================================================
+  // Watcher operations
+  // ===========================================================================
+
+  async getPrice(position: ResolvedPosition): Promise<number> {
+    const conn = this.getConnection();
+    const cfg = position.raw as MeteoraConfig;
+    const dlmm = await DLMM.create(conn, new PublicKey(cfg.lbPair));
+    const activeBin = await dlmm.getActiveBin();
+    return Number.parseFloat(activeBin.pricePerToken);
+  }
+
+  async closePosition(): Promise<CloseResult> {
+    throw new Error(
+      "MeteoraAdapter.closePosition: no implementado en F6.1. Pendiente F6.2.",
+    );
+  }
+
+  async swapToExit(): Promise<SwapExitResult> {
+    throw new Error(
+      "MeteoraAdapter.swapToExit: no implementado en F6.1. Pendiente F6.3.",
+    );
+  }
+
+  // ===========================================================================
+  // Helpers
+  // ===========================================================================
+
+  private getConnection(): Connection {
+    if (!this.connection) {
+      throw new Error(
+        "MeteoraAdapter: RPC no configurado. Llama setupRpc() antes.",
+      );
+    }
+    return this.connection;
+  }
+
+  /**
+   * Label "Xmint…/Ymint… 0.20%" cuando no tenemos symbol resolver.
+   * La UI suele sustituir mints conocidos por símbolos a posteriori
+   * vía su token registry, así que aquí el label no es crítico.
+   */
+  private formatPoolLabel(
+    xMint: string,
+    yMint: string,
+    binStepBps: number,
+  ): string {
+    const trunc = (s: string): string => `${s.slice(0, 4)}…${s.slice(-4)}`;
+    const feePct = (binStepBps / 100).toFixed(2);
+    return `${trunc(xMint)}/${trunc(yMint)} ${feePct}%`;
+  }
+}
+
