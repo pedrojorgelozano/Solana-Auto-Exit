@@ -226,6 +226,21 @@ export function formatBufferRemaining(
 }
 
 /**
+ * "SOL / devUSDC" leído del protocolConfig de una task. Desde F2.4 cada
+ * task persiste tokenMintA y tokenMintB en su protocolConfig; este helper
+ * los lee defensivamente y devuelve el par con sus symbols. Para tasks
+ * pre-F2.4 (sin los mints) devuelve null y el caller cae al positionId
+ * truncado.
+ */
+export function formatTaskPair(protocolConfig: unknown): string | null {
+  const cfg = protocolConfig as
+    | { tokenMintA?: string; tokenMintB?: string }
+    | null;
+  if (!cfg?.tokenMintA || !cfg?.tokenMintB) return null;
+  return `${tokenSymbol(cfg.tokenMintA)} / ${tokenSymbol(cfg.tokenMintB)}`;
+}
+
+/**
  * "5m ago" / "just now" / "2h ago". timestamp en ms.
  */
 export function formatTimeAgo(timestampMs: number | null): string {

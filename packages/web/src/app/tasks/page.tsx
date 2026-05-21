@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import {
-  formatNearestDistance,
+  formatDistance,
   formatPrice,
+  formatTaskPair,
   formatTimeAgo,
   formatTriggers,
   truncateAddress,
@@ -159,14 +160,49 @@ function Ledger({ rows }: { rows: TaskRow[] }) {
 function Row({ row }: { row: TaskRow }) {
   const view = statusView(row.status as BackendStatus);
   const tone = TONE_CLASSES[view.tone];
-  const distance = formatNearestDistance(
-    row.runtime.lastPrice,
-    row.takeProfitPrice,
-    row.stopLossPrice,
-  );
+  // Doble distancia (TP + SL): coherente con la celda Auto-exit del home.
+  // Si solo hay un trigger, solo se renderiza ese.
+  const current = row.runtime.lastPrice;
+  const tpDist =
+    row.takeProfitPrice !== null
+      ? formatDistance(current, row.takeProfitPrice, "above")
+      : null;
+  const slDist =
+    row.stopLossPrice !== null
+      ? formatDistance(current, row.stopLossPrice, "below")
+      : null;
   const when = row.triggeredAt
     ? new Date(row.triggeredAt).getTime()
     : new Date(row.updatedAt).getTime();
+
+  // Resolver el ref de la posición para mostrar el rango (distinguir
+  // posiciones del mismo pool en pool-trading). wallet.status y listOwned
+  // tienen las MISMAS query keys entre rows → TanStack Query las deduplica
+  // automáticamente, así que el coste de RPC es 1 por (protocol, network,
+  // rpcUrl) único, no 1 por row. El getSummary sí es único por row.
+  const walletStatus = trpc.wallet.status.useQuery();
+  const owner = walletStatus.data?.address;
+  const list = trpc.positions.listOwned.useQuery(
+    {
+      protocol: row.protocol,
+      network: row.network,
+      rpcUrl: row.rpcUrl,
+      owner: owner ?? "",
+    },
+    { enabled: !!owner },
+  );
+  const ref = list.data?.find((r) => r.id === row.positionId);
+  const summary = trpc.positions.getSummary.useQuery(
+    {
+      protocol: row.protocol,
+      network: row.network,
+      rpcUrl: row.rpcUrl,
+      ref: ref ?? { protocol: "", id: "", label: "", poolId: "" },
+    },
+    { enabled: !!ref, refetchInterval: 30_000 },
+  );
+
+  const pair = formatTaskPair(row.protocolConfig);
 
   return (
     <tr className="group">
@@ -184,12 +220,42 @@ function Row({ row }: { row: TaskRow }) {
         </div>
       </td>
       <td className="py-4 pr-4 align-baseline">
-        <span className="t-num text-[var(--color-text)]">
-          {truncateAddress(row.positionId, 4, 4)}
-        </span>
-        <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
-          {row.protocol}
-        </span>
+        <div className="text-[var(--color-text)]">
+          {pair ?? (
+            <span className="t-num">
+              {truncateAddress(row.positionId, 4, 4)}
+            </span>
+          )}
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          {summary.data ? (
+            <>
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                  summary.data.isInRange
+                    ? "bg-[var(--color-positive)]"
+                    : "bg-[var(--color-danger)]"
+                }`}
+                title={
+                  summary.data.isInRange ? "In your range" : "Out of range"
+                }
+              />
+              <span className="t-num text-xs text-[var(--color-text-muted)]">
+                {formatPrice(summary.data.range.min, 2)}
+                <span className="text-[var(--color-text-dim)]">–</span>
+                {formatPrice(summary.data.range.max, 2)}
+              </span>
+              <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
+              <span className="t-eyebrow text-[var(--color-text-dim)]">
+                {row.protocol}
+              </span>
+            </>
+          ) : (
+            <span className="t-eyebrow text-[var(--color-text-dim)]">
+              {row.protocol}
+            </span>
+          )}
+        </div>
       </td>
       <td className="py-4 pr-4 align-baseline t-num text-[var(--color-text)]">
         {formatTriggers(row.takeProfitPrice, row.stopLossPrice, 4)}
@@ -204,14 +270,38 @@ function Row({ row }: { row: TaskRow }) {
           ? formatPrice(row.runtime.lastPrice, 4)
           : "—"}
       </td>
-      <td
-        className={`py-4 pr-4 align-baseline t-num text-right ${
-          distance.reached
-            ? "text-[var(--color-warning)]"
-            : "text-[var(--color-text-muted)]"
-        }`}
-      >
-        {distance.pct !== null ? distance.text : "—"}
+      <td className="py-4 pr-4 align-baseline text-right">
+        {(tpDist && tpDist.pct !== null) || (slDist && slDist.pct !== null) ? (
+          <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 t-num">
+            {tpDist && tpDist.pct !== null ? (
+              <span
+                className={
+                  tpDist.reached
+                    ? "text-[var(--color-warning)]"
+                    : "text-[var(--color-text-muted)]"
+                }
+              >
+                {tpDist.text} TP
+              </span>
+            ) : null}
+            {tpDist?.pct !== null && slDist?.pct !== null ? (
+              <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
+            ) : null}
+            {slDist && slDist.pct !== null ? (
+              <span
+                className={
+                  slDist.reached
+                    ? "text-[var(--color-warning)]"
+                    : "text-[var(--color-text-muted)]"
+                }
+              >
+                {slDist.text} SL
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <span className="t-num text-[var(--color-text-dim)]">—</span>
+        )}
       </td>
       <td className="py-4 pr-4 align-baseline t-small text-right text-[var(--color-text-muted)]">
         {formatTimeAgo(when)}

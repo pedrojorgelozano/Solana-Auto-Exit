@@ -363,20 +363,31 @@ function PositionRecap({
       </h2>
 
       <div className="mt-8 grid grid-cols-2 gap-x-8 gap-y-6 hairline-t pt-8 md:grid-cols-4">
-        <Field label="Range">
-          <span className="t-num">
-            {formatPrice(summary.range.min, 2)} – {formatPrice(summary.range.max, 2)}
-          </span>
-          <div
-            className={`mt-1 t-eyebrow ${
-              summary.isInRange
-                ? "text-[var(--color-positive)]"
-                : "text-[var(--color-warning)]"
-            }`}
-          >
-            {formatRangeStatus(summary.isInRange)}
+        {/* Range con bg tintado: estado in/out salta a la vista al revisar
+            la posición antes de configurar el auto-exit. */}
+        <div
+          className={`rounded-lg border-l-2 px-4 py-3 ${
+            summary.isInRange
+              ? "bg-[var(--color-positive-bg)] border-[var(--color-positive)]"
+              : "bg-[var(--color-danger-bg)] border-[var(--color-danger)]"
+          }`}
+        >
+          <div className="t-eyebrow text-[var(--color-text-muted)]">Range</div>
+          <div className="mt-2 text-[var(--color-text)]">
+            <span className="t-num">
+              {formatPrice(summary.range.min, 2)} – {formatPrice(summary.range.max, 2)}
+            </span>
+            <div
+              className={`mt-1 t-eyebrow ${
+                summary.isInRange
+                  ? "text-[var(--color-positive)]"
+                  : "text-[var(--color-danger)]"
+              }`}
+            >
+              {formatRangeStatus(summary.isInRange)}
+            </div>
           </div>
-        </Field>
+        </div>
         <Field label={`Holdings ${symA}`}>
           <span className="t-num">
             {formatTokenAmount(summary.liquidity.tokenA, summary.tokenA.decimals, 6)}

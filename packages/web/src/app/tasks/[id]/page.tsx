@@ -18,7 +18,9 @@ import {
   formatDistance,
   formatPollInterval,
   formatPrice,
+  formatRangeStatus,
   formatSlippage,
+  formatTaskPair,
   formatTimeAgo,
   formatTokenAmount,
   formatTriggers,
@@ -200,6 +202,9 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
         <Controls task={task} status={task.status as BackendStatus} refresh={refresh} />
       </section>
 
+      {/* === Pool state (live) === */}
+      <PoolState task={task} />
+
       {/* === Trigger details === */}
       <TriggerDetails task={task} />
 
@@ -336,6 +341,116 @@ function Controls({
 }
 
 // ============================================================================
+// Pool state — range, in/out, holdings, fees pending. Read-only en vivo desde
+// el RPC. Se renderiza si la bot wallet aún posee la posición; si la NFT ya
+// se cerró o se transfirió, listOwned no la encuentra y la sección desaparece.
+// ============================================================================
+
+function PoolState({ task }: { task: TaskData }) {
+  const walletStatus = trpc.wallet.status.useQuery();
+  const owner = walletStatus.data?.address;
+
+  // listOwned (igual que /positions y home) para resolver el `ref` completo
+  // con su poolId — necesario para getSummary. Sin owner no podemos pedirlo.
+  const list = trpc.positions.listOwned.useQuery(
+    {
+      protocol: task.protocol,
+      network: task.network,
+      rpcUrl: task.rpcUrl,
+      owner: owner ?? "",
+    },
+    { enabled: !!owner },
+  );
+
+  const ref = list.data?.find((r) => r.id === task.positionId);
+
+  const summary = trpc.positions.getSummary.useQuery(
+    {
+      protocol: task.protocol,
+      network: task.network,
+      rpcUrl: task.rpcUrl,
+      ref: ref ?? { protocol: "", id: "", label: "", poolId: "" },
+    },
+    { enabled: !!ref, refetchInterval: 10_000 },
+  );
+
+  // Si no hay owner, la wallet no se ha cargado todavía → escondemos sin
+  // pintar nada. Si listOwned o getSummary fallan, mismo enfoque: no aporta
+  // valor mostrar errores aquí; el resto de la página sigue funcionando.
+  if (!owner || !ref || !summary.data) return null;
+
+  const s = summary.data;
+  const symA = tokenSymbol(s.tokenA.mint);
+  const symB = tokenSymbol(s.tokenB.mint);
+
+  return (
+    <section className="hairline-t pt-8">
+      <div className="t-eyebrow text-[var(--color-text-muted)]">Pool state</div>
+      <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
+        {/* Range con bg tintado para que el estado in/out salte a la vista. */}
+        <div
+          className={`rounded-lg border-l-2 px-4 py-3 ${
+            s.isInRange
+              ? "bg-[var(--color-positive-bg)] border-[var(--color-positive)]"
+              : "bg-[var(--color-danger-bg)] border-[var(--color-danger)]"
+          }`}
+        >
+          <div className="t-eyebrow text-[var(--color-text-muted)]">Range</div>
+          <div className="mt-2 text-[var(--color-text)]">
+            <span className="t-num">
+              {formatPrice(s.range.min, 2)} – {formatPrice(s.range.max, 2)}
+            </span>
+            <div
+              className={`mt-1 t-eyebrow ${
+                s.isInRange
+                  ? "text-[var(--color-positive)]"
+                  : "text-[var(--color-danger)]"
+              }`}
+            >
+              {formatRangeStatus(s.isInRange)}
+            </div>
+          </div>
+        </div>
+        <Field label={`Holdings ${symA}`}>
+          <span className="t-num">
+            {formatTokenAmount(s.liquidity.tokenA, s.tokenA.decimals, 6)}
+          </span>
+        </Field>
+        <Field label={`Holdings ${symB}`}>
+          <span className="t-num">
+            {formatTokenAmount(s.liquidity.tokenB, s.tokenB.decimals, 6)}
+          </span>
+        </Field>
+        <Field label="Fees pending">
+          {s.feesPending ? (
+            <div className="t-num text-[var(--color-text-muted)]">
+              <div>
+                {formatTokenAmount(
+                  s.feesPending.tokenA,
+                  s.tokenA.decimals,
+                  6,
+                )}{" "}
+                {symA}
+              </div>
+              <div>
+                {formatTokenAmount(
+                  s.feesPending.tokenB,
+                  s.tokenB.decimals,
+                  6,
+                )}{" "}
+                {symB}
+              </div>
+            </div>
+          ) : (
+            <span className="t-num text-[var(--color-text-muted)]">—</span>
+          )}
+        </Field>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================================
 // Trigger details strip
 // ============================================================================
 
@@ -343,14 +458,24 @@ function TriggerDetails({ task }: { task: TaskData }) {
   const hasBuffer =
     (task.takeProfitBufferMs && task.takeProfitBufferMs > 0) ||
     (task.stopLossBufferMs && task.stopLossBufferMs > 0);
+  const pair = formatTaskPair(task.protocolConfig);
   return (
     <section className="hairline-t pt-8">
       <div className="t-eyebrow text-[var(--color-text-muted)]">Configuration</div>
       <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
         <Field label="Position">
-          <span className="t-num text-[var(--color-text)]">
-            {truncateAddress(task.positionId, 6, 6)}
-          </span>
+          {pair ? (
+            <>
+              <span className="text-[var(--color-text)]">{pair}</span>
+              <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
+                {task.protocol}
+              </span>
+            </>
+          ) : (
+            <span className="t-num text-[var(--color-text)]">
+              {truncateAddress(task.positionId, 6, 6)}
+            </span>
+          )}
         </Field>
         <Field label="Triggers">
           {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}

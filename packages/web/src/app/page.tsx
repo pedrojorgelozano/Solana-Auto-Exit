@@ -10,7 +10,9 @@ import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import {
+  formatDistance,
   formatPrice,
+  formatTaskPair,
   formatTimeAgo,
   formatTriggers,
   truncateAddress,
@@ -232,11 +234,8 @@ function PositionsHub({
         <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
           Position
         </div>
-        <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)]">
-          Price
-        </div>
-        <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
-          Trigger
+        <div className="md:col-span-5 t-eyebrow text-[var(--color-text-dim)]">
+          Auto-exit
         </div>
         <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)] md:text-right">
           Action
@@ -329,44 +328,62 @@ function PositionHubRow({
             </span>
           )}
         </div>
-        <div className="t-eyebrow text-[var(--color-text-dim)]">
-          <span
-            className={
-              posRef.protocol === "meteora"
-                ? "text-[var(--color-accent-bright)]"
-                : ""
-            }
-          >
-            {protocolLabel}
-          </span>{" "}
-          · {posRef.label.split(" ").slice(-1)[0]}
+        {/* Sub-línea con rango + in/out + protocolo. El rango distingue
+            posiciones del mismo pool (pool trading: la misma pareja en
+            varios rangos a la vez). */}
+        <div className="mt-1 flex items-center gap-2">
+          {summary.data ? (
+            <>
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${
+                  summary.data.isInRange
+                    ? "bg-[var(--color-positive)]"
+                    : "bg-[var(--color-danger)]"
+                }`}
+                title={
+                  summary.data.isInRange ? "In your range" : "Out of range"
+                }
+              />
+              <span className="t-num text-xs text-[var(--color-text-muted)]">
+                {formatPrice(summary.data.range.min, 2)}
+                <span className="text-[var(--color-text-dim)]">–</span>
+                {formatPrice(summary.data.range.max, 2)}
+              </span>
+              <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
+              <span
+                className={`t-eyebrow ${
+                  posRef.protocol === "meteora"
+                    ? "text-[var(--color-accent-bright)]"
+                    : "text-[var(--color-text-dim)]"
+                }`}
+              >
+                {protocolLabel}
+              </span>
+            </>
+          ) : (
+            <span className="t-eyebrow text-[var(--color-text-dim)]">
+              <span
+                className={
+                  posRef.protocol === "meteora"
+                    ? "text-[var(--color-accent-bright)]"
+                    : ""
+                }
+              >
+                {protocolLabel}
+              </span>{" "}
+              · {posRef.label.split(" ").slice(-1)[0]}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Price */}
-      <div className="col-span-6 md:col-span-2 t-num text-[var(--color-text)]">
-        <span className="t-eyebrow mr-2 text-[var(--color-text-dim)] md:hidden">
-          price
-        </span>
-        {summary.data ? formatPrice(summary.data.currentPrice, 4) : "—"}
-      </div>
-
-      {/* Trigger */}
-      <div className="col-span-6 md:col-span-3 t-num text-[var(--color-text-muted)]">
-        <span className="t-eyebrow mr-2 text-[var(--color-text-dim)] md:hidden">
-          trigger
-        </span>
+      {/* Auto-exit: trigger + distancia. Solo se rellena si hay watcher
+          activo. Para "No exit" la celda queda vacía — sin guiones, sin
+          ruido (el CTA Action ya lleva al setup). */}
+      <div className="col-span-12 md:col-span-5">
         {activeTask ? (
-          <span className="text-[var(--color-text)]">
-            {formatTriggers(
-              activeTask.takeProfitPrice,
-              activeTask.stopLossPrice,
-              4,
-            )}
-          </span>
-        ) : (
-          <span className="text-[var(--color-text-dim)]">—</span>
-        )}
+          <AutoExitCell task={activeTask} currentPrice={summary.data?.currentPrice ?? null} />
+        ) : null}
       </div>
 
       {/* Action */}
@@ -388,6 +405,72 @@ function PositionHubRow({
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * Celda Auto-exit de PositionsHub: muestra trigger(s) configurado(s) en
+ * primera línea + distancia a CADA UNO en segunda. Si hay TP y SL,
+ * ambas distancias se renderizan separadas; si solo uno, solo ese. Cada
+ * distancia se pinta en warning si ya está reached, muted en otro caso.
+ */
+function AutoExitCell({
+  task,
+  currentPrice,
+}: {
+  task: TaskRow;
+  currentPrice: number | null;
+}) {
+  const triggers = formatTriggers(
+    task.takeProfitPrice,
+    task.stopLossPrice,
+    4,
+  );
+  const current = currentPrice ?? task.runtime.lastPrice;
+  const tpDist =
+    task.takeProfitPrice !== null
+      ? formatDistance(current, task.takeProfitPrice, "above")
+      : null;
+  const slDist =
+    task.stopLossPrice !== null
+      ? formatDistance(current, task.stopLossPrice, "below")
+      : null;
+  const hasAnyDistance =
+    (tpDist && tpDist.pct !== null) || (slDist && slDist.pct !== null);
+
+  return (
+    <div>
+      <div className="t-num text-[var(--color-text)]">{triggers}</div>
+      {hasAnyDistance ? (
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 t-eyebrow">
+          {tpDist && tpDist.pct !== null ? (
+            <span
+              className={
+                tpDist.reached
+                  ? "text-[var(--color-warning)]"
+                  : "text-[var(--color-text-dim)]"
+              }
+            >
+              {tpDist.text} TP
+            </span>
+          ) : null}
+          {tpDist?.pct !== null && slDist?.pct !== null ? (
+            <span className="text-[var(--color-text-dim)]">·</span>
+          ) : null}
+          {slDist && slDist.pct !== null ? (
+            <span
+              className={
+                slDist.reached
+                  ? "text-[var(--color-warning)]"
+                  : "text-[var(--color-text-dim)]"
+              }
+            >
+              {slDist.text} SL
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -576,7 +659,21 @@ function LedgerRow({ task }: { task: TaskRow }) {
         {formatTimeAgo(when)}
       </td>
       <td className="py-4 pr-4 align-top t-small text-[var(--color-text)]">
-        {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
+        {(() => {
+          const pair = formatTaskPair(task.protocolConfig);
+          return pair ? (
+            <>
+              {pair}{" "}
+              <span className="t-eyebrow text-[var(--color-text-dim)]">
+                · {task.protocol}
+              </span>
+            </>
+          ) : (
+            <>
+              {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
+            </>
+          );
+        })()}
       </td>
       <td className="py-4 pr-4 align-top t-num text-[var(--color-text)]">
         {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
