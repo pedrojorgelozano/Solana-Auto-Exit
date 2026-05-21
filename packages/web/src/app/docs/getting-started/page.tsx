@@ -61,16 +61,16 @@ export default function GettingStarted() {
             </strong>{" "}
             The base58 secret we generate is exactly what Phantom and Backpack
             accept under &ldquo;Import private key.&rdquo; Add the bot wallet
-            there as a new account, switch to it, and open an LP on Orca
-            normally. The NFT lands at the bot wallet.
+            there as a new account, switch to it, and open an LP on Orca or
+            Meteora normally. The NFT lands at the bot wallet.
           </li>
           <li>
             <strong className="text-[var(--color-text)]">
               Transfer an existing position NFT.
             </strong>{" "}
-            From whatever account currently owns a Whirlpool position, send
-            the position NFT to the bot wallet address. Ownership moves; the
-            bot can now close it.
+            From whatever account currently owns a Whirlpool (Orca) or DLMM
+            (Meteora) position, send the position NFT to the bot wallet
+            address. Ownership moves; the bot can now close it.
           </li>
         </ul>
         <p className="mt-4 t-body text-[var(--color-text-muted)]">
@@ -89,15 +89,23 @@ export default function GettingStarted() {
           one of the two tokens of the pool).
         </p>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
-          Run it in <em>simulation</em> mode first if you want to see what
-          would happen without spending real SOL — the bot will reach the
-          quote step and report the would-be outcome instead of sending the
-          transaction.{" "}
+          If you want to validate the setup without committing real funds,
+          switch the network to <strong className="text-[var(--color-text)]">TEST</strong>{" "}
+          mode from{" "}
+          <Link
+            href="/settings"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            /settings
+          </Link>
+          {" "}before creating the auto-exit. The bot then runs the whole
+          lifecycle on Solana devnet and signs against the test chain —
+          same code, no real money.{" "}
           <Link
             href="/docs/auto-exit"
             className="text-[var(--color-accent-bright)] hover:underline"
           >
-            More on triggers, slippage, and simulation →
+            More on triggers and slippage →
           </Link>
         </p>
       </section>
@@ -108,8 +116,15 @@ export default function GettingStarted() {
           The bot polls the pool price every few seconds and acts when one of
           your triggers crosses. You can close the tab, close your laptop, do
           whatever — the server keeps watching as long as the wallet is
-          unlocked. To stop, pause, or rearm an auto-exit, open it from the
-          tasks page.
+          unlocked. To pause, restart or delete an auto-exit, open it from
+          its detail page (or list it under{" "}
+          <Link
+            href="/tasks"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            /tasks
+          </Link>
+          ).
         </p>
       </section>
     </div>

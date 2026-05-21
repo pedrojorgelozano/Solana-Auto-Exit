@@ -1,8 +1,24 @@
 # Auto-Exit · Solana
 
-Self-hosted auto-exit bot for concentrated-liquidity positions on Solana. Watches Orca (and soon Meteora) pools every few seconds and closes a position when price hits your take-profit or stop-loss. Optionally swaps the proceeds to a stable. Runs locally on your machine, signs with a wallet you control.
+Self-hosted auto-exit bot for concentrated-liquidity positions on Solana. Watches Orca and Meteora pools every few seconds and closes a position when price hits your take-profit or stop-loss. Optionally swaps the proceeds to a stable. Runs locally on your machine, signs with a wallet you control.
 
 No custody, no SaaS, no API keys to a service — your machine, your key.
+
+---
+
+## ⚠️ Disclaimer · use at your own risk
+
+**This software is provided "as is", without warranty of any kind. You install, configure and use it entirely at your own risk.** By downloading, installing or running it, you accept full responsibility for any consequences — including the partial or total loss of the funds it manages.
+
+- **No warranty.** Bugs may exist, prices may move unexpectedly, RPC endpoints may misbehave, on-chain protocols may change, and your transactions may fail or settle at a worse price than quoted.
+- **Not financial advice.** Take-profit thresholds, stop-loss thresholds, slippage tolerances, time buffers, RPC endpoints, network defaults — every parameter the tool exposes — are yours to choose. The author is not a financial advisor.
+- **You may lose money.** DeFi involves substantial risk. Do not commit funds you cannot afford to lose.
+- **You are responsible** for the security of the machine where the tool runs, the strength of your passphrase, the RPC endpoint you point it at, the parameters you configure, and compliance with applicable laws in your jurisdiction.
+- **Limitation of liability.** To the maximum extent permitted by applicable law, the author shall not be liable for any direct, indirect, incidental, consequential or special damages arising out of or related to the use of, or inability to use, this software.
+
+If you do not agree, do not install or use it. The full plain-English disclaimer is rendered in-app at `/docs/disclaimer` and lives in [`packages/web/src/app/docs/disclaimer/page.tsx`](packages/web/src/app/docs/disclaimer/page.tsx).
+
+---
 
 ## Status
 
@@ -10,13 +26,15 @@ No custody, no SaaS, no API keys to a service — your machine, your key.
 |---|---|
 | Web UI (Next.js 15 + Tailwind 4 + tRPC) | ✅ Wallet onboarding, position list, configure TP/SL, live dashboard, settings, in-app docs |
 | Backend (Hono + tRPC + Drizzle/SQLite) | ✅ Persistent multi-position, encrypted vault, history events, on-chain verification |
-| Orca Whirlpools adapter (SDK v8) | ✅ Close + optional same-pool exit swap. Validated on-chain on devnet. |
+| Orca Whirlpools adapter (SDK v8) | ✅ Close + optional same-pool exit swap. Validated on-chain on devnet + mainnet. |
+| Meteora DLMM adapter | ✅ Close + optional swap-to-exit-token. Same shape as Orca. |
 | Result verification (`getTransaction` parse) | ✅ Quoted vs actual + diff %, surfaced in receipts and `/tasks/[id]` timeline |
-| Settings persisted (RPC, slippage, poll) | ✅ Editable via `/settings` |
-| Docs in-app (`/docs`) | ✅ Six editorial articles |
-| Meteora DLMM adapter | ⏳ Stub (F6) |
-| Tauri desktop installer (Win/Mac/Linux) | ⏳ F4 |
-| Mainnet UI gate | 🔒 Locked until F4 + visual audit (ADR-006) |
+| Time buffer per trigger (TP/SL) | ✅ Sustained-price requirement before firing the close (ADR-025) |
+| Settings persisted (RPC, slippage, poll) | ✅ Editable via `/settings`, per-network RPC canonicals |
+| Mainnet default + UI gate | ✅ Mainnet is default; switching to TEST/REAL is one click with two-step confirmation (ADR-026 + ADR-027) |
+| Light cuaderno UI + EN/ES toggle | ✅ Crema + terracota + Fraunces / Source Serif. Spanish translation toggleable from the header. |
+| Docs in-app (`/docs`) | ✅ Seven editorial articles including the disclaimer |
+| Tauri desktop installer (Win/Mac/Linux) | ⏳ F4 (scaffolding done) |
 | Automated tests | ❌ Backlog |
 
 ## Quick start (web UI, devnet)
@@ -62,15 +80,17 @@ The container:
 
 Today the Docker image bundles only the backend. Run `pnpm dev:web` separately, or wait for F4 (Tauri) which packages both as a single desktop app.
 
-## Quick start (CLI, advanced)
+## Quick start (CLI, legacy)
 
-Power-user path for testing without the web UI. One position at a time, `.env`-based config:
+Bare-bones path for smoke tests and devnet experiments without the web UI. One position at a time, single trigger (TP **or** SL, not both), no time buffer, `.env`-based config:
 
 ```bash
 cp .env.example .env       # edit the values
 npx tsx scripts/gen-wallet.ts    # if you don't have a wallet
 pnpm start                  # CLI watcher
 ```
+
+The CLI predates F1 (multi-position, TP+SL simultaneous, time buffer per ADR-025). For real use, **go through the web UI** — it's the canonical path. The CLI remains supported for adapter probes and one-shot tests against a single fixed trigger.
 
 See [`docs/TESTING.md`](docs/TESTING.md) for the validated scenarios with on-chain tx hashes.
 
@@ -94,10 +114,11 @@ For end users (recommended — start here):
 |---|---|
 | `/docs/getting-started` | The three-step walkthrough end to end. |
 | `/docs/bot-wallet` | Three paths to provide a key, blast radius explained precisely. |
-| `/docs/auto-exit` | TP/SL triggers, slippage, exit token, simulation mode. |
-| `/docs/operational` | Restarts, lock/unlock, error handling, backups. |
-| `/docs/security` | Threat model, encryption choices, what can still go wrong. |
+| `/docs/auto-exit` | TP/SL triggers, time buffer, slippage, exit token, what happens when a close fails. |
+| `/docs/operational` | Restarts, lock/unlock, error handling, activity timeline, backups. |
+| `/docs/security` | Threat model, encryption choices, mainnet gate, what can still go wrong. |
 | `/docs/faq` | Recurring questions (why not Phantom-style, mainnet, congestion, etc.). |
+| `/docs/disclaimer` | **The plain-English version of the disclaimer above. Read this before committing real funds.** |
 
 For contributors (developer-facing, in the repo):
 
@@ -112,7 +133,7 @@ For contributors (developer-facing, in the repo):
 - Localhost bind by default (ADR-016). Nothing on the LAN can reach the API.
 - Wallet key encrypted at rest with `scrypt(N=32768)` + `AES-256-GCM` (Node `node:crypto`, zero deps).
 - The app accepts **per-account private keys only** — never seed phrases. The "blast radius" of importing a key is bounded to that one Solana address; other accounts in your Phantom/Backpack are unaffected.
-- Mainnet operations are gated by `ALLOW_MAINNET_LIVE=true` (ADR-006) and not exposed in the UI until F4.
+- Switching from test (devnet) to real (mainnet) is one click + two-step UI confirmation (checkbox + danger button). The legacy `ALLOW_MAINNET_LIVE` env var has become opt-OUT (set it to `false` to harden the CLI path against unattended mainnet runs). Full model: ADR-026 + ADR-027.
 
 Full threat model and hardening checklist in [`SECURITY.md`](SECURITY.md).
 

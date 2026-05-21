@@ -74,12 +74,14 @@ export default function Faq() {
           just need the key again to sign for them.
         </Q>
 
-        <Q title="What about Meteora, Raydium, Jupiter LP, others?">
+        <Q title="What about Raydium, Jupiter LP, others?">
           The codebase is built around a{" "}
           <code className="t-num text-[var(--color-text)]">ProtocolAdapter</code>{" "}
           contract so adding a protocol is mostly a matter of writing one
-          module. Orca is in v1 because it&apos;s where we started. Meteora
-          DLMM is the next one on the list.
+          module. Orca (Whirlpools) and Meteora (DLMM) are both supported
+          today — your positions in either appear automatically in the home
+          hub. Raydium CLMM, Jupiter LP and others can be added the same way
+          when there&apos;s demand.
         </Q>
 
         <Q title="Why is the exit token limited to one of the pool's tokens?">

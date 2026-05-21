@@ -124,18 +124,29 @@ export default function AutoExit() {
       </section>
 
       <section className="hairline-t pt-10">
-        <h2 className="t-h2">Dry-run simulation</h2>
+        <h2 className="t-h2">Validating before committing real funds</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
-          Toggle simulation on at configure time and the bot will go through
-          the whole lifecycle — poll prices, detect the trigger, quote the
-          close and the swap — but stop short of sending transactions. The
-          task moves to <code className="t-num text-[var(--color-text)]">done</code> with the would-be
-          outcome in the receipt instead of real transaction hashes.
+          The preferred way to validate an auto-exit setup is to switch the
+          network to <strong className="text-[var(--color-text)]">TEST</strong>{" "}
+          (Solana devnet) from{" "}
+          <a
+            href="/settings"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            /settings
+          </a>
+          . The bot then runs the exact same code path against devnet,
+          signing real transactions against the test chain — same retries,
+          same slippage logic, same time buffer. No real money involved.
         </p>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
-          Use it once to convince yourself the prices, slippage, and exit
-          token are configured the way you expect. Real auto-exits need
-          simulation off.
+          A legacy <em>dry-run</em> flag still exists in the schema (per-task
+          boolean) and the engine honors it by quoting + skipping the
+          transaction signing. The UI toggle for it is hidden today — the
+          network toggle is the cleaner mental model. If you need dry-run
+          specifically (e.g. validating against mainnet prices without
+          spending), it can be re-enabled in the configure form with a
+          one-line code change.
         </p>
       </section>
 

@@ -135,13 +135,20 @@ function Preamble() {
         <br />
         <span className="text-[var(--color-text)]">{t.modal.notPhantom}</span>
       </p>
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
         <Link
           href="/docs/bot-wallet"
           onClick={close}
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
         >
           {t.home.eyebrow.whatIs}
+        </Link>
+        <Link
+          href="/docs/disclaimer"
+          onClick={close}
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-colors"
+        >
+          {t.modal.disclaimerLink}
         </Link>
       </div>
     </div>

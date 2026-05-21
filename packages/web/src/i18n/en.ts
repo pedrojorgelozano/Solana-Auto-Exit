@@ -134,7 +134,7 @@ export const en = {
       titleLine1: "Set the conditions.",
       titleLine2: "Walk away.",
       intro:
-        "Auto-Exit watches your Orca (and soon Meteora) liquidity positions every few seconds and closes them when price hits your take-profit or stop-loss. It runs on this machine and signs with a wallet you control.",
+        "Auto-Exit watches your Orca and Meteora liquidity positions every few seconds and closes them when price hits your take-profit or stop-loss. It runs on this machine and signs with a wallet you control.",
       stepsEyebrow: "How it works",
       stepsTitle: "Three steps, then nothing.",
       step1Title: "Bot wallet",
@@ -152,6 +152,8 @@ export const en = {
       localEyebrow: "Local stack",
       localBody:
         "The server listens on localhost only. Your wallet key is encrypted at rest with your passphrase and decrypted in memory only while unlocked — nothing about your wallet, positions, or trades leaves this machine.",
+      disclaimerLink:
+        "→ Use at your own risk · disclaimer",
     },
 
     eyebrow: {
@@ -232,7 +234,7 @@ export const en = {
     existing: {
       title: "This position already has an auto-exit.",
       intro:
-        "One auto-exit per position. Open it to see its live status, pause or stop it. If you want different settings, delete the current one and set up a new one.",
+        "One auto-exit per position. Open it to see its live status or pause it. If you want different settings, delete the current one and set up a new one.",
       fieldTakeProfit: "Take profit",
       fieldStopLoss: "Stop loss",
       fieldLastPrice: "Last price",
@@ -452,9 +454,9 @@ export const en = {
         bufferArmedSl: (duration: string) =>
           `Stop-loss target crossed. Waiting ${duration} of sustained price before closing.`,
         bufferResetTp:
-          "Take-profit target no longer crossed — buffer cronómetro reset to zero.",
+          "Take-profit target no longer crossed — buffer timer reset to zero.",
         bufferResetSl:
-          "Stop-loss target no longer crossed — buffer cronómetro reset to zero.",
+          "Stop-loss target no longer crossed — buffer timer reset to zero.",
         closedDry:
           "Position closed in simulation — no transaction sent.",
         closedReal: "Position closed on-chain.",
@@ -482,7 +484,7 @@ export const en = {
     emptyEyebrow: "Empty",
     emptyTitle: "No auto-exits yet.",
     emptyBody:
-      "An auto-exit watches a single LP position and closes it when your take-profit or stop-loss price hits. Configure one on any position the bot wallet owns — it will appear here from creation through completion, including dry-run simulations.",
+      "An auto-exit watches a single LP position and closes it when your take-profit or stop-loss price hits. Configure one on any position the bot wallet owns — it will appear here from creation through completion. Test-mode runs (Solana devnet) show up alongside real ones.",
     emptyCta: "Go to positions →",
     filters: {
       all: "All",
@@ -543,6 +545,7 @@ export const en = {
       bullet3: "Re-test your strategy on devnet before flipping the switch.",
       understood:
         "I understand this will sign transactions with real funds and I've updated my RPC URL.",
+      disclaimerLink: "→ Disclaimer · the tool comes with no warranty",
       cancel: "Cancel",
       switching: "Switching…",
       confirmCta: "Confirm · use real funds",
@@ -686,6 +689,7 @@ export const en = {
       "An account whose key lives encrypted on this machine. The bot uses it to sign closes when triggers fire — including while you're away.",
     notPhantom:
       "Not a Phantom-style \"connect wallet\". The bot can't pop up a signing prompt at 3am — it needs the key on disk. Here are the three ways to put one there:",
+    disclaimerLink: "→ Disclaimer · use at your own risk",
     tabs: {
       generate: "Generate",
       importKey: "Import key",

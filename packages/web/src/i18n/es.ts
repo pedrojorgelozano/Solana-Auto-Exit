@@ -118,7 +118,7 @@ export const es: typeof en = {
       titleLine1: "Pon las condiciones.",
       titleLine2: "Despreocúpate.",
       intro:
-        "Auto-Exit vigila tus posiciones de liquidez en Orca (y pronto Meteora) cada pocos segundos y las cierra cuando el precio alcanza tu take-profit o stop-loss. Corre en esta máquina y firma con una wallet que tú controlas.",
+        "Auto-Exit vigila tus posiciones de liquidez en Orca y Meteora cada pocos segundos y las cierra cuando el precio alcanza tu take-profit o stop-loss. Corre en esta máquina y firma con una wallet que tú controlas.",
       stepsEyebrow: "Cómo funciona",
       stepsTitle: "Tres pasos, después nada.",
       step1Title: "Bot wallet",
@@ -136,6 +136,7 @@ export const es: typeof en = {
       localEyebrow: "Stack local",
       localBody:
         "El servidor solo escucha en localhost. La clave de tu wallet vive cifrada en disco con tu passphrase y solo se descifra en memoria mientras está desbloqueada — nada sobre tu wallet, posiciones o trades sale de esta máquina.",
+      disclaimerLink: "→ Uso bajo tu propia responsabilidad · disclaimer",
     },
 
     eyebrow: {
@@ -213,7 +214,7 @@ export const es: typeof en = {
     existing: {
       title: "Esta posición ya tiene un auto-exit.",
       intro:
-        "Un auto-exit por posición. Ábrelo para ver su estado en vivo, pausarlo o detenerlo. Si quieres distintos ajustes, borra el actual y crea uno nuevo.",
+        "Un auto-exit por posición. Ábrelo para ver su estado en vivo o pausarlo. Si quieres distintos ajustes, borra el actual y crea uno nuevo.",
       fieldTakeProfit: "Take profit",
       fieldStopLoss: "Stop loss",
       fieldLastPrice: "Último precio",
@@ -424,7 +425,7 @@ export const es: typeof en = {
         pausedOther: (reason: string) => `Pausado (${reason}).`,
         stopped: "Detenido manualmente. Sin más ticks.",
         triggered: (kind: string) =>
-          `${kind} threshold cruzado — preparando el cierre.`,
+          `Umbral de ${kind} cruzado — preparando el cierre.`,
         bufferArmedTp: (duration: string) =>
           `Take-profit cruzado. Esperando ${duration} de precio sostenido antes de cerrar.`,
         bufferArmedSl: (duration: string) =>
@@ -458,7 +459,7 @@ export const es: typeof en = {
     emptyEyebrow: "Vacío",
     emptyTitle: "Aún no hay auto-exits.",
     emptyBody:
-      "Un auto-exit vigila una posición LP y la cierra cuando se alcanza tu precio de take-profit o stop-loss. Configura uno sobre cualquier posición que tenga la bot wallet — aparecerá aquí desde la creación hasta el cierre, incluyendo simulaciones dry-run.",
+      "Un auto-exit vigila una posición LP y la cierra cuando se alcanza tu precio de take-profit o stop-loss. Configura uno sobre cualquier posición que tenga la bot wallet — aparecerá aquí desde la creación hasta el cierre. Las ejecuciones en modo test (Solana devnet) aparecen junto a las reales.",
     emptyCta: "Ir a posiciones →",
     filters: {
       all: "Todos",
@@ -517,6 +518,7 @@ export const es: typeof en = {
       bullet3: "Re-testea tu estrategia en devnet antes de pulsar el switch.",
       understood:
         "Entiendo que esto firmará transacciones con fondos reales y he actualizado mi URL del RPC.",
+      disclaimerLink: "→ Disclaimer · la herramienta se entrega sin garantía",
       cancel: "Cancelar",
       switching: "Cambiando…",
       confirmCta: "Confirmar · usar fondos reales",
@@ -653,6 +655,7 @@ export const es: typeof en = {
       "Una cuenta cuya clave vive cifrada en esta máquina. El bot la usa para firmar cierres cuando los triggers se disparan — incluso cuando no estás presente.",
     notPhantom:
       "No es un \"connect wallet\" tipo Phantom. El bot no puede mostrar un popup de firma a las 3 de la mañana — necesita la clave en disco. Aquí tienes los tres caminos para ponerla:",
+    disclaimerLink: "→ Disclaimer · uso bajo tu propia responsabilidad",
     tabs: {
       generate: "Generar",
       importKey: "Importar clave",

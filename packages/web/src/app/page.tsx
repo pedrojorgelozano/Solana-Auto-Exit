@@ -886,6 +886,12 @@ function FirstRunHome() {
         <p className="mt-3 t-small text-[var(--color-text-dim)]">
           {fr.localBody}
         </p>
+        <Link
+          href="/docs/disclaimer"
+          className="mt-4 inline-block t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-colors"
+        >
+          {fr.disclaimerLink}
+        </Link>
       </aside>
     </main>
   );

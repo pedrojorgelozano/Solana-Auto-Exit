@@ -127,8 +127,12 @@ export default function Operational() {
           </li>
           <li>
             <span className="text-[var(--color-text)]">Paused · Stopped · Error.</span>{" "}
-            Pauses note their reason (user, vault locked, server restart);
-            stopped is manual; error stores the last message.
+            Pauses note their reason (user, vault locked, server restart).
+            <em> Stopped</em> still exists as a backend state for historical
+            tasks but the UI no longer exposes a Stop button — the model is{" "}
+            <strong className="text-[var(--color-text)]">Pause</strong> (reversible)
+            or <strong className="text-[var(--color-text)]">Delete</strong>{" "}
+            (removes everything). <em>Error</em> stores the last message.
           </li>
         </ul>
         <p className="mt-4 t-body text-[var(--color-text-muted)]">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
@@ -569,6 +570,15 @@ function ConfirmRealPanel({
         />
         <span className="t-small text-[var(--color-text)]">{cr.understood}</span>
       </label>
+
+      <div className="mt-2 ml-7">
+        <Link
+          href="/docs/disclaimer"
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-danger)] transition-colors"
+        >
+          {cr.disclaimerLink}
+        </Link>
+      </div>
 
       <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
         <Button

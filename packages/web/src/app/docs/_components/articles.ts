@@ -30,7 +30,7 @@ export const ARTICLES: readonly Article[] = [
     n: "03",
     label: "Auto-exit triggers",
     blurb:
-      "Take-profit and stop-loss prices, slippage, exit-token swap, and what dry-run simulation actually simulates.",
+      "Take-profit and stop-loss prices, time buffer, slippage tolerance, exit-token swap, and what happens when a close fails.",
   },
   {
     slug: "/docs/operational",
@@ -52,6 +52,13 @@ export const ARTICLES: readonly Article[] = [
     label: "FAQ",
     blurb:
       "Why isn't this Phantom-style, what about mainnet, what if Solana congests, and other recurring questions.",
+  },
+  {
+    slug: "/docs/disclaimer",
+    n: "07",
+    label: "Disclaimer",
+    blurb:
+      "Use at your own risk. No warranty, no financial advice. Your responsibilities and the author's lack of liability, in plain language.",
   },
 ] as const;
 
