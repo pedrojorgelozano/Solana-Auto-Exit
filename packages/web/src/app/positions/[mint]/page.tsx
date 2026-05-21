@@ -598,39 +598,28 @@ function ConfigureForm({
       {/* === Output token === */}
       <fieldset className="hairline-t pt-8">
         <legend className="t-eyebrow mb-4">2 — What to do with the output</legend>
-        {posRef.protocol === "meteora" ? (
-          <p className="max-w-lg t-small text-[var(--color-warning)]">
-            Exit-token swap is not yet wired for Meteora — F6.3 will add it.
-            For now, the close returns both tokens to the bot wallet as the
-            position releases them.
+        <Segmented
+          value={exitChoice}
+          onChange={(v) => setExitChoice(v as ExitChoice)}
+          options={[
+            { value: "none", label: "Keep both tokens" },
+            { value: "A", label: `Sell into ${symA}` },
+            { value: "B", label: `Sell into ${symB}` },
+          ]}
+        />
+        {exitChoice !== "none" ? (
+          <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
+            After closing, the non-{exitChoice === "A" ? symA : symB} side is
+            swapped on the same pool with up to{" "}
+            <span className="t-num text-[var(--color-text)]">
+              {exitSlippageBps / 100}%
+            </span>{" "}
+            slippage tolerance.
           </p>
         ) : (
-          <>
-            <Segmented
-              value={exitChoice}
-              onChange={(v) => setExitChoice(v as ExitChoice)}
-              options={[
-                { value: "none", label: "Keep both tokens" },
-                { value: "A", label: `Sell into ${symA}` },
-                { value: "B", label: `Sell into ${symB}` },
-              ]}
-            />
-            {exitChoice !== "none" ? (
-              <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
-                After closing, the non-
-                {exitChoice === "A" ? symA : symB} side is swapped on the
-                same pool with up to{" "}
-                <span className="t-num text-[var(--color-text)]">
-                  {exitSlippageBps / 100}%
-                </span>{" "}
-                slippage tolerance.
-              </p>
-            ) : (
-              <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
-                Both tokens are returned to your wallet as the position releases them.
-              </p>
-            )}
-          </>
+          <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
+            Both tokens are returned to your wallet as the position releases them.
+          </p>
         )}
       </fieldset>
 

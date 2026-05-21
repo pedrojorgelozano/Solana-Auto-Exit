@@ -438,10 +438,106 @@ export class MeteoraAdapter implements ProtocolAdapter {
     };
   }
 
-  async swapToExit(): Promise<SwapExitResult> {
-    throw new Error(
-      "MeteoraAdapter.swapToExit: no implementado en F6.1. Pendiente F6.3.",
+  async swapToExit(
+    position: ResolvedPosition,
+    exitTokenMint: string,
+    closeResult: CloseResult,
+    slippageBps: number,
+    dryRun: boolean,
+  ): Promise<SwapExitResult> {
+    const conn = this.getConnection();
+    const cfg = position.raw as MeteoraConfig;
+
+    // El SDK de Meteora opera sobre el LbPair (no la position) para swap.
+    // Necesitamos saber qué tokens son X/Y para decidir la dirección.
+    const dlmm = await DLMM.create(conn, new PublicKey(cfg.lbPair));
+    const tokenXMint = dlmm.lbPair.tokenXMint.toBase58();
+    const tokenYMint = dlmm.lbPair.tokenYMint.toBase58();
+
+    // Validación de ADR-008: el exit token DEBE ser uno de los del pool.
+    if (exitTokenMint !== tokenXMint && exitTokenMint !== tokenYMint) {
+      throw new Error(
+        `MeteoraAdapter.swapToExit: exitTokenMint ${exitTokenMint} no es uno de los tokens del pool (${tokenXMint} / ${tokenYMint}).`,
+      );
+    }
+
+    // swapForY=true significa swap X → Y. Lo elegimos según cuál es el destino.
+    const swapForY = exitTokenMint === tokenYMint;
+
+    // El input total a swapear = LP withdraw + fees claimed del mismo token.
+    // closeResult.estimatedTokenA/feesTokenA corresponden a token X; B → Y.
+    const xWithdraw = new BN(closeResult.estimatedTokenA ?? "0");
+    const xFees = new BN(closeResult.feesTokenA ?? "0");
+    const yWithdraw = new BN(closeResult.estimatedTokenB ?? "0");
+    const yFees = new BN(closeResult.feesTokenB ?? "0");
+    const fromMint = swapForY ? tokenXMint : tokenYMint;
+    const fromAmount = swapForY ? xWithdraw.add(xFees) : yWithdraw.add(yFees);
+
+    if (fromAmount.isZero()) {
+      return {
+        dryRun,
+        skipped: true,
+        fromMint,
+        inputAmount: "0",
+        notes: `No ${swapForY ? "X" : "Y"} side amount to swap — skipped.`,
+      };
+    }
+
+    // Quote: usamos los binArrays alrededor del active bin (el SDK los devuelve
+    // en orden de uso esperado). swapQuote es puro, no toca on-chain salvo
+    // por la lectura del estado actual.
+    const binArrays = await dlmm.getBinArrayForSwap(swapForY);
+    const quote = dlmm.swapQuote(
+      fromAmount,
+      swapForY,
+      new BN(slippageBps),
+      binArrays,
     );
+
+    const result: SwapExitResult = {
+      dryRun,
+      skipped: false,
+      fromMint,
+      inputAmount: fromAmount.toString(),
+      estimatedOutput: quote.outAmount.toString(),
+      minimumOutput: quote.minOutAmount.toString(),
+    };
+
+    if (dryRun) {
+      result.notes = "DRY_RUN: quote calculado, no se envió tx.";
+      return result;
+    }
+
+    // === Real path ===
+
+    if (!this.signingKeypair) {
+      throw new Error(
+        "MeteoraAdapter.swapToExit: no hay signing keypair. attachWallet() con rawSecret no se llamó.",
+      );
+    }
+
+    const tx = await dlmm.swap({
+      inToken: new PublicKey(fromMint),
+      outToken: new PublicKey(exitTokenMint),
+      inAmount: fromAmount,
+      minOutAmount: quote.minOutAmount,
+      lbPair: new PublicKey(cfg.lbPair),
+      user: this.signingKeypair.publicKey,
+      binArraysPubkey: quote.binArraysPubkey,
+    });
+
+    const recent = await conn.getLatestBlockhash("confirmed");
+    tx.recentBlockhash = recent.blockhash;
+    tx.lastValidBlockHeight = recent.lastValidBlockHeight;
+    tx.feePayer = this.signingKeypair.publicKey;
+    const sig = await sendAndConfirmTransaction(
+      conn,
+      tx,
+      [this.signingKeypair],
+      { commitment: "confirmed" },
+    );
+    result.txId = sig;
+    return result;
   }
 
   // ===========================================================================

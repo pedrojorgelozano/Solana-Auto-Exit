@@ -99,24 +99,24 @@ async function main(): Promise<void> {
         console.log(`  getPrice() failed: ${(err as Error).message}`);
       }
 
-      // F6.2.a: si se pasa --close-dry-run, ejercemos closePosition en modo
-      // simulación para validar el quote.
-      if (process.argv.includes("--close-dry-run")) {
+      // F6.2.a + F6.3: --close-dry-run ejerce closePosition; --swap-dry-run
+      // encadena swapToExit detrás del cierre simulado.
+      if (
+        process.argv.includes("--close-dry-run") ||
+        process.argv.includes("--swap-dry-run")
+      ) {
+        const resolvedPosition = {
+          id: ref.id,
+          poolLabel: ref.label,
+          raw: {
+            lbPair: ref.poolId,
+            position: ref.id,
+            decimalsX: sum.tokenA.decimals,
+            decimalsY: sum.tokenB.decimals,
+          },
+        };
         try {
-          const close = await adapter.closePosition(
-            {
-              id: ref.id,
-              poolLabel: ref.label,
-              raw: {
-                lbPair: ref.poolId,
-                position: ref.id,
-                decimalsX: sum.tokenA.decimals,
-                decimalsY: sum.tokenB.decimals,
-              },
-            },
-            100,
-            true,
-          );
+          const close = await adapter.closePosition(resolvedPosition, 100, true);
           const eA = scaleAmount(close.estimatedTokenA ?? "0", sum.tokenA.decimals);
           const eB = scaleAmount(close.estimatedTokenB ?? "0", sum.tokenB.decimals);
           const fA = scaleAmount(close.feesTokenA ?? "0", sum.tokenA.decimals);
@@ -124,6 +124,55 @@ async function main(): Promise<void> {
           console.log(
             `  closePosition(dryRun): receive ${eA} ${symA} + ${eB} ${symB}, fees ${fA} ${symA} + ${fB} ${symB}`,
           );
+
+          if (process.argv.includes("--swap-dry-run")) {
+            // Probamos swap hacia el otro lado del pool en cada dirección que
+            // tenga input no-cero, para ejercer la lógica de swapForY.
+            for (const exitMint of [sum.tokenA.mint, sum.tokenB.mint]) {
+              try {
+                const swap = await adapter.swapToExit(
+                  resolvedPosition,
+                  exitMint,
+                  close,
+                  100,
+                  true,
+                );
+                const arrow =
+                  swap.fromMint === sum.tokenA.mint
+                    ? `${symA} → ${symB}`
+                    : `${symB} → ${symA}`;
+                if (swap.skipped) {
+                  console.log(`  swapToExit(${arrow}, dryRun): skipped (${swap.notes ?? "no input"})`);
+                } else {
+                  const inAmt = scaleAmount(
+                    swap.inputAmount ?? "0",
+                    swap.fromMint === sum.tokenA.mint
+                      ? sum.tokenA.decimals
+                      : sum.tokenB.decimals,
+                  );
+                  const outDecimals =
+                    exitMint === sum.tokenA.mint
+                      ? sum.tokenA.decimals
+                      : sum.tokenB.decimals;
+                  const outAmt = scaleAmount(
+                    swap.estimatedOutput ?? "0",
+                    outDecimals,
+                  );
+                  const minAmt = scaleAmount(
+                    swap.minimumOutput ?? "0",
+                    outDecimals,
+                  );
+                  console.log(
+                    `  swapToExit(${arrow}, dryRun): in=${inAmt}, estOut=${outAmt}, minOut=${minAmt}`,
+                  );
+                }
+              } catch (err) {
+                console.log(
+                  `  swapToExit(→${exitMint === sum.tokenA.mint ? symA : symB}) failed: ${(err as Error).message}`,
+                );
+              }
+            }
+          }
         } catch (err) {
           console.log(`  closePosition(dryRun) failed: ${(err as Error).message}`);
         }
