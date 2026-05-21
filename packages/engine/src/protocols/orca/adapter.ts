@@ -114,7 +114,9 @@ export class OrcaAdapter implements ProtocolAdapter {
         : WhirlpoolDeployment.devnet;
   }
 
-  attachWallet(wallet: KeyPairSigner): void {
+  attachWallet(wallet: KeyPairSigner, _rawSecret?: Uint8Array): void {
+    // rawSecret no se usa: Orca v8 firma vía el KeyPairSigner de kit.
+    // El parámetro existe por compatibilidad de contrato (ADR-024).
     if (!this.rpc) {
       throw new Error("OrcaAdapter: attachWallet() called before setupRpc().");
     }
@@ -274,9 +276,10 @@ export class OrcaAdapter implements ProtocolAdapter {
     common: BaseConfig,
     protocolConfig: unknown,
     wallet: KeyPairSigner,
+    rawSecret?: Uint8Array,
   ): Promise<void> {
     await this.setupRpc(common);
-    this.attachWallet(wallet);
+    this.attachWallet(wallet, rawSecret);
     this.orcaConfig = protocolConfig as OrcaConfig;
   }
 

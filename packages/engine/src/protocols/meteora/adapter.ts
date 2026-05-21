@@ -11,9 +11,16 @@
  */
 
 import { createRequire } from "node:module";
-import { Connection, PublicKey } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  sendAndConfirmTransaction,
+  type Transaction,
+} from "@solana/web3.js";
 import type * as DLMMNs from "@meteora-ag/dlmm";
 import type { KeyPairSigner } from "@solana/kit";
+import BN from "bn.js";
 
 /**
  * El bundle ESM (.mjs) de @meteora-ag/dlmm intenta `import { BN } from
@@ -56,6 +63,13 @@ export class MeteoraAdapter implements ProtocolAdapter {
   private connection: Connection | undefined;
   private walletAddress: string | undefined;
   private meteoraConfig: MeteoraConfig | undefined;
+  /**
+   * Keypair de web3.js v1 derivado del raw secret. Solo se materializa
+   * cuando F6.2.b lo pasa via attachWallet(signer, rawSecret). Sin él,
+   * el adapter sigue funcionando read-only (lista, summary, getPrice y
+   * closePosition en modo dryRun) pero closePosition real lanza.
+   */
+  private signingKeypair: Keypair | undefined;
 
   /**
    * Si `address` es un PDA de posición Meteora (owner program = LBCLMM),
@@ -132,10 +146,23 @@ export class MeteoraAdapter implements ProtocolAdapter {
     this.connection = new Connection(common.rpcUrl, "confirmed");
   }
 
-  attachWallet(wallet: KeyPairSigner): void {
-    // F6.1 read-only: solo guardamos la address para listOwnedPositions.
-    // F6.2+ convertirá la kit-signer a un Keypair web3.js v1 para firmar.
+  attachWallet(wallet: KeyPairSigner, rawSecret?: Uint8Array): void {
     this.walletAddress = wallet.address;
+    if (rawSecret) {
+      // F6.2.b: el SDK de Meteora firma con `Keypair` de web3.js v1.
+      // Construirlo a partir de los 64 bytes del vault es la única vía
+      // porque el CryptoKey de kit es non-extractable (ADR-024).
+      this.signingKeypair = Keypair.fromSecretKey(rawSecret);
+      // Verificación de paridad: si la address derivada de los bytes
+      // no coincide con la del KeyPairSigner, algo está mal.
+      const derived = this.signingKeypair.publicKey.toBase58();
+      if (derived !== wallet.address) {
+        this.signingKeypair = undefined;
+        throw new Error(
+          `MeteoraAdapter.attachWallet: rawSecret address (${derived}) != signer address (${wallet.address}).`,
+        );
+      }
+    }
   }
 
   // ===========================================================================
@@ -255,9 +282,10 @@ export class MeteoraAdapter implements ProtocolAdapter {
     common: BaseConfig,
     protocolConfig: unknown,
     wallet: KeyPairSigner,
+    rawSecret?: Uint8Array,
   ): Promise<void> {
     await this.setupRpc(common);
-    this.attachWallet(wallet);
+    this.attachWallet(wallet, rawSecret);
     this.meteoraConfig = protocolConfig as MeteoraConfig;
   }
 
@@ -291,18 +319,8 @@ export class MeteoraAdapter implements ProtocolAdapter {
     _slippageBps: number,
     dryRun: boolean,
   ): Promise<CloseResult> {
-    if (!dryRun) {
-      throw new Error(
-        "MeteoraAdapter.closePosition real path no implementado en F6.2.a. " +
-          "Pendiente F6.2.b: requiere conversión KeyPairSigner (kit v5) → " +
-          "Keypair (web3.js v1) exponiendo el raw secret del WalletVault.",
-      );
-    }
-
-    // Dry-run: leemos el estado actual on-chain y devolvemos el quote. NO
-    // firmamos ni enviamos. La fuente de verdad es positionData del SDK:
-    // totalXAmount/totalYAmount son la liquidez actual en raw lamports,
-    // feeX/feeY son las fees acumuladas pendientes de claim.
+    // Leemos el estado actual on-chain — tanto para el quote del dry-run
+    // como para que el real path tenga lower/upper bin frescos.
     const conn = this.getConnection();
     const cfg = position.raw as MeteoraConfig;
 
@@ -310,7 +328,7 @@ export class MeteoraAdapter implements ProtocolAdapter {
     const positionAccount = await conn.getAccountInfo(positionPk);
     if (!positionAccount) {
       throw new Error(
-        `MeteoraAdapter.closePosition: position ${cfg.position} no existe on-chain.`,
+        `MeteoraAdapter.closePosition: position ${cfg.position} no existe on-chain (posiblemente ya cerrada).`,
       );
     }
     const owner = new PublicKey(positionAccount.data.subarray(40, 72));
@@ -331,14 +349,92 @@ export class MeteoraAdapter implements ProtocolAdapter {
       );
     }
 
+    // Cantidades quote — mismas en dry-run y real (estimación pre-firma).
+    const estimatedTokenA = pos.positionData.totalXAmount;
+    const estimatedTokenB = pos.positionData.totalYAmount;
+    const feesTokenA = pos.positionData.feeX.toString();
+    const feesTokenB = pos.positionData.feeY.toString();
+
+    if (dryRun) {
+      return {
+        dryRun: true,
+        estimatedTokenA,
+        estimatedTokenB,
+        feesTokenA,
+        feesTokenB,
+        notes: "DRY_RUN: posición lista para cerrar. No se envió tx.",
+      };
+    }
+
+    // === Real path (F6.2.b) ===
+
+    if (!this.signingKeypair) {
+      throw new Error(
+        "MeteoraAdapter.closePosition: no hay signing keypair. attachWallet() debe llamarse con rawSecret para Meteora real.",
+      );
+    }
+    if (owner.toBase58() !== this.signingKeypair.publicKey.toBase58()) {
+      throw new Error(
+        `MeteoraAdapter.closePosition: position owner (${owner.toBase58()}) != signing wallet (${this.signingKeypair.publicKey.toBase58()}).`,
+      );
+    }
+
+    const dlmm = await DLMM.create(conn, new PublicKey(cfg.lbPair));
+    const { lowerBinId, upperBinId } = pos.positionData;
+
+    // Una sola llamada construye la cadena completa: remove 100% (bps=10000)
+    // + claim fees + close PDA, gracias a shouldClaimAndClose: true. El SDK
+    // puede devolver más de una Transaction si los bins ocupados no caben
+    // en una sola tx por límite de compute units.
+    const txs: Transaction[] = await dlmm.removeLiquidity({
+      user: this.signingKeypair.publicKey,
+      position: positionPk,
+      fromBinId: lowerBinId,
+      toBinId: upperBinId,
+      bps: new BN(10_000),
+      shouldClaimAndClose: true,
+    });
+
+    if (txs.length === 0) {
+      // Caso degenerado: SDK no produjo ninguna tx. Probablemente la
+      // posición ya estaba vacía y cerrada. Devolvemos quote sin txId.
+      return {
+        dryRun: false,
+        estimatedTokenA,
+        estimatedTokenB,
+        feesTokenA,
+        feesTokenB,
+        notes:
+          "removeLiquidity devolvió 0 transactions — la posición probablemente ya estaba cerrada.",
+      };
+    }
+
+    let lastSig = "";
+    for (let i = 0; i < txs.length; i++) {
+      const tx = txs[i]!;
+      const recent = await conn.getLatestBlockhash("confirmed");
+      tx.recentBlockhash = recent.blockhash;
+      tx.lastValidBlockHeight = recent.lastValidBlockHeight;
+      tx.feePayer = this.signingKeypair.publicKey;
+      lastSig = await sendAndConfirmTransaction(
+        conn,
+        tx,
+        [this.signingKeypair],
+        { commitment: "confirmed" },
+      );
+    }
+
     return {
-      dryRun: true,
-      estimatedTokenA: pos.positionData.totalXAmount,
-      estimatedTokenB: pos.positionData.totalYAmount,
-      feesTokenA: pos.positionData.feeX.toString(),
-      feesTokenB: pos.positionData.feeY.toString(),
+      dryRun: false,
+      txId: lastSig,
+      estimatedTokenA,
+      estimatedTokenB,
+      feesTokenA,
+      feesTokenB,
       notes:
-        "DRY_RUN: quote read-only. Para cerrar la posición real, espera a F6.2.b (requiere firma con web3.js v1 Keypair).",
+        txs.length > 1
+          ? `Posición cerrada en ${txs.length} transactions. La última es ${lastSig}.`
+          : undefined,
     };
   }
 

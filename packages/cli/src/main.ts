@@ -19,10 +19,11 @@ async function main(): Promise<void> {
   const protocolConfig = adapter.loadProtocolConfig(process.env);
 
   const secret = JSON.parse(fs.readFileSync(base.walletPath, "utf8")) as number[];
-  const wallet = await createKeyPairSignerFromBytes(new Uint8Array(secret));
+  const rawSecret = new Uint8Array(secret);
+  const wallet = await createKeyPairSignerFromBytes(rawSecret);
   log(`Wallet cargada: ${wallet.address}`);
 
-  await runRunner({ adapter, base, protocolConfig, wallet });
+  await runRunner({ adapter, base, protocolConfig, wallet, rawSecret });
 }
 
 main().catch((err) => {

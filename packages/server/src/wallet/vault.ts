@@ -60,6 +60,17 @@ export class WalletVault {
   private readonly vaultPath: string;
   private unlockedKeypair: KeyPairSigner | null = null;
   private unlockedAddress: string | null = null;
+  /**
+   * F6.2.b — los 64 bytes del secret en claro mientras el vault esté
+   * unlocked. Algunos adapters (Meteora) usan SDKs que necesitan un
+   * `Keypair` de `@solana/web3.js@^1` para firmar, no el `KeyPairSigner`
+   * de `@solana/kit@^5` cuyo CryptoKey es non-extractable. Exponer las
+   * bytes desde aquí es la única vía robusta — ver ADR-024.
+   *
+   * Vive y muere con `unlock()` / `lock()` / `delete()`. Nunca se
+   * persiste ni se loguea.
+   */
+  private unlockedSecret: Uint8Array | null = null;
 
   constructor(vaultPath: string) {
     this.vaultPath = vaultPath;
@@ -198,13 +209,20 @@ export class WalletVault {
 
     this.unlockedKeypair = signer;
     this.unlockedAddress = derivedAddr;
+    this.unlockedSecret = new Uint8Array(decrypted);
     return { address: derivedAddr };
   }
 
   /** Olvida el keypair en memoria. El vault en disco no se toca. */
   lock(): void {
+    // Cero out de los bytes antes de soltar la referencia — defensa
+    // mínima frente a un attacker con read-process-memory que llegue
+    // post-lock. No es perfecta (el GC ya pudo haber copiado el buffer),
+    // pero reduce la ventana de exposición.
+    if (this.unlockedSecret) this.unlockedSecret.fill(0);
     this.unlockedKeypair = null;
     this.unlockedAddress = null;
+    this.unlockedSecret = null;
   }
 
   /** Para inyectar en adapters. Lanza si el vault está locked. */
@@ -213,6 +231,17 @@ export class WalletVault {
       throw new Error("Vault is locked. Unlock it first.");
     }
     return this.unlockedKeypair;
+  }
+
+  /**
+   * Los 64 bytes del secret. Solo para adapters que necesiten construir
+   * un `Keypair` de web3.js v1 (ADR-024). Lanza si está locked.
+   */
+  getRawSecret(): Uint8Array {
+    if (!this.unlockedSecret) {
+      throw new Error("Vault is locked. Unlock it first.");
+    }
+    return this.unlockedSecret;
   }
 
   /** Borra el vault en disco. Operación irreversible. */

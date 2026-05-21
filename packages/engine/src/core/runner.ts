@@ -9,12 +9,15 @@ export interface RunnerOptions {
   base: BaseConfig;
   protocolConfig: unknown;
   wallet: KeyPairSigner;
+  /** Los 64 bytes del secret. Necesario para adapters que firman con
+   * `Keypair` de web3.js v1 (Meteora). Adapters que no lo usen lo ignoran. */
+  rawSecret?: Uint8Array;
 }
 
 export async function runRunner(opts: RunnerOptions): Promise<void> {
-  const { adapter, base, protocolConfig, wallet } = opts;
+  const { adapter, base, protocolConfig, wallet, rawSecret } = opts;
 
-  await adapter.init(base, protocolConfig, wallet);
+  await adapter.init(base, protocolConfig, wallet, rawSecret);
   const position = await adapter.resolvePosition();
 
   const cmp = base.direction === "above" ? ">=" : "<=";

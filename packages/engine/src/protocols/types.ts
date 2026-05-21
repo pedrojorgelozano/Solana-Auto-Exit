@@ -196,8 +196,14 @@ export interface ProtocolAdapter {
   /**
    * Attach a wallet for signing operations (closePosition / swapToExit).
    * setupRpc() must have been called first.
+   *
+   * `rawSecret` opcional: los 64 bytes del secret. Sólo lo usan adapters
+   * cuyo SDK necesita un `Keypair` de web3.js v1 (Meteora) en lugar del
+   * `KeyPairSigner` de kit v5 — el CryptoKey de kit es non-extractable
+   * por diseño, así que no se puede convertir post-hoc. Adapters que no
+   * lo necesiten lo ignoran. Ver ADR-024.
    */
-  attachWallet(wallet: KeyPairSigner): void;
+  attachWallet(wallet: KeyPairSigner, rawSecret?: Uint8Array): void;
 
   // ---------------------------------------------------------------------------
   // Discovery (read-only; requires setupRpc)
@@ -224,13 +230,17 @@ export interface ProtocolAdapter {
 
   /**
    * One-shot init for the CLI path. Equivalent to:
-   *   await setupRpc(common); attachWallet(wallet); + cache protocolConfig
+   *   await setupRpc(common); attachWallet(wallet, rawSecret); + cache
+   *   protocolConfig
    * for use by resolvePosition().
+   *
+   * `rawSecret` opcional con la misma semántica que en `attachWallet`.
    */
   init(
     common: BaseConfig,
     protocolConfig: unknown,
     wallet: KeyPairSigner,
+    rawSecret?: Uint8Array,
   ): Promise<void>;
 
   resolvePosition(): Promise<ResolvedPosition>;

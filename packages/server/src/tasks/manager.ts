@@ -276,8 +276,12 @@ export class TaskManager {
     try {
       adapter = makeAdapter(row.protocol);
       const wallet = this.vault.getKeypair(); // re-comprobado al usar
+      // F6.2.b: pasamos también el raw secret para que adapters que lo
+      // necesiten (Meteora) puedan construir un Keypair de web3.js v1.
+      // Orca lo ignora. Ver ADR-024.
+      const rawSecret = this.vault.getRawSecret();
       const base: BaseConfig = this.toBaseConfig(row);
-      await adapter.init(base, row.protocolConfig, wallet);
+      await adapter.init(base, row.protocolConfig, wallet, rawSecret);
       position = await adapter.resolvePosition();
     } catch (err) {
       this.markError(row.id, err);

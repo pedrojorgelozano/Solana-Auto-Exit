@@ -53,9 +53,16 @@ importers:
       '@solana/web3.js':
         specifier: ^1.98.4
         version: 1.98.4(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)
+      bn.js:
+        specifier: ^5.2.3
+        version: 5.2.3
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+    devDependencies:
+      '@types/bn.js':
+        specifier: ^5.2.0
+        version: 5.2.0
 
   packages/server:
     dependencies:
@@ -1471,6 +1478,9 @@ packages:
 
   '@types/better-sqlite3@7.6.13':
     resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
+
+  '@types/bn.js@5.2.0':
+    resolution: {integrity: sha512-DLbJ1BPqxvQhIGbeu8VbUC1DiAiahHtAYvA0ZEAa4P31F7IaArc8z3C3BRQdWX4mtLQuABG4yzp76ZrS02Ui1Q==}
 
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
@@ -3587,6 +3597,10 @@ snapshots:
       typescript: 5.9.3
 
   '@types/better-sqlite3@7.6.13':
+    dependencies:
+      '@types/node': 22.19.19
+
+  '@types/bn.js@5.2.0':
     dependencies:
       '@types/node': 22.19.19
 
