@@ -66,6 +66,18 @@ export const tasksRouter = router({
     };
   }),
 
+  /**
+   * Eventos de history para una task, más recientes primero. Activity feed
+   * del timeline en `/tasks/[id]`.
+   */
+  history: publicProcedure.input(idInput).query(({ ctx, input }) => {
+    const row = ctx.taskManager.getTask(input.id);
+    if (!row) {
+      throw new TRPCError({ code: "NOT_FOUND", message: "Task not found." });
+    }
+    return ctx.taskManager.listHistory(input.id);
+  }),
+
   /** Arma el watcher. Requiere vault unlocked. */
   start: publicProcedure.input(idInput).mutation(({ ctx, input }) => {
     try {

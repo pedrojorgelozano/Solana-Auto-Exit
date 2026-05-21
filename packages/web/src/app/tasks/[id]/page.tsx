@@ -16,6 +16,7 @@ import {
   formatPollInterval,
   formatPrice,
   formatSlippage,
+  formatTimeAgo,
   formatTriggers,
   truncateAddress,
 } from "@/lib/format";
@@ -196,6 +197,9 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
           decimalsB={decimalsB}
         />
       ) : null}
+
+      {/* === Activity timeline === */}
+      <ActivityTimeline taskId={task.id} />
     </div>
   );
 }
@@ -529,4 +533,185 @@ function SolscanLink({ sig }: { sig: string }) {
       tx {truncateAddress(sig, 6, 6)} ↗
     </Link>
   );
+}
+
+// ============================================================================
+// Activity timeline — eventos del task ordenados de más reciente a más antiguo
+// ============================================================================
+
+type HistoryEvent = inferRouterOutputs<AppRouter>["tasks"]["history"][number];
+
+function ActivityTimeline({ taskId }: { taskId: string }) {
+  const history = trpc.tasks.history.useQuery(
+    { id: taskId },
+    { refetchInterval: 5_000 },
+  );
+
+  if (history.isLoading) {
+    return (
+      <section className="hairline-t pt-8">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">Activity</div>
+        <p className="mt-4 t-small text-[var(--color-text-dim)]">Loading…</p>
+      </section>
+    );
+  }
+
+  const events = history.data ?? [];
+  if (events.length === 0) return null;
+
+  return (
+    <section className="hairline-t pt-8">
+      <div className="flex items-baseline justify-between">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">Activity</div>
+        <span className="t-eyebrow text-[var(--color-text-dim)]">
+          {events.length} {events.length === 1 ? "event" : "events"}
+        </span>
+      </div>
+      <ol className="mt-6 divide-y divide-[var(--color-hairline)]">
+        {events.map((ev) => (
+          <EventRow key={ev.id} ev={ev} />
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function EventRow({ ev }: { ev: HistoryEvent }) {
+  const desc = describeEvent(ev);
+  const timestamp =
+    typeof ev.timestamp === "string"
+      ? new Date(ev.timestamp).getTime()
+      : new Date(ev.timestamp as unknown as string | number).getTime();
+
+  return (
+    <li className="grid grid-cols-12 items-baseline gap-4 py-4">
+      <div className="col-span-4 md:col-span-2 t-num text-[var(--color-text-muted)]">
+        {formatTimeAgo(timestamp)}
+      </div>
+      <div className="col-span-8 md:col-span-2">
+        <span className={`t-eyebrow ${desc.tone}`}>{desc.label}</span>
+      </div>
+      <div className="col-span-12 md:col-span-8 t-small text-[var(--color-text-muted)]">
+        {desc.description}
+        {desc.txId ? (
+          <span className="ml-3">
+            <SolscanLink sig={desc.txId} />
+          </span>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function describeEvent(ev: HistoryEvent): {
+  tone: string;
+  label: string;
+  description: React.ReactNode;
+  txId?: string;
+} {
+  const data = (ev.data as Record<string, unknown> | null) ?? {};
+
+  switch (ev.event) {
+    case "created": {
+      const protocol = typeof data.protocol === "string" ? data.protocol : null;
+      const positionId =
+        typeof data.positionId === "string" ? data.positionId : null;
+      return {
+        tone: "text-[var(--color-text-muted)]",
+        label: "Created",
+        description:
+          protocol && positionId
+            ? `Auto-exit created on ${protocol} for ${truncateAddress(positionId, 4, 4)}.`
+            : "Auto-exit created.",
+      };
+    }
+    case "started":
+      return {
+        tone: "text-[var(--color-positive)]",
+        label: "Started",
+        description: "Watching the pool price.",
+      };
+    case "resumed":
+      return {
+        tone: "text-[var(--color-positive)]",
+        label: "Resumed",
+        description: "Watcher resumed after a pause.",
+      };
+    case "paused": {
+      const reason = typeof data.reason === "string" ? data.reason : "user";
+      const msg =
+        reason === "user"
+          ? "Paused by user."
+          : reason === "vault-locked"
+            ? "Paused — the vault was locked while the watcher was running."
+            : reason === "server-restart"
+              ? "Paused at boot — vault was locked after the server restarted."
+              : `Paused (${reason}).`;
+      return {
+        tone: "text-[var(--color-warning)]",
+        label: "Paused",
+        description: msg,
+      };
+    }
+    case "stopped":
+      return {
+        tone: "text-[var(--color-text-muted)]",
+        label: "Stopped",
+        description: "Stopped manually. No further ticks.",
+      };
+    case "triggered": {
+      const tb =
+        data.triggeredBy === "stop_loss" ? "Stop-loss" : "Take-profit";
+      return {
+        tone: "text-[var(--color-warning)]",
+        label: "Triggered",
+        description: `${tb} threshold crossed — preparing to close.`,
+      };
+    }
+    case "closed": {
+      const dryRun = Boolean(data.dryRun);
+      const txId = typeof data.txId === "string" ? data.txId : undefined;
+      return {
+        tone: "text-[var(--color-positive)]",
+        label: "Closed",
+        description: dryRun
+          ? "Position closed in simulation — no transaction sent."
+          : "Position closed on-chain.",
+        txId,
+      };
+    }
+    case "swapped": {
+      const dryRun = Boolean(data.dryRun);
+      const skipped = Boolean(data.skipped);
+      const txId = typeof data.txId === "string" ? data.txId : undefined;
+      const notes = typeof data.notes === "string" ? data.notes : null;
+      return {
+        tone: "text-[var(--color-positive)]",
+        label: "Swapped",
+        description: skipped
+          ? `Exit swap skipped${notes ? ` — ${notes}` : "."}`
+          : dryRun
+            ? "Swap quoted in simulation — no transaction sent."
+            : "Proceeds swapped on-chain.",
+        txId,
+      };
+    }
+    case "error": {
+      const message =
+        typeof data.message === "string" ? data.message : "Unknown error.";
+      return {
+        tone: "text-[var(--color-danger)]",
+        label: "Error",
+        description: message,
+      };
+    }
+    default:
+      return {
+        tone: "text-[var(--color-text-muted)]",
+        label: ev.event,
+        description: Object.keys(data).length
+          ? JSON.stringify(data)
+          : "",
+      };
+  }
 }

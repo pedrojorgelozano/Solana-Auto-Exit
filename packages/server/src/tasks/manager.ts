@@ -476,6 +476,25 @@ export class TaskManager {
     this.appendHistory(id, "error", { message: msg });
   }
 
+  /**
+   * Lista los eventos de history para una task, más recientes primero.
+   * Se usa para el timeline en `/tasks/[id]`.
+   */
+  listHistory(taskId: string): Array<{
+    id: string;
+    taskId: string;
+    timestamp: Date;
+    event: string;
+    data: unknown;
+  }> {
+    return this.db
+      .select()
+      .from(history)
+      .where(eq(history.taskId, taskId))
+      .orderBy(desc(history.timestamp))
+      .all();
+  }
+
   private appendHistory(
     taskId: string,
     event: TaskEvent,
