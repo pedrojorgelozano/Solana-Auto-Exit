@@ -87,6 +87,46 @@ function stripIPv6Brackets(h: string): string {
   return h.startsWith("[") && h.endsWith("]") ? h.slice(1, -1) : h;
 }
 
+/**
+ * Si el hostname del rpcUrl es reconocible como devnet o mainnet de proveedores
+ * conocidos, devuelve la red inferida; si no, null. Se usa para validar
+ * coherencia `network + rpcUrl` en `tasks.create` (B-02).
+ *
+ * Política conservadora: solo bloquea combinaciones obviamente erróneas
+ * (mainnet+api.devnet o devnet+api.mainnet-beta). RPCs privados, custom o de
+ * proveedores no listados pasan sin inferencia — confiamos en que el power-
+ * user que monta su nodo sabe lo que apunta.
+ *
+ * Mantén las regex literales y simples. Cualquier proveedor nuevo se añade
+ * con un test que documente el caso.
+ */
+const DEVNET_HOST_PATTERNS: readonly RegExp[] = [
+  /^api\.devnet\.solana\.com$/i,
+  /^devnet[.-]/i,            // devnet.helius-rpc.com, devnet-helius...
+  /[.-]devnet\.[a-z0-9-]+\./i, // foo.devnet.example.com, etc.
+];
+
+const MAINNET_HOST_PATTERNS: readonly RegExp[] = [
+  /^api\.mainnet-beta\.solana\.com$/i,
+  /^mainnet[.-]/i,
+  /^solana-mainnet\./i,
+  /[.-]mainnet\.[a-z0-9-]+\./i,
+];
+
+export function inferNetworkFromRpcUrl(
+  rpcUrl: string,
+): "mainnet" | "devnet" | null {
+  let host: string;
+  try {
+    host = stripIPv6Brackets(new URL(rpcUrl).hostname.toLowerCase());
+  } catch {
+    return null;
+  }
+  if (MAINNET_HOST_PATTERNS.some((rx) => rx.test(host))) return "mainnet";
+  if (DEVNET_HOST_PATTERNS.some((rx) => rx.test(host))) return "devnet";
+  return null;
+}
+
 function allowLoopback(): boolean {
   return process.env.ALLOW_LOOPBACK_RPC === "true";
 }

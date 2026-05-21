@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { router, publicProcedure, TRPCError } from "../init.js";
-import { assertSafeRpcUrl } from "../../security/rpc-url.js";
+import {
+  assertSafeRpcUrl,
+  inferNetworkFromRpcUrl,
+} from "../../security/rpc-url.js";
 
 // Time buffer per trigger (ADR-025). Max 7 días en ms. Null/0 = sin buffer.
 const MAX_BUFFER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -53,6 +56,20 @@ const createTaskInput = z
     {
       message:
         "Take-profit price must be greater than stop-loss price (TP > SL).",
+    },
+  )
+  .refine(
+    // B-02: network + rpcUrl deben ser coherentes cuando podemos inferir la
+    // red del hostname. RPC privados (Helius con key, nodo propio, etc.) no
+    // se infieren y pasan sin chequeo; solo bloqueamos combinaciones que
+    // serían obvias para cualquiera (mainnet con api.devnet.solana.com).
+    (v) => {
+      const inferred = inferNetworkFromRpcUrl(v.rpcUrl);
+      return inferred === null || inferred === v.network;
+    },
+    {
+      message:
+        "rpcUrl host suggests a different network than the one selected. Either change the network toggle or use an RPC matching the selected network.",
     },
   );
 

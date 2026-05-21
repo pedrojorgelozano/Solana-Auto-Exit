@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { assertSafeRpcUrl } from "./rpc-url.js";
+import { assertSafeRpcUrl, inferNetworkFromRpcUrl } from "./rpc-url.js";
 
 function expectBlocked(url: string, reason: RegExp): void {
   expect(() => assertSafeRpcUrl(url)).toThrow(reason);
@@ -104,3 +104,52 @@ describe("assertSafeRpcUrl", () => {
     expectAllowed("ws://192.168.1.50:8900");
   });
 });
+
+describe("inferNetworkFromRpcUrl (B-02 coherence helper)", () => {
+  it("identifies the canonical Solana mainnet RPC", () => {
+    expect(inferNetworkFromRpcUrl("https://api.mainnet-beta.solana.com")).toBe(
+      "mainnet",
+    );
+  });
+
+  it("identifies the canonical Solana devnet RPC", () => {
+    expect(inferNetworkFromRpcUrl("https://api.devnet.solana.com")).toBe(
+      "devnet",
+    );
+  });
+
+  it("identifies common Helius patterns", () => {
+    expect(
+      inferNetworkFromRpcUrl("https://mainnet.helius-rpc.com/?api-key=x"),
+    ).toBe("mainnet");
+    expect(
+      inferNetworkFromRpcUrl("https://devnet.helius-rpc.com/?api-key=x"),
+    ).toBe("devnet");
+  });
+
+  it("identifies solana-mainnet subdomain pattern", () => {
+    expect(
+      inferNetworkFromRpcUrl("https://solana-mainnet.g.alchemy.com/v2/key"),
+    ).toBe("mainnet");
+  });
+
+  it("returns null for private / custom / unknown hosts", () => {
+    // Power-user: nodo propio, IP de LAN, Tailscale.
+    expect(inferNetworkFromRpcUrl("http://192.168.1.50:8899")).toBeNull();
+    expect(inferNetworkFromRpcUrl("http://10.0.0.5:8899")).toBeNull();
+    expect(inferNetworkFromRpcUrl("https://my-private-rpc.local/")).toBeNull();
+    expect(inferNetworkFromRpcUrl("https://quiknode.pro/random-id/")).toBeNull();
+  });
+
+  it("returns null for malformed URLs (do not block on parse error)", () => {
+    expect(inferNetworkFromRpcUrl("not a url")).toBeNull();
+    expect(inferNetworkFromRpcUrl("")).toBeNull();
+  });
+
+  it("is case-insensitive", () => {
+    expect(
+      inferNetworkFromRpcUrl("https://API.MAINNET-BETA.SOLANA.COM"),
+    ).toBe("mainnet");
+  });
+});
+
