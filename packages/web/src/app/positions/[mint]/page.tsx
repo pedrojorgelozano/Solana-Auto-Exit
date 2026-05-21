@@ -11,13 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { trpc } from "@/lib/trpc";
-import {
-  NETWORK,
-  PROTOCOL,
-  PROTOCOL_LABELS,
-  type ProtocolName,
-  RPC_URL,
-} from "@/lib/constants";
+import { NETWORK, RPC_URL } from "@/lib/constants";
 import {
   formatDistance,
   formatNearestDistance,
@@ -126,30 +120,6 @@ function NeedWallet({ hasVault }: { hasVault: boolean }) {
   );
 }
 
-/**
- * Mensaje que sale cuando la posición es de un protocolo que el bot
- * aún solo lee (no cierra). F6.1.b muestra Meteora pero F6.2 abrirá el
- * close + claim fees.
- */
-function ReadOnlyProtocolNotice({ protocol }: { protocol: string }) {
-  return (
-    <section className="hairline-t pt-10">
-      <div className="t-eyebrow text-[var(--color-warning)]">
-        Read-only protocol
-      </div>
-      <h2 className="mt-3 t-h2">
-        Auto-exits on {PROTOCOL_LABELS[protocol as ProtocolName] ?? protocol}{" "}
-        are not configurable yet.
-      </h2>
-      <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-        F6.1 added discovery for {PROTOCOL_LABELS[protocol as ProtocolName] ?? protocol}{" "}
-        positions — you can see them here, including current price, range
-        and pending fees. The close + swap path will land in F6.2 / F6.3.
-        Until then the auto-exit form is intentionally locked.
-      </p>
-    </section>
-  );
-}
 
 // ============================================================================
 // Editor
@@ -191,10 +161,6 @@ function Editor({
       ["idle", "armed", "triggered", "closing", "paused"].includes(t.status),
   );
 
-  // F6.1.b: Meteora es read-only en esta fase. Mostramos summary pero no
-  // dejamos configurar auto-exit hasta que F6.2 implemente closePosition.
-  const isReadOnlyProtocol = posRef.protocol === "meteora";
-
   return (
     <div className="space-y-12">
       <PositionRecap
@@ -206,11 +172,10 @@ function Editor({
 
       {activeTask ? (
         <ExistingWatcher task={activeTask} />
-      ) : isReadOnlyProtocol ? (
-        <ReadOnlyProtocolNotice protocol={posRef.protocol} />
       ) : summary.data ? (
         <ConfigureForm
           mint={mint}
+          posRef={posRef}
           summary={summary.data}
           router={router}
           network={network}
@@ -459,6 +424,7 @@ const SLIPPAGE_PRESETS: { bps: SlippageBps; label: string }[] = [
 
 function ConfigureForm({
   mint,
+  posRef,
   summary,
   router,
   network,
@@ -466,6 +432,7 @@ function ConfigureForm({
   defaults,
 }: {
   mint: string;
+  posRef: PositionRef;
   summary: PositionSummary;
   router: ReturnType<typeof useRouter>;
   network: "devnet" | "mainnet";
@@ -545,18 +512,36 @@ function ConfigureForm({
       return;
     }
     try {
+      // F6.2.c: el shape del protocolConfig varía por protocolo. Orca usa
+      // positionMint + decimalsA/B + tokenMintA/B; Meteora usa lbPair +
+      // position + decimalsX/Y + los mismos tokenMintA/B (que el receipt
+      // y el verifier on-chain leen genéricamente).
+      const protocolConfig =
+        posRef.protocol === "meteora"
+          ? {
+              lbPair: posRef.poolId,
+              position: posRef.id,
+              decimalsX: tokenA.decimals,
+              decimalsY: tokenB.decimals,
+              decimalsA: tokenA.decimals,
+              decimalsB: tokenB.decimals,
+              tokenMintA: tokenA.mint,
+              tokenMintB: tokenB.mint,
+            }
+          : {
+              positionMint: mint,
+              decimalsA: tokenA.decimals,
+              decimalsB: tokenB.decimals,
+              tokenMintA: tokenA.mint,
+              tokenMintB: tokenB.mint,
+            };
+
       const task = await create.mutateAsync({
-        protocol: PROTOCOL,
+        protocol: posRef.protocol,
         network,
         rpcUrl,
         positionId: mint,
-        protocolConfig: {
-          positionMint: mint,
-          decimalsA: tokenA.decimals,
-          decimalsB: tokenB.decimals,
-          tokenMintA: tokenA.mint,
-          tokenMintB: tokenB.mint,
-        },
+        protocolConfig,
         takeProfitPrice: tpValid ? tpNum : null,
         stopLossPrice: slValid ? slNum : null,
         slippageBps,
@@ -613,28 +598,39 @@ function ConfigureForm({
       {/* === Output token === */}
       <fieldset className="hairline-t pt-8">
         <legend className="t-eyebrow mb-4">2 — What to do with the output</legend>
-        <Segmented
-          value={exitChoice}
-          onChange={(v) => setExitChoice(v as ExitChoice)}
-          options={[
-            { value: "none", label: "Keep both tokens" },
-            { value: "A", label: `Sell into ${symA}` },
-            { value: "B", label: `Sell into ${symB}` },
-          ]}
-        />
-        {exitChoice !== "none" ? (
-          <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
-            After closing, the non-{exitChoice === "A" ? symA : symB} side is
-            swapped on the same pool with up to{" "}
-            <span className="t-num text-[var(--color-text)]">
-              {exitSlippageBps / 100}%
-            </span>{" "}
-            slippage tolerance.
+        {posRef.protocol === "meteora" ? (
+          <p className="max-w-lg t-small text-[var(--color-warning)]">
+            Exit-token swap is not yet wired for Meteora — F6.3 will add it.
+            For now, the close returns both tokens to the bot wallet as the
+            position releases them.
           </p>
         ) : (
-          <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
-            Both tokens are returned to your wallet as the position releases them.
-          </p>
+          <>
+            <Segmented
+              value={exitChoice}
+              onChange={(v) => setExitChoice(v as ExitChoice)}
+              options={[
+                { value: "none", label: "Keep both tokens" },
+                { value: "A", label: `Sell into ${symA}` },
+                { value: "B", label: `Sell into ${symB}` },
+              ]}
+            />
+            {exitChoice !== "none" ? (
+              <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
+                After closing, the non-
+                {exitChoice === "A" ? symA : symB} side is swapped on the
+                same pool with up to{" "}
+                <span className="t-num text-[var(--color-text)]">
+                  {exitSlippageBps / 100}%
+                </span>{" "}
+                slippage tolerance.
+              </p>
+            ) : (
+              <p className="mt-4 max-w-lg t-small text-[var(--color-text-muted)]">
+                Both tokens are returned to your wallet as the position releases them.
+              </p>
+            )}
+          </>
         )}
       </fieldset>
 
