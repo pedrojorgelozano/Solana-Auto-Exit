@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { router, publicProcedure, TRPCError } from "../init.js";
 
+// Time buffer per trigger (ADR-025). Max 7 días en ms. Null/0 = sin buffer.
+const MAX_BUFFER_MS = 7 * 24 * 60 * 60 * 1000;
+
 const createTaskInput = z
   .object({
     protocol: z.string().min(1),
@@ -11,6 +14,20 @@ const createTaskInput = z
 
     takeProfitPrice: z.number().positive().nullable().optional(),
     stopLossPrice: z.number().positive().nullable().optional(),
+    takeProfitBufferMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_BUFFER_MS)
+      .nullable()
+      .optional(),
+    stopLossBufferMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_BUFFER_MS)
+      .nullable()
+      .optional(),
     slippageBps: z.number().int().min(0).max(10_000),
     pollMs: z.number().int().min(1_000),
     dryRun: z.boolean(),
@@ -42,13 +59,10 @@ export const tasksRouter = router({
   create: publicProcedure
     .input(createTaskInput)
     .mutation(({ ctx, input }) => {
-      if (input.network === "mainnet" && process.env.ALLOW_MAINNET_LIVE !== "true") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Mainnet is not enabled on this server. Set ALLOW_MAINNET_LIVE=true and restart, then switch the network in /settings.",
-        });
-      }
+      // ADR-026: el mainnet gate del server (env var ALLOW_MAINNET_LIVE)
+      // ya no se enforza aquí. La confirmación de doble paso en /settings
+      // es la única safety net para cambiar de red. Si en el futuro hace
+      // falta volver a cerrar el gate (deploys compartidos), se reintroduce.
       return ctx.taskManager.createTask(input);
     }),
 

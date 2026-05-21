@@ -15,8 +15,18 @@ import { settings } from "../../db/schema.js";
 export interface SettingsSnapshot {
   /** Red activa. La UI permite cambiar a "mainnet" solo si mainnetGateAllowed. */
   network: "devnet" | "mainnet";
-  /** URL del RPC. Por defecto el público de devnet; se puede sustituir por uno propio (Helius, QuickNode, etc). */
+  /** URL del RPC actualmente seleccionada. */
   rpcUrl: string;
+  /**
+   * URLs canónicas por red — la UI las usa para (a) mostrar el placeholder
+   * correcto al editar, (b) auto-swappear el rpcUrl al cambiar de red si el
+   * actual coincide con el default de la red anterior, (c) ofrecer botón
+   * "use default" cuando el user customizó y quiere volver al canónico.
+   */
+  defaultRpcByNetwork: {
+    mainnet: string;
+    devnet: string;
+  };
   /** Slippage del cierre, en bps. */
   defaultSlippageBps: number;
   /** Slippage del swap de salida, en bps. */
@@ -27,17 +37,40 @@ export interface SettingsSnapshot {
   mainnetGateAllowed: boolean;
 }
 
+/**
+ * RPCs canónicas por red. Son los endpoints públicos oficiales de Solana —
+ * funcionan out-of-the-box para arrancar pero están rate-limited (sobre todo
+ * mainnet-beta). Para uso sostenido la UI sugiere reemplazar por Helius /
+ * QuickNode / Triton / nodo propio en /settings.
+ */
+const DEFAULT_RPC = {
+  mainnet: "https://api.mainnet-beta.solana.com",
+  devnet: "https://api.devnet.solana.com",
+} as const;
+
 const DEFAULTS = {
-  network: "devnet" as const,
-  rpcUrl: "https://api.devnet.solana.com",
+  // F6.3 / ADR-027: el default es mainnet. Operar en LP de verdad es el caso
+  // de uso primario; testnet sigue disponible pero como opción no-default.
+  network: "mainnet" as const,
+  rpcUrl: DEFAULT_RPC.mainnet,
   defaultSlippageBps: 100,
   defaultExitSlippageBps: 100,
-  defaultPollMs: 5_000,
+  // F6.3: subido de 5_000 (legacy, demasiado agresivo con RPC) a 30_000.
+  // Con time-buffers la latencia del polling es cosmética; 30s es el sweet
+  // spot que cabe en Helius free tier por watcher. Ver explicación en /settings.
+  defaultPollMs: 30_000,
 };
 
-/** El env-var gate de ADR-006. Lo lee el server en cada query. */
+/**
+ * Mainnet gate. Originalmente cerrado por defecto (ADR-006) y abierto vía
+ * `ALLOW_MAINNET_LIVE=true`. Superado por ADR-026: el gate está abierto por
+ * defecto, la safety net real es la confirmación de doble paso en la UI.
+ * El field `mainnetGateAllowed` del snapshot se mantiene en la API por si en
+ * el futuro queremos volver a meter una política de cierre (servidor multi-
+ * usuario, deploy compartido, etc.) — hoy devuelve siempre true.
+ */
 function isMainnetGateAllowed(): boolean {
-  return process.env.ALLOW_MAINNET_LIVE === "true";
+  return true;
 }
 
 /** Mapeo "key del snapshot" → "key persistida en SQLite". */
@@ -82,14 +115,21 @@ export const settingsRouter = router({
     const rows = ctx.db.select().from(settings).all();
     const map = new Map(rows.map((r) => [r.key, r.value]));
     const gate = isMainnetGateAllowed();
-    // Si mainnet fue activado en el pasado pero el env-var ya no está,
-    // forzamos el snapshot a devnet — el gate del server gana sobre la fila.
+    // ADR-027: respetamos el valor stored si es válido. El gate ya no fuerza
+    // downgrade a devnet (ADR-026: gate siempre abierto). Si la key no está
+    // (fresh install o tras reset), cae a DEFAULTS.network → mainnet.
     const storedNetwork = map.get(KEYS.network);
-    const network =
-      storedNetwork === "mainnet" && gate ? "mainnet" : DEFAULTS.network;
+    const network: "mainnet" | "devnet" =
+      storedNetwork === "mainnet" || storedNetwork === "devnet"
+        ? storedNetwork
+        : DEFAULTS.network;
     return {
       network,
       rpcUrl: map.get(KEYS.rpcUrl) ?? DEFAULTS.rpcUrl,
+      defaultRpcByNetwork: {
+        mainnet: DEFAULT_RPC.mainnet,
+        devnet: DEFAULT_RPC.devnet,
+      },
       defaultSlippageBps: parseIntOr(
         map.get(KEYS.defaultSlippageBps),
         DEFAULTS.defaultSlippageBps,

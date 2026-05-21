@@ -70,7 +70,7 @@ function chipClass(tone: "active" | "accent" | "neutral"): string {
       : tone === "accent"
         ? "border-[var(--color-accent)] text-[var(--color-accent-bright)] hover:bg-[var(--color-accent-dim)]"
         : "border-[var(--color-hairline)] text-[var(--color-text-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-border-strong)]";
-  return `inline-flex h-8 items-center gap-2 border px-3 t-eyebrow transition-colors rounded-[2px] ${toneClass}`;
+  return `inline-flex h-9 items-center gap-2 border px-3.5 t-eyebrow transition-colors rounded-full ${toneClass}`;
 }
 
 function ChipFrame({

@@ -3,9 +3,12 @@
  * los fallbacks de seguridad para cuando la query de settings aún no ha
  * resuelto, y el listado de protocolos soportados (estable en el cliente
  * porque añadir uno nuevo es un release del frontend de todos modos).
+ *
+ * ADR-027: el default es mainnet para alinearse con el caso de uso primario
+ * (operar LP de verdad). Test mode sigue disponible cambiándolo en /settings.
  */
-export const NETWORK = "devnet" as const;
-export const RPC_URL = "https://api.devnet.solana.com";
+export const NETWORK = "mainnet" as const;
+export const RPC_URL = "https://api.mainnet-beta.solana.com";
 export const PROTOCOL = "orca" as const;
 
 /**

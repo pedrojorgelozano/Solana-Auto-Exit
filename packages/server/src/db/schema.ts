@@ -22,6 +22,15 @@ export const tasks = sqliteTable("tasks", {
   takeProfitPrice: real("take_profit_price"),
   /** Precio a partir del cual se cierra como stop-loss (price ≤ SL). */
   stopLossPrice: real("stop_loss_price"),
+  /**
+   * Time buffer del TP: el precio tiene que mantenerse por encima del target
+   * durante este tiempo (ms) antes de disparar. Null o 0 = sin buffer (dispara
+   * en el primer tick que cruza). Reset duro: si el precio sale de la zona,
+   * el cronómetro vuelve a cero. Ver ADR-025.
+   */
+  takeProfitBufferMs: integer("take_profit_buffer_ms"),
+  /** Idem TP, para stop-loss (precio debe mantenerse por debajo). */
+  stopLossBufferMs: integer("stop_loss_buffer_ms"),
   /** Cuál de los dos disparó el cierre. Se rellena al disparar. */
   triggeredBy: text("triggered_by", {
     enum: ["take_profit", "stop_loss"],

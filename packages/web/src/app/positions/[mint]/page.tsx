@@ -10,9 +10,12 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
+import { Segmented } from "@/components/ui/Segmented";
 import { trpc } from "@/lib/trpc";
 import { NETWORK, RPC_URL } from "@/lib/constants";
 import {
+  formatBuffer,
+  formatBufferRemaining,
   formatDistance,
   formatNearestDistance,
   formatPrice,
@@ -246,6 +249,10 @@ function ExistingWatcher({
               ? `≥ ${formatPrice(task.takeProfitPrice, 6)}`
               : "—"}
           </span>
+          <BufferLine
+            bufferMs={task.takeProfitBufferMs}
+            firstCrossedAt={task.runtime.tpFirstCrossedAt}
+          />
         </Field>
         <Field label="Stop loss">
           <span className="t-num">
@@ -253,6 +260,10 @@ function ExistingWatcher({
               ? `≤ ${formatPrice(task.stopLossPrice, 6)}`
               : "—"}
           </span>
+          <BufferLine
+            bufferMs={task.stopLossBufferMs}
+            firstCrossedAt={task.runtime.slFirstCrossedAt}
+          />
         </Field>
         <Field label="Last price">
           <span className="t-num">
@@ -404,6 +415,37 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+/**
+ * Línea bajo un trigger: "buffer 12h" + ("3h 14m left" si el cronómetro está
+ * en marcha). Vacío si el trigger no tiene buffer configurado.
+ */
+function BufferLine({
+  bufferMs,
+  firstCrossedAt,
+}: {
+  bufferMs: number | null;
+  firstCrossedAt: number | null;
+}) {
+  if (!bufferMs || bufferMs <= 0) return null;
+  const remaining = formatBufferRemaining(firstCrossedAt, bufferMs, Date.now());
+  return (
+    <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
+      buffer {formatBuffer(bufferMs)}
+      {remaining ? (
+        <span
+          className={`ml-2 ${
+            remaining === "buffer met"
+              ? "text-[var(--color-warning)]"
+              : "text-[var(--color-accent-bright)]"
+          }`}
+        >
+          · {remaining}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 // ============================================================================
 // Form
 // ============================================================================
@@ -420,6 +462,17 @@ const SLIPPAGE_PRESETS: { bps: SlippageBps; label: string }[] = [
   { bps: 100, label: "1%" },
   { bps: 200, label: "2%" },
   { bps: 500, label: "5%" },
+];
+
+// Time buffer presets por trigger (ADR-025). 0 = off (dispara en el primer
+// tick que cruza). Máximo 7d — más allá es ruido y la UX se complica.
+const BUFFER_PRESETS: { ms: number; label: string }[] = [
+  { ms: 0, label: "off" },
+  { ms: 6 * 60 * 60 * 1000, label: "6h" },
+  { ms: 12 * 60 * 60 * 1000, label: "12h" },
+  { ms: 24 * 60 * 60 * 1000, label: "1d" },
+  { ms: 3 * 24 * 60 * 60 * 1000, label: "3d" },
+  { ms: 7 * 24 * 60 * 60 * 1000, label: "7d" },
 ];
 
 function ConfigureForm({
@@ -447,11 +500,13 @@ function ConfigureForm({
   const symA = tokenSymbol(tokenA.mint);
   const symB = tokenSymbol(tokenB.mint);
 
-  // Triggers independientes: cada uno tiene su toggle + su precio.
+  // Triggers independientes: cada uno tiene su toggle + su precio + su buffer.
   const [tpEnabled, setTpEnabled] = useState(true);
   const [tpPrice, setTpPrice] = useState("");
+  const [tpBufferMs, setTpBufferMs] = useState(0);
   const [slEnabled, setSlEnabled] = useState(false);
   const [slPrice, setSlPrice] = useState("");
+  const [slBufferMs, setSlBufferMs] = useState(0);
 
   // Defaults vienen del backend (F3.3). Si los presets típicos coinciden con
   // el default, los chips se marcan como activos; si el usuario configuró un
@@ -465,7 +520,13 @@ function ConfigureForm({
   const [exitSlippageBps, setExitSlippageBps] = useState<number>(
     defaults.exitSlippageBps ?? 100,
   );
-  const [simulation, setSimulation] = useState(true);
+  // F6.3: simulation toggle oculto temporalmente. Default = real mode.
+  // El state y SimulationToggle quedan en el código (ver bloque comentado
+  // dentro del fieldset de Safety) para reactivar trivialmente si se quiere
+  // volver a exponer. setSimulation no se llama hoy; el lint lo tolera porque
+  // sigue siendo el setter de un state legítimo, solo que el JSX que lo
+  // invocaba está comentado.
+  const [simulation, setSimulation] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -544,6 +605,8 @@ function ConfigureForm({
         protocolConfig,
         takeProfitPrice: tpValid ? tpNum : null,
         stopLossPrice: slValid ? slNum : null,
+        takeProfitBufferMs: tpValid && tpBufferMs > 0 ? tpBufferMs : null,
+        stopLossBufferMs: slValid && slBufferMs > 0 ? slBufferMs : null,
         slippageBps,
         pollMs,
         dryRun: simulation,
@@ -564,7 +627,13 @@ function ConfigureForm({
         <legend className="t-eyebrow mb-4">1 — When to close</legend>
         <p className="t-small text-[var(--color-text-muted)] max-w-lg">
           Enable take-profit, stop-loss, or both. The auto-exit closes when
-          either price is hit (whichever happens first).
+          either price is hit (whichever happens first).{" "}
+          <Link
+            href="/docs/auto-exit#triggers"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            → How triggers work
+          </Link>
         </p>
 
         <div className="mt-8 space-y-8">
@@ -574,6 +643,8 @@ function ConfigureForm({
             setEnabled={setTpEnabled}
             price={tpPrice}
             setPrice={setTpPrice}
+            bufferMs={tpBufferMs}
+            setBufferMs={setTpBufferMs}
             currentPrice={currentPrice}
             symA={symA}
             symB={symB}
@@ -586,6 +657,8 @@ function ConfigureForm({
             setEnabled={setSlEnabled}
             price={slPrice}
             setPrice={setSlPrice}
+            bufferMs={slBufferMs}
+            setBufferMs={setSlBufferMs}
             currentPrice={currentPrice}
             symA={symA}
             symB={symB}
@@ -597,7 +670,15 @@ function ConfigureForm({
 
       {/* === Output token === */}
       <fieldset className="hairline-t pt-8">
-        <legend className="t-eyebrow mb-4">2 — What to do with the output</legend>
+        <div className="mb-4 flex items-baseline justify-between gap-3">
+          <legend className="t-eyebrow">2 — What to do with the output</legend>
+          <Link
+            href="/docs/auto-exit#exit-token"
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          >
+            → docs
+          </Link>
+        </div>
         <Segmented
           value={exitChoice}
           onChange={(v) => setExitChoice(v as ExitChoice)}
@@ -627,9 +708,12 @@ function ConfigureForm({
       <fieldset className="hairline-t pt-8">
         <legend className="t-eyebrow mb-4">3 — Safety</legend>
 
+        {/* F6.3: SimulationToggle oculto. Para re-exponerlo, descomenta
+            esta línea y vuelve a poner el default de `simulation` a true.
         <SimulationToggle value={simulation} onChange={setSimulation} />
+        */}
 
-        <div className="mt-8">
+        <div>
           <Label>Close slippage tolerance</Label>
           <Segmented
             value={String(slippageBps)}
@@ -639,36 +723,39 @@ function ConfigureForm({
               label: p.label,
             }))}
           />
+          <p className="mt-3 max-w-lg t-small text-[var(--color-text-muted)]">
+            How much the pool price is allowed to drift between submission and
+            execution before the close transaction reverts. Higher values
+            complete more reliably in volatile markets; lower values give a
+            stricter price guarantee but can fail and retry more often.{" "}
+            <Link
+              href="/docs/auto-exit#slippage"
+              className="text-[var(--color-accent-bright)] hover:underline"
+            >
+              → Read more
+            </Link>
+          </p>
         </div>
       </fieldset>
 
       {/* === Advanced === */}
-      <div className="hairline-t pt-6">
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-        >
-          {showAdvanced ? "− Hide" : "+ Show"} advanced settings
-        </button>
+      {/* F6.3: Poll interval ya no se expone aquí — usa el default del server
+          (configurable en /settings). El state `pollMs` sigue existiendo con
+          la default fallback para que reactivar el selector sea trivial.
+          El bloque Advanced ahora solo aparece si hay exit swap configurado
+          (única opción avanzada que queda). */}
+      {exitChoice !== "none" ? (
+        <div className="hairline-t pt-6">
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            {showAdvanced ? "− Hide" : "+ Show"} advanced settings
+          </button>
 
-        {showAdvanced ? (
-          <div className="mt-6 space-y-6 fade-in">
-            <div>
-              <Label>Poll interval</Label>
-              <Segmented
-                value={String(pollMs)}
-                onChange={(v) => setPollMs(Number(v))}
-                options={POLL_PRESETS.map((p) => ({
-                  value: String(p.ms),
-                  label: p.label,
-                }))}
-              />
-              <p className="mt-2 t-small text-[var(--color-text-dim)]">
-                How often the server reads the pool price.
-              </p>
-            </div>
-            {exitChoice !== "none" ? (
+          {showAdvanced ? (
+            <div className="mt-6 space-y-6 fade-in">
               <div>
                 <Label>Exit swap slippage</Label>
                 <Segmented
@@ -680,10 +767,10 @@ function ConfigureForm({
                   }))}
                 />
               </div>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {error ? <FieldError>{error}</FieldError> : null}
 
@@ -701,46 +788,14 @@ function ConfigureForm({
   );
 }
 
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <div className="inline-flex flex-wrap border border-[var(--color-hairline)] rounded-[2px]">
-      {options.map((opt, i) => {
-        const active = value === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={`px-4 py-2 t-eyebrow transition-colors ${
-              i > 0 ? "border-l border-[var(--color-hairline)]" : ""
-            } ${
-              active
-                ? "bg-[var(--color-accent-dim)] text-[var(--color-text)]"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-            }`}
-          >
-            {opt.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function TriggerInput({
   kind,
   enabled,
   setEnabled,
   price,
   setPrice,
+  bufferMs,
+  setBufferMs,
   currentPrice,
   symA,
   symB,
@@ -752,6 +807,8 @@ function TriggerInput({
   setEnabled: (v: boolean) => void;
   price: string;
   setPrice: (v: string) => void;
+  bufferMs: number;
+  setBufferMs: (v: number) => void;
   currentPrice: number;
   symA: string;
   symB: string;
@@ -765,11 +822,11 @@ function TriggerInput({
   return (
     <div
       className={`border-l-2 pl-5 transition-opacity ${
-        enabled ? "" : "opacity-40"
-      } ${
-        kind === "tp"
-          ? "border-[var(--color-positive)]"
-          : "border-[var(--color-warning)]"
+        enabled
+          ? kind === "tp"
+            ? "border-[var(--color-positive)]"
+            : "border-[var(--color-warning)]"
+          : "border-[var(--color-border-strong)]"
       }`}
     >
       {/* Toggle row */}
@@ -780,21 +837,21 @@ function TriggerInput({
         aria-pressed={enabled}
       >
         <span
-          className={`inline-flex h-5 w-9 shrink-0 items-center rounded-full border transition-colors px-0.5 ${
+          className={`inline-flex h-6 w-11 shrink-0 items-center rounded-full border-2 transition-colors px-0.5 ${
             enabled
               ? kind === "tp"
                 ? "border-[var(--color-positive)] bg-[var(--color-positive)]/30 justify-end"
                 : "border-[var(--color-warning)] bg-[var(--color-warning)]/30 justify-end"
-              : "border-[var(--color-hairline)] bg-transparent justify-start"
+              : "border-[var(--color-text-muted)] bg-[var(--color-bg-elevated)] justify-start"
           }`}
         >
           <span
-            className={`block h-3 w-3 rounded-full ${
+            className={`block h-3.5 w-3.5 rounded-full ${
               enabled
                 ? kind === "tp"
                   ? "bg-[var(--color-positive)]"
                   : "bg-[var(--color-warning)]"
-                : "bg-[var(--color-text-dim)]"
+                : "bg-[var(--color-text-muted)]"
             }`}
           />
         </span>
@@ -804,12 +861,18 @@ function TriggerInput({
               ? kind === "tp"
                 ? "text-[var(--color-positive)]"
                 : "text-[var(--color-warning)]"
-              : "text-[var(--color-text-muted)]"
+              : "text-[var(--color-text)]"
           }`}
         >
           {label}
         </span>
-        <span className="t-small text-[var(--color-text-muted)]">
+        <span
+          className={`t-small ${
+            enabled
+              ? "text-[var(--color-text-muted)]"
+              : "text-[var(--color-text)]"
+          }`}
+        >
           close when 1 {symA} {verb} a target price in {symB}
         </span>
       </button>
@@ -826,7 +889,7 @@ function TriggerInput({
                 key={pct}
                 type="button"
                 onClick={() => applyPreset(pct)}
-                className="h-8 border border-[var(--color-hairline)] hover:border-[var(--color-text)] px-3 t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-[2px] transition-colors"
+                className="h-9 border border-[var(--color-border-strong)] hover:border-[var(--color-text)] bg-[var(--color-bg-elevated)] px-3.5 t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] rounded-lg transition-colors"
               >
                 {presetSign}
                 {pct}%
@@ -863,6 +926,33 @@ function TriggerInput({
                 {distance.reached ? " · trigger already true" : " from current"}
               </div>
             ) : null}
+          </div>
+
+          {/* Time buffer (ADR-025): el precio debe mantenerse en zona durante
+              este tiempo antes de disparar. Reset duro si sale de la zona. */}
+          <div className="mt-6">
+            <Label>Time buffer</Label>
+            <Segmented
+              value={String(bufferMs)}
+              onChange={(v) => setBufferMs(Number(v))}
+              options={BUFFER_PRESETS.map((p) => ({
+                value: String(p.ms),
+                label: p.label,
+              }))}
+            />
+            <p className="mt-2 max-w-md t-small text-[var(--color-text-muted)]">
+              {bufferMs > 0
+                ? `Close only if the price stays ${
+                    kind === "tp" ? "above" : "below"
+                  } the target for at least this long. If it leaves the zone, the timer resets.`
+                : `Fire as soon as the price crosses the target — no waiting.`}{" "}
+              <Link
+                href="/docs/auto-exit#time-buffer"
+                className="text-[var(--color-accent-bright)] hover:underline"
+              >
+                → Read more
+              </Link>
+            </p>
           </div>
         </div>
       ) : null}

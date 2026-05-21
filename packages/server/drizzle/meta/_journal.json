@@ -8,6 +8,13 @@
       "when": 1779282887878,
       "tag": "0000_lumpy_morbius",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1779363138794,
+      "tag": "0001_fast_silverclaw",
+      "breakpoints": true
     }
   ]
 }

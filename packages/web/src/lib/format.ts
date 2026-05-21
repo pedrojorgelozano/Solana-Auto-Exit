@@ -185,6 +185,47 @@ export function formatNearestDistance(
 }
 
 /**
+ * "off" / "6h" / "1d" / "7d" — duración del time buffer (ADR-025).
+ * Acepta null y 0 como "off".
+ */
+export function formatBuffer(ms: number | null | undefined): string {
+  if (!ms || ms <= 0) return "off";
+  const hours = ms / 3_600_000;
+  if (hours < 24) {
+    return Number.isInteger(hours) ? `${hours}h` : `${hours.toFixed(1)}h`;
+  }
+  const days = hours / 24;
+  return Number.isInteger(days) ? `${days}d` : `${days.toFixed(1)}d`;
+}
+
+/**
+ * "2h 18m left" / "less than 1m left" — cuánto le queda al cronómetro del
+ * buffer. Devuelve null si el buffer ya está cumplido o no aplica.
+ */
+export function formatBufferRemaining(
+  firstCrossedAtMs: number | null,
+  bufferMs: number | null | undefined,
+  nowMs: number,
+): string | null {
+  if (!firstCrossedAtMs || !bufferMs || bufferMs <= 0) return null;
+  const elapsed = nowMs - firstCrossedAtMs;
+  const remaining = bufferMs - elapsed;
+  if (remaining <= 0) return "buffer met";
+  if (remaining < 60_000) return "less than 1m left";
+  if (remaining < 3_600_000) {
+    return `${Math.floor(remaining / 60_000)}m left`;
+  }
+  if (remaining < 86_400_000) {
+    const h = Math.floor(remaining / 3_600_000);
+    const m = Math.floor((remaining % 3_600_000) / 60_000);
+    return m > 0 ? `${h}h ${m}m left` : `${h}h left`;
+  }
+  const d = Math.floor(remaining / 86_400_000);
+  const h = Math.floor((remaining % 86_400_000) / 3_600_000);
+  return h > 0 ? `${d}d ${h}h left` : `${d}d left`;
+}
+
+/**
  * "5m ago" / "just now" / "2h ago". timestamp en ms.
  */
 export function formatTimeAgo(timestampMs: number | null): string {

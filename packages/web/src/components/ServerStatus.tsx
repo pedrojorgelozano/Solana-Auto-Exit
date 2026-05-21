@@ -16,7 +16,7 @@ export function ServerStatus() {
   if (health.error) {
     return (
       <Inline tone="danger" title={health.error.message}>
-        server unreachable
+        bot unreachable
       </Inline>
     );
   }
@@ -25,7 +25,7 @@ export function ServerStatus() {
     return <Inline tone="neutral">no data</Inline>;
   }
 
-  return <Inline tone="positive">server online · v{health.data.version}</Inline>;
+  return <Inline tone="positive">bot running</Inline>;
 }
 
 function Inline({

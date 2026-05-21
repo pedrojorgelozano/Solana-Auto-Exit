@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Button } from "@/components/ui/Button";
-import { Input, Textarea, Label } from "@/components/ui/Input";
+import { Input, PasswordInput, Textarea, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
@@ -52,7 +52,7 @@ export function ConnectWalletModal() {
       />
 
       {/* Panel */}
-      <div className="relative z-10 w-full max-w-2xl border border-[var(--color-rule)] bg-[var(--color-bg-elevated)] grain-overlay">
+      <div className="relative z-10 w-full max-w-2xl rounded-2xl border border-[var(--color-border-strong)] bg-[var(--color-bg-elevated)] shadow-xl">
         <ModalContent />
       </div>
     </div>
@@ -260,9 +260,8 @@ function GenerateTab({
           <Label htmlFor="gen-passphrase" hint="≥ 8 characters">
             Passphrase
           </Label>
-          <Input
+          <PasswordInput
             id="gen-passphrase"
-            type="password"
             autoComplete="new-password"
             value={passphrase}
             onChange={(e) => setPassphrase(e.target.value)}
@@ -272,9 +271,8 @@ function GenerateTab({
         </div>
         <div>
           <Label htmlFor="gen-confirm">Confirm</Label>
-          <Input
+          <PasswordInput
             id="gen-confirm"
-            type="password"
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
@@ -363,9 +361,8 @@ function ImportTab({
           Secret key
         </Label>
         {kind === "base58" ? (
-          <Input
+          <PasswordInput
             id="import-secret"
-            type="password"
             autoComplete="off"
             spellCheck={false}
             value={secret}
@@ -393,9 +390,8 @@ function ImportTab({
           <Label htmlFor="import-pass" hint="≥ 8 characters">
             Passphrase
           </Label>
-          <Input
+          <PasswordInput
             id="import-pass"
-            type="password"
             autoComplete="new-password"
             value={passphrase}
             onChange={(e) => setPassphrase(e.target.value)}
@@ -405,9 +401,8 @@ function ImportTab({
         </div>
         <div>
           <Label htmlFor="import-confirm">Confirm</Label>
-          <Input
+          <PasswordInput
             id="import-confirm"
-            type="password"
             autoComplete="new-password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
@@ -448,7 +443,13 @@ function ImportWarning() {
       <p className="mt-3 t-small text-[var(--color-text-muted)]">
         Standard practice is to import an account dedicated to active
         operations (a &ldquo;hot&rdquo; account separate from cold holdings),
-        not the account where you store everything.
+        not the account where you store everything.{" "}
+        <Link
+          href="/docs/bot-wallet#blast-radius"
+          className="text-[var(--color-accent-bright)] hover:underline"
+        >
+          → Read the precise blast radius
+        </Link>
       </p>
     </div>
   );
@@ -658,7 +659,7 @@ function AddressBlock({
 
       {/* Right: QR */}
       <div className="md:col-span-4 flex flex-col items-center justify-start">
-        <div className="rounded-[2px] bg-white p-3">
+        <div className="rounded-xl border border-[var(--color-border-strong)] bg-white p-3">
           <QRCodeSVG
             value={address}
             size={132}

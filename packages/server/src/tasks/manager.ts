@@ -31,6 +31,15 @@ interface RunningEntry {
   /** Cache del último precio leído (para que la UI lo pinte sin tocar el RPC). */
   lastPrice: number | null;
   lastTickAt: number | null;
+  /**
+   * Time-buffer cronómetro (ADR-025). Timestamp ms del primer tick en que
+   * el precio cruzó el target. null = no está cruzado o no hay buffer. Reset
+   * duro: si en un tick posterior el precio sale de la zona del trigger,
+   * volvemos a null. In-memory: al reiniciar el server se borra (decisión
+   * conservadora — la task vuelve de paused tras unlock con buffer fresco).
+   */
+  tpFirstCrossedAt: number | null;
+  slFirstCrossedAt: number | null;
 }
 
 export class TaskManager {
@@ -103,6 +112,8 @@ export class TaskManager {
         protocolConfig: input.protocolConfig,
         takeProfitPrice: input.takeProfitPrice ?? null,
         stopLossPrice: input.stopLossPrice ?? null,
+        takeProfitBufferMs: input.takeProfitBufferMs ?? null,
+        stopLossBufferMs: input.stopLossBufferMs ?? null,
         slippageBps: input.slippageBps,
         pollMs: input.pollMs,
         dryRun: input.dryRun,
@@ -136,20 +147,33 @@ export class TaskManager {
   }
 
   /**
-   * Estado en memoria de una task (precio actual, etc.). null si no está
-   * corriendo o no hemos leído todavía.
+   * Estado en memoria de una task (precio actual, cronómetros de buffer, etc.).
+   * Si no está corriendo, todos los campos vienen a null. La UI usa
+   * tp/slFirstCrossedAt + el bufferMs del row para pintar "X de Y" en vivo.
    */
   getRunningSnapshot(id: string): {
     isRunning: boolean;
     lastPrice: number | null;
     lastTickAt: number | null;
+    tpFirstCrossedAt: number | null;
+    slFirstCrossedAt: number | null;
   } {
     const entry = this.running.get(id);
-    if (!entry) return { isRunning: false, lastPrice: null, lastTickAt: null };
+    if (!entry) {
+      return {
+        isRunning: false,
+        lastPrice: null,
+        lastTickAt: null,
+        tpFirstCrossedAt: null,
+        slFirstCrossedAt: null,
+      };
+    }
     return {
       isRunning: true,
       lastPrice: entry.lastPrice,
       lastTickAt: entry.lastTickAt,
+      tpFirstCrossedAt: entry.tpFirstCrossedAt,
+      slFirstCrossedAt: entry.slFirstCrossedAt,
     };
   }
 
@@ -178,6 +202,8 @@ export class TaskManager {
       controller,
       lastPrice: null,
       lastTickAt: null,
+      tpFirstCrossedAt: null,
+      slFirstCrossedAt: null,
     };
     this.running.set(id, entry);
 
@@ -292,8 +318,10 @@ export class TaskManager {
       row.takeProfitPrice !== null ? `TP≥${row.takeProfitPrice}` : "TP—";
     const slDesc =
       row.stopLossPrice !== null ? `SL≤${row.stopLossPrice}` : "SL—";
+    const tpBufDesc = row.takeProfitBufferMs ? ` buf=${row.takeProfitBufferMs}ms` : "";
+    const slBufDesc = row.stopLossBufferMs ? ` buf=${row.stopLossBufferMs}ms` : "";
     log(
-      `[tasks] ${row.id} armed: ${position.poolLabel} ${tpDesc} ${slDesc} pollMs=${row.pollMs}`,
+      `[tasks] ${row.id} armed: ${position.poolLabel} ${tpDesc}${tpBufDesc} ${slDesc}${slBufDesc} pollMs=${row.pollMs}`,
     );
 
     while (!signal.aborted) {
@@ -307,23 +335,46 @@ export class TaskManager {
         continue;
       }
 
+      const now = Date.now();
       entry.lastPrice = price;
-      entry.lastTickAt = Date.now();
+      entry.lastTickAt = now;
 
-      // --- Evaluar triggers (TP + SL) ---
+      // --- Evaluar triggers (TP + SL) con time buffer (ADR-025) ---
+      // Cada trigger pasa por una máquina de estados de 3 ramas:
+      //   (a) precio en zona + sin buffer configurado → ready inmediato
+      //   (b) precio en zona + buffer configurado → arma o avanza cronómetro,
+      //       solo ready cuando han pasado bufferMs continuos
+      //   (c) precio fuera de zona → reset duro del cronómetro
       const tpHit =
         row.takeProfitPrice !== null && price >= row.takeProfitPrice;
       const slHit =
         row.stopLossPrice !== null && price <= row.stopLossPrice;
 
-      if (!tpHit && !slHit) {
+      const tpReady = this.evalBuffer(
+        row.id,
+        "take_profit",
+        tpHit,
+        row.takeProfitBufferMs,
+        entry,
+        now,
+      );
+      const slReady = this.evalBuffer(
+        row.id,
+        "stop_loss",
+        slHit,
+        row.stopLossBufferMs,
+        entry,
+        now,
+      );
+
+      if (!tpReady && !slReady) {
         await this.sleepAbortable(row.pollMs, signal);
         continue;
       }
 
-      // Si por azar los dos están cumplidos en el mismo tick (rango entre
-      // SL y TP atravesado), priorizamos take-profit por defecto.
-      const triggeredBy: "take_profit" | "stop_loss" = tpHit
+      // Si por azar los dos están listos en el mismo tick (rango entre
+      // SL y TP atravesado y ambos buffers cumplidos), priorizamos take-profit.
+      const triggeredBy: "take_profit" | "stop_loss" = tpReady
         ? "take_profit"
         : "stop_loss";
 
@@ -435,6 +486,47 @@ export class TaskManager {
       .set({ status: "done", updatedAt: new Date() })
       .where(eq(tasks.id, row.id))
       .run();
+  }
+
+  /**
+   * Time buffer state machine (ADR-025). Devuelve true si el trigger debe
+   * disparar el cierre en este tick. Muta `entry` con el timestamp del primer
+   * cruce y emite eventos `buffer_armed` / `buffer_reset` para el timeline.
+   *
+   * - `inZone=true` + sin buffer → ready inmediato (comportamiento legacy).
+   * - `inZone=true` + buffer + sin cronómetro → arma cronómetro, no ready aún.
+   * - `inZone=true` + buffer + cronómetro vivo → ready cuando han pasado bufferMs.
+   * - `inZone=false` + cronómetro vivo → reset duro a null. No ready.
+   */
+  private evalBuffer(
+    taskId: string,
+    kind: "take_profit" | "stop_loss",
+    inZone: boolean,
+    bufferMs: number | null,
+    entry: RunningEntry,
+    now: number,
+  ): boolean {
+    const slot = kind === "take_profit" ? "tpFirstCrossedAt" : "slFirstCrossedAt";
+    const current = entry[slot];
+
+    if (!inZone) {
+      if (current !== null) {
+        entry[slot] = null;
+        this.appendHistory(taskId, "buffer_reset", { kind });
+      }
+      return false;
+    }
+
+    // En zona. Sin buffer = dispara inmediato.
+    if (!bufferMs || bufferMs <= 0) return true;
+
+    if (current === null) {
+      entry[slot] = now;
+      this.appendHistory(taskId, "buffer_armed", { kind, bufferMs });
+      return false;
+    }
+
+    return now - current >= bufferMs;
   }
 
   // ===========================================================================

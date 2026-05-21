@@ -1,20 +1,24 @@
-import { Fraunces, Instrument_Sans, JetBrains_Mono } from "next/font/google";
+import { Fraunces, Source_Serif_4, JetBrains_Mono } from "next/font/google";
 
 /**
- * Sistema tipográfico de 3 fonts:
- * - Display: Fraunces variable (opsz + SOFT axes), serif con carácter editorial.
- * - Body: Instrument Sans, sans con personalidad pero no estridente.
- * - Mono: JetBrains Mono con tabular nums para números/addresses.
+ * Sistema tipográfico "Light cuaderno" (supera ADR-017):
+ * - Display: Fraunces variable (opsz axis), serif con personalidad para los
+ *   titulares grandes. Conservada de la dirección anterior.
+ * - Body: Source Serif 4 — serif limpio y muy legible diseñado para texto
+ *   largo. Sustituye a Instrument Sans para reforzar el "feel cuaderno"
+ *   sin perder legibilidad en cuerpos a 16-17 px.
+ * - Mono: JetBrains Mono con tabular nums para addresses Solana y números
+ *   donde la alineación importa.
  */
 
 export const fraunces = Fraunces({
   subsets: ["latin"],
   variable: "--font-display",
-  axes: ["opsz", "SOFT"],
+  axes: ["opsz"],
   display: "swap",
 });
 
-export const instrumentSans = Instrument_Sans({
+export const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
   variable: "--font-body",
   display: "swap",

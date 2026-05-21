@@ -71,15 +71,19 @@ export function loadBaseConfig(): BaseConfig {
     throw new Error("EXIT_SWAP_SLIPPAGE_BPS debe ser un entero entre 0 y 10000");
   }
 
-  // Cinturón y tirantes: ejecutar en mainnet con tx en vivo requiere consentimiento explícito.
+  // ADR-026: el gate de mainnet (ALLOW_MAINNET_LIVE) está abierto por
+  // defecto. Si quieres bloquear este path CLI explícitamente (CI, scripts
+  // automatizados, ejecución no supervisada), pon ALLOW_MAINNET_LIVE=false
+  // y el wrapper aborta. En la UI la safety net es el panel de confirmación
+  // de /settings.
   if (network === "mainnet" && !dryRun) {
     const allow = parseBool(
-      optional("ALLOW_MAINNET_LIVE", "false"),
+      optional("ALLOW_MAINNET_LIVE", "true"),
       "ALLOW_MAINNET_LIVE",
     );
     if (!allow) {
       throw new Error(
-        "Bloqueado: NETWORK=mainnet con DRY_RUN=false requiere ALLOW_MAINNET_LIVE=true.",
+        "Bloqueado: ALLOW_MAINNET_LIVE=false en el environment impide ejecutar en mainnet con DRY_RUN=false.",
       );
     }
   }

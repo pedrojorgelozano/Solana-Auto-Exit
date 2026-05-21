@@ -26,16 +26,25 @@ export default function Faq() {
         </Q>
 
         <Q title="Can I use this on mainnet?">
-          The code supports it, but mainnet has guard rails: dry-run is on by
-          default, and switching it off plus selecting mainnet requires an
-          explicit{" "}
-          <code className="t-num text-[var(--color-text)]">
-            ALLOW_MAINNET_LIVE=true
-          </code>{" "}
-          env var. The intent is to make &ldquo;accidentally signed with real
-          money&rdquo; impossible. Today the public release still targets
-          devnet for new users; mainnet is for people who&apos;ve read the
-          code or tested with simulation.
+          Mainnet is the default. The configure form and{" "}
+          <a
+            href="/settings"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            /settings
+          </a>{" "}
+          arrive set to real mode, with the public mainnet-beta endpoint as
+          the starting RPC URL. The safety net is the inline confirmation
+          panel when you toggle to REAL: a checkbox{" "}
+          <em>&ldquo;I understand this will sign with real funds&rdquo;</em>{" "}
+          + a danger button. Test mode (Solana devnet) is still available
+          with its own canonical RPC URL; just click TEST.{" "}
+          <a
+            href="/docs/security#mainnet-gate"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            → Read the precise model
+          </a>
         </Q>
 
         <Q title="What happens if Solana congests and the close tx fails?">

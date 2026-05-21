@@ -2,7 +2,7 @@ import "./globals.css";
 import type { Metadata } from "next";
 import { Providers } from "@/lib/providers";
 import { GlobalHeader } from "@/components/GlobalHeader";
-import { fraunces, instrumentSans, jetbrainsMono } from "./fonts";
+import { fraunces, sourceSerif, jetbrainsMono } from "./fonts";
 
 export const metadata: Metadata = {
   title: "Auto-exit · Solana",
@@ -18,9 +18,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${instrumentSans.variable} ${jetbrainsMono.variable}`}
+      className={`${fraunces.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="grain-overlay min-h-screen antialiased">
+      <body className="min-h-screen antialiased">
         <Providers>
           <GlobalHeader />
           {children}

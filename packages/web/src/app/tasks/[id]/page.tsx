@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import { useState } from "react";
 import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@solana-auto-exit/server/api";
@@ -12,6 +13,8 @@ import { trpc } from "@/lib/trpc";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import {
   formatAmountWithSymbol,
+  formatBuffer,
+  formatBufferRemaining,
   formatDistance,
   formatPollInterval,
   formatPrice,
@@ -177,6 +180,8 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
                 price={task.takeProfitPrice}
                 distance={tpDistance}
                 triggered={task.triggeredBy === "take_profit"}
+                bufferMs={task.takeProfitBufferMs}
+                firstCrossedAt={task.runtime.tpFirstCrossedAt}
               />
             ) : null}
             {task.stopLossPrice !== null ? (
@@ -185,6 +190,8 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
                 price={task.stopLossPrice}
                 distance={slDistance}
                 triggered={task.triggeredBy === "stop_loss"}
+                bufferMs={task.stopLossBufferMs}
+                firstCrossedAt={task.runtime.slFirstCrossedAt}
               />
             ) : null}
           </div>
@@ -196,8 +203,17 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
       {/* === Trigger details === */}
       <TriggerDetails task={task} />
 
-      {/* === Last error === */}
-      {task.lastError ? (
+      {/* === Error + Recovery panel — solo en status error con mensaje === */}
+      {task.status === "error" && task.lastError ? (
+        <ErrorRecovery
+          taskId={task.id}
+          positionId={task.positionId}
+          message={task.lastError}
+          slippageBps={task.slippageBps}
+          triggered={task.triggeredAt !== null}
+          refresh={refresh}
+        />
+      ) : task.lastError ? (
         <section className="border-l-2 border-[var(--color-danger)] pl-5">
           <div className="t-eyebrow text-[var(--color-danger)]">Last error</div>
           <p className="mt-2 break-words t-small text-[var(--color-text)]">
@@ -284,6 +300,10 @@ function Controls({
           Pause
         </Button>
       ) : null}
+      {/* F6.3: Stop oculto en UI. El estado `stopped` se mantiene en el
+          backend (enum, tRPC mutation, manager) para que tasks históricas
+          renderizen bien. Para re-exponer, descomenta el bloque siguiente:
+
       {status !== "done" && status !== "stopped" ? (
         <Button
           variant="secondary"
@@ -293,6 +313,7 @@ function Controls({
           Stop
         </Button>
       ) : null}
+      */}
       <Button
         variant="danger"
         size="sm"
@@ -319,6 +340,9 @@ function Controls({
 // ============================================================================
 
 function TriggerDetails({ task }: { task: TaskData }) {
+  const hasBuffer =
+    (task.takeProfitBufferMs && task.takeProfitBufferMs > 0) ||
+    (task.stopLossBufferMs && task.stopLossBufferMs > 0);
   return (
     <section className="hairline-t pt-8">
       <div className="t-eyebrow text-[var(--color-text-muted)]">Configuration</div>
@@ -333,6 +357,21 @@ function TriggerDetails({ task }: { task: TaskData }) {
         </Field>
         <Field label="Poll interval">{formatPollInterval(task.pollMs)}</Field>
         <Field label="Close slippage">{formatSlippage(task.slippageBps)}</Field>
+        {hasBuffer ? (
+          <Field label="Time buffer">
+            <span className="t-num">
+              {task.takeProfitPrice !== null
+                ? `TP ${formatBuffer(task.takeProfitBufferMs)}`
+                : null}
+              {task.takeProfitPrice !== null && task.stopLossPrice !== null
+                ? " · "
+                : null}
+              {task.stopLossPrice !== null
+                ? `SL ${formatBuffer(task.stopLossBufferMs)}`
+                : null}
+            </span>
+          </Field>
+        ) : null}
         {task.exitTokenMint ? (
           <>
             <Field label="Exit token">{tokenSymbol(task.exitTokenMint)}</Field>
@@ -364,14 +403,19 @@ function TriggerBlock({
   price,
   distance,
   triggered,
+  bufferMs,
+  firstCrossedAt,
 }: {
   kind: "tp" | "sl";
   price: number;
   distance: ReturnType<typeof formatDistance> | null;
   triggered: boolean;
+  bufferMs: number | null;
+  firstCrossedAt: number | null;
 }) {
   const label = kind === "tp" ? "Take profit" : "Stop loss";
   const op = kind === "tp" ? "≥" : "≤";
+  const remaining = formatBufferRemaining(firstCrossedAt, bufferMs, Date.now());
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -395,6 +439,22 @@ function TriggerBlock({
         >
           {distance.text}
           {distance.reached ? " · trigger met" : " from current"}
+        </div>
+      ) : null}
+      {bufferMs && bufferMs > 0 ? (
+        <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
+          buffer {formatBuffer(bufferMs)}
+          {remaining ? (
+            <span
+              className={`ml-2 ${
+                remaining === "buffer met"
+                  ? "text-[var(--color-warning)]"
+                  : "text-[var(--color-accent-bright)]"
+              }`}
+            >
+              · {remaining}
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -738,6 +798,171 @@ function computeDiffPct(
 }
 
 // ============================================================================
+// Error recovery panel — diagnostica el error y guía la salida (delete +
+// recrea con más slippage, o restart si parece transitorio). Ver docs/auto-exit.
+// ============================================================================
+
+function isSlippageError(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes("slippage") ||
+    m.includes("tolerance") ||
+    m.includes("price impact") ||
+    // Orca whirlpool slippage error code (anchor):
+    m.includes("0x1782")
+  );
+}
+
+function ErrorRecovery({
+  taskId,
+  positionId,
+  message,
+  slippageBps,
+  triggered,
+  refresh,
+}: {
+  taskId: string;
+  positionId: string;
+  message: string;
+  slippageBps: number;
+  triggered: boolean;
+  refresh: () => void;
+}) {
+  const router = useRouter();
+  const del = trpc.tasks.delete.useMutation({
+    onSuccess: () => {
+      refresh();
+      router.push(`/positions/${positionId}`);
+    },
+  });
+  const [confirming, setConfirming] = useState(false);
+
+  const slippage = isSlippageError(message);
+  const closeAttempted = triggered;
+
+  return (
+    <section className="border-l-2 border-[var(--color-danger)] pl-5">
+      <div className="t-eyebrow text-[var(--color-danger)]">
+        Auto-exit failed
+        {slippage ? (
+          <span className="ml-2 text-[var(--color-text-muted)]">
+            · diagnosed: slippage
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-3 t-body text-[var(--color-text)] break-words">
+        {message}
+      </p>
+
+      {slippage ? (
+        <div className="mt-6 t-body text-[var(--color-text-muted)] space-y-3 max-w-2xl">
+          <p>
+            The pool moved more between the close quote and execution than
+            your slippage tolerance of{" "}
+            <strong className="text-[var(--color-text)]">
+              {(slippageBps / 100).toFixed(slippageBps % 100 === 0 ? 0 : 2)}%
+            </strong>{" "}
+            allowed. Orca / Meteora reverted the transaction to protect you
+            from a worse-than-expected fill.
+          </p>
+          <p>
+            <strong className="text-[var(--color-text)]">
+              Your position is intact on-chain.
+            </strong>{" "}
+            The close never executed, so the liquidity is still there. The
+            watcher just stopped — restarting it would likely fail again
+            unless the pool has fully settled.
+          </p>
+          <p>
+            <strong className="text-[var(--color-text)]">
+              Recommended path:
+            </strong>{" "}
+            delete this failed auto-exit and configure a new one on the same
+            position with higher slippage (try{" "}
+            <strong className="text-[var(--color-text)]">2%</strong> for
+            normal pairs, <strong className="text-[var(--color-text)]">5%</strong>{" "}
+            for volatile / shallow pools). Live tasks are immutable by design
+            (ADR-013), so editing isn&apos;t possible.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-6 t-body text-[var(--color-text-muted)] space-y-3 max-w-2xl">
+          <p>
+            This doesn&apos;t look like a slippage issue — possibly RPC
+            congestion, a transient network error, or an account state
+            problem.{" "}
+            {closeAttempted ? (
+              <>
+                The close attempt failed, so{" "}
+                <strong className="text-[var(--color-text)]">
+                  your position is still intact on-chain
+                </strong>{" "}
+                — no tokens moved.
+              </>
+            ) : (
+              <>The watcher never reached the close step.</>
+            )}
+          </p>
+          <p>
+            Hitting <strong className="text-[var(--color-text)]">Restart</strong>{" "}
+            above usually resolves transient errors. If the same error returns
+            across multiple restarts, treat it as structural and delete +
+            reconfigure.{" "}
+            <Link
+              href="/docs/auto-exit#when-the-close-fails"
+              className="text-[var(--color-accent-bright)] hover:underline"
+            >
+              Read the troubleshooting guide →
+            </Link>
+          </p>
+        </div>
+      )}
+
+      {confirming ? (
+        <div className="mt-8 flex flex-wrap items-center justify-end gap-3 hairline-t pt-6">
+          <span className="t-small text-[var(--color-danger)] mr-auto">
+            Delete this auto-exit? History goes with it.
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setConfirming(false)}
+            disabled={del.isPending}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            onClick={() => del.mutate({ id: taskId })}
+            disabled={del.isPending}
+          >
+            {del.isPending ? "Deleting…" : "Yes — delete and go to position"}
+          </Button>
+        </div>
+      ) : (
+        <div className="mt-8 flex flex-wrap items-center justify-end gap-3 hairline-t pt-6">
+          {slippage ? (
+            <Link
+              href={`/positions/${positionId}`}
+              className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+            >
+              Set up new with higher slippage →
+            </Link>
+          ) : null}
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => setConfirming(true)}
+          >
+            Delete this auto-exit
+          </Button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ============================================================================
 // Activity timeline — eventos del task ordenados de más reciente a más antiguo
 // ============================================================================
 
@@ -763,8 +988,16 @@ function ActivityTimeline({ taskId }: { taskId: string }) {
 
   return (
     <section className="hairline-t pt-8">
-      <div className="flex items-baseline justify-between">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">Activity</div>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="flex items-baseline gap-3">
+          <div className="t-eyebrow text-[var(--color-text-muted)]">Activity</div>
+          <Link
+            href="/docs/operational#timeline"
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          >
+            → What&apos;s in here
+          </Link>
+        </div>
         <span className="t-eyebrow text-[var(--color-text-dim)]">
           {events.length} {events.length === 1 ? "event" : "events"}
         </span>
@@ -868,6 +1101,26 @@ function describeEvent(ev: HistoryEvent): {
         tone: "text-[var(--color-warning)]",
         label: "Triggered",
         description: `${tb} threshold crossed — preparing to close.`,
+      };
+    }
+    case "buffer_armed": {
+      const kind = data.kind === "stop_loss" ? "Stop-loss" : "Take-profit";
+      const bufMs =
+        typeof data.bufferMs === "number" ? data.bufferMs : null;
+      return {
+        tone: "text-[var(--color-accent-bright)]",
+        label: "Buffer started",
+        description: bufMs
+          ? `${kind} target crossed. Waiting ${formatBuffer(bufMs)} of sustained price before closing.`
+          : `${kind} target crossed. Buffer started.`,
+      };
+    }
+    case "buffer_reset": {
+      const kind = data.kind === "stop_loss" ? "Stop-loss" : "Take-profit";
+      return {
+        tone: "text-[var(--color-text-muted)]",
+        label: "Buffer reset",
+        description: `${kind} target no longer crossed — buffer cronómetro reset to zero.`,
       };
     }
     case "closed": {

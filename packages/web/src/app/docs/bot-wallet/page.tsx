@@ -83,7 +83,7 @@ export default function BotWallet() {
         </div>
       </section>
 
-      <section className="hairline-t pt-10">
+      <section id="blast-radius" className="hairline-t pt-10">
         <h2 className="t-h2">Blast radius, precisely</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
           If both your passphrase and the encrypted vault file on this server
@@ -117,6 +117,52 @@ export default function BotWallet() {
           of keeping a small, operational hot account and you&apos;ve bounded
           the worst case to &ldquo;what was in the hot wallet at the moment
           of compromise.&rdquo;
+        </p>
+      </section>
+
+      <section id="deleting-the-wallet" className="hairline-t pt-10">
+        <h2 className="t-h2">Deleting the wallet</h2>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          The Danger zone on{" "}
+          <a
+            href="/wallet"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            /wallet
+          </a>{" "}
+          deletes the encrypted vault file from this server. That removes the
+          bot&apos;s ability to sign — nothing else.{" "}
+          <strong className="text-[var(--color-text)]">
+            The wallet on-chain is unaffected.
+          </strong>{" "}
+          Tokens, NFTs, and SOL at that address stay where they are; only
+          this server loses access.
+        </p>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          Two valid reasons to delete:
+        </p>
+        <ul className="mt-4 space-y-3 t-body text-[var(--color-text-muted)]">
+          <li>
+            <span className="text-[var(--color-text)]">Reset.</span> You want
+            to start clean — different account, different passphrase, fresh
+            history. Delete the vault, then{" "}
+            <em>Set up wallet</em> from the home and pick any of the three
+            setup paths again.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">Lost passphrase.</span>{" "}
+            If you can&apos;t remember the passphrase, the encrypted file is
+            useless to you — and to anyone else, as long as it&apos;s a
+            strong passphrase. Delete the file and re-import the same key
+            with a new passphrase (you still have the secret in your password
+            manager or in Phantom/Backpack from when you set it up).
+          </li>
+        </ul>
+        <p className="mt-4 t-body text-[var(--color-text-muted)]">
+          Active tasks survive the deletion (they live in SQLite, not the
+          vault), but they can&apos;t sign anything until you set up a new
+          wallet — they&apos;ll sit in <code className="t-num text-[var(--color-text)]">paused</code>{" "}
+          with an explanatory error.
         </p>
       </section>
     </div>

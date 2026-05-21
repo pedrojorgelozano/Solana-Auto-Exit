@@ -5,7 +5,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input, Label } from "@/components/ui/Input";
+import { Label, PasswordInput } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress } from "@/lib/format";
@@ -166,9 +166,8 @@ function UnlockSection({
         <form onSubmit={submit} className="mt-8 max-w-md space-y-6">
           <div>
             <Label htmlFor="passphrase">Passphrase</Label>
-            <Input
+            <PasswordInput
               id="passphrase"
-              type="password"
               autoComplete="current-password"
               value={passphrase}
               onChange={(e) => setPassphrase(e.target.value)}
@@ -257,7 +256,15 @@ function DangerZone({
 
   return (
     <section className="hairline-t pt-8">
-      <div className="t-eyebrow text-[var(--color-danger)]">Danger zone</div>
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="t-eyebrow text-[var(--color-danger)]">Danger zone</div>
+        <Link
+          href="/docs/bot-wallet#deleting-the-wallet"
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+        >
+          → What deleting actually does
+        </Link>
+      </div>
       <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
         {explanation}
       </p>

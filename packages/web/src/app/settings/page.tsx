@@ -5,7 +5,23 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
+import { Segmented } from "@/components/ui/Segmented";
 import { trpc } from "@/lib/trpc";
+
+// Mismos presets que /positions/[mint] — homogeneidad entre defaults y form.
+const SLIPPAGE_PRESETS = [
+  { bps: 50, label: "0.5%" },
+  { bps: 100, label: "1%" },
+  { bps: 200, label: "2%" },
+  { bps: 500, label: "5%" },
+] as const;
+
+const POLL_PRESETS = [
+  { ms: 10_000, label: "10s" },
+  { ms: 30_000, label: "30s" },
+  { ms: 60_000, label: "1 min" },
+  { ms: 300_000, label: "5 min" },
+] as const;
 
 export default function SettingsPage() {
   const utils = trpc.useUtils();
@@ -43,6 +59,7 @@ function SettingsForm({
   initial: {
     network: "devnet" | "mainnet";
     rpcUrl: string;
+    defaultRpcByNetwork: { mainnet: string; devnet: string };
     defaultSlippageBps: number;
     defaultExitSlippageBps: number;
     defaultPollMs: number;
@@ -51,20 +68,22 @@ function SettingsForm({
   refresh: () => void;
 }) {
   const [rpcUrl, setRpcUrl] = useState(initial.rpcUrl);
-  const [slippage, setSlippage] = useState(String(initial.defaultSlippageBps));
-  const [exitSlippage, setExitSlippage] = useState(
-    String(initial.defaultExitSlippageBps),
+  const [slippageBps, setSlippageBps] = useState<number>(
+    initial.defaultSlippageBps,
   );
-  const [pollMs, setPollMs] = useState(String(initial.defaultPollMs));
+  const [exitSlippageBps, setExitSlippageBps] = useState<number>(
+    initial.defaultExitSlippageBps,
+  );
+  const [pollMs, setPollMs] = useState<number>(initial.defaultPollMs);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   // Si el backend cambia (otra pestaña edita) re-sincronizamos.
   useEffect(() => {
     setRpcUrl(initial.rpcUrl);
-    setSlippage(String(initial.defaultSlippageBps));
-    setExitSlippage(String(initial.defaultExitSlippageBps));
-    setPollMs(String(initial.defaultPollMs));
+    setSlippageBps(initial.defaultSlippageBps);
+    setExitSlippageBps(initial.defaultExitSlippageBps);
+    setPollMs(initial.defaultPollMs);
   }, [initial]);
 
   const update = trpc.settings.update.useMutation();
@@ -72,35 +91,12 @@ function SettingsForm({
 
   const dirty =
     rpcUrl !== initial.rpcUrl ||
-    slippage !== String(initial.defaultSlippageBps) ||
-    exitSlippage !== String(initial.defaultExitSlippageBps) ||
-    pollMs !== String(initial.defaultPollMs);
+    slippageBps !== initial.defaultSlippageBps ||
+    exitSlippageBps !== initial.defaultExitSlippageBps ||
+    pollMs !== initial.defaultPollMs;
 
   const onSave = async () => {
     setError(null);
-    const slippageN = Number.parseInt(slippage, 10);
-    const exitSlippageN = Number.parseInt(exitSlippage, 10);
-    const pollN = Number.parseInt(pollMs, 10);
-    if (
-      !Number.isFinite(slippageN) ||
-      slippageN < 0 ||
-      slippageN > 10_000
-    ) {
-      setError("Default slippage must be an integer between 0 and 10000.");
-      return;
-    }
-    if (
-      !Number.isFinite(exitSlippageN) ||
-      exitSlippageN < 0 ||
-      exitSlippageN > 10_000
-    ) {
-      setError("Exit slippage must be an integer between 0 and 10000.");
-      return;
-    }
-    if (!Number.isFinite(pollN) || pollN < 1_000 || pollN > 600_000) {
-      setError("Poll interval must be between 1000 and 600000 ms.");
-      return;
-    }
     try {
       // Comparar contra initial y solo enviar las que cambiaron — evita
       // escrituras innecesarias y mantiene el feedback más rápido.
@@ -108,21 +104,21 @@ function SettingsForm({
       if (rpcUrl !== initial.rpcUrl) {
         ops.push(update.mutateAsync({ key: "rpcUrl", value: rpcUrl }));
       }
-      if (slippageN !== initial.defaultSlippageBps) {
+      if (slippageBps !== initial.defaultSlippageBps) {
         ops.push(
-          update.mutateAsync({ key: "defaultSlippageBps", value: slippageN }),
+          update.mutateAsync({ key: "defaultSlippageBps", value: slippageBps }),
         );
       }
-      if (exitSlippageN !== initial.defaultExitSlippageBps) {
+      if (exitSlippageBps !== initial.defaultExitSlippageBps) {
         ops.push(
           update.mutateAsync({
             key: "defaultExitSlippageBps",
-            value: exitSlippageN,
+            value: exitSlippageBps,
           }),
         );
       }
-      if (pollN !== initial.defaultPollMs) {
-        ops.push(update.mutateAsync({ key: "defaultPollMs", value: pollN }));
+      if (pollMs !== initial.defaultPollMs) {
+        ops.push(update.mutateAsync({ key: "defaultPollMs", value: pollMs }));
       }
       await Promise.all(ops);
       refresh();
@@ -132,6 +128,17 @@ function SettingsForm({
       setError(err instanceof Error ? err.message : String(err));
     }
   };
+
+  // Si el valor stored no encaja con ningún preset (típicamente un legacy
+  // 5_000 ms del default antiguo), no resaltamos ninguna chip — la UI muestra
+  // un aviso para que el usuario elija una explícita.
+  const pollMatchesPreset = POLL_PRESETS.some((p) => p.ms === pollMs);
+  const slippageMatchesPreset = SLIPPAGE_PRESETS.some(
+    (p) => p.bps === slippageBps,
+  );
+  const exitSlippageMatchesPreset = SLIPPAGE_PRESETS.some(
+    (p) => p.bps === exitSlippageBps,
+  );
 
   const onReset = async () => {
     if (!confirm("Reset all settings to their defaults?")) return;
@@ -152,6 +159,9 @@ function SettingsForm({
           <NetworkPanel
             network={initial.network}
             gateAllowed={initial.mainnetGateAllowed}
+            defaultRpcByNetwork={initial.defaultRpcByNetwork}
+            currentRpcUrl={rpcUrl}
+            setRpcUrl={setRpcUrl}
             refresh={refresh}
           />
 
@@ -163,19 +173,28 @@ function SettingsForm({
               id="rpcUrl"
               value={rpcUrl}
               onChange={(e) => setRpcUrl(e.target.value)}
-              placeholder={
-                initial.network === "mainnet"
-                  ? "https://api.mainnet-beta.solana.com (use a private one)"
-                  : "https://api.devnet.solana.com"
-              }
+              placeholder={initial.defaultRpcByNetwork[initial.network]}
               spellCheck={false}
               className="t-num"
             />
-            <p className="mt-2 t-small text-[var(--color-text-dim)]">
-              {initial.network === "mainnet"
-                ? "The public mainnet-beta endpoint is heavily rate-limited and not reliable for a watcher. Use Helius, QuickNode, Triton, or a node you run."
-                : "The public devnet endpoint is rate-limited. For sustained use swap to Helius, QuickNode, Triton, or a node you run."}
-            </p>
+            <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
+              <p className="t-small text-[var(--color-text-dim)] max-w-xl">
+                {initial.network === "mainnet"
+                  ? "The public mainnet-beta endpoint is heavily rate-limited and not reliable for a watcher. Use Helius, QuickNode, Triton, or a node you run."
+                  : "The public devnet endpoint is rate-limited. For sustained use swap to Helius, QuickNode, Triton, or a node you run."}
+              </p>
+              {rpcUrl !== initial.defaultRpcByNetwork[initial.network] ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRpcUrl(initial.defaultRpcByNetwork[initial.network])
+                  }
+                  className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+                >
+                  use {initial.network} default
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       </section>
@@ -187,57 +206,136 @@ function SettingsForm({
         </div>
         <h2 className="mt-3 t-h2">Pre-filled when you set one up.</h2>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <div className="mt-8 space-y-8">
           <div>
-            <Label htmlFor="slippage" hint="basis points · 100 = 1%">
-              Close slippage
-            </Label>
-            <Input
-              id="slippage"
-              type="number"
-              min={0}
-              max={10000}
-              step={10}
-              value={slippage}
-              onChange={(e) => setSlippage(e.target.value)}
-              className="t-num"
+            <Label>Close slippage</Label>
+            <Segmented
+              value={String(slippageBps)}
+              onChange={(v) => setSlippageBps(Number(v))}
+              options={SLIPPAGE_PRESETS.map((p) => ({
+                value: String(p.bps),
+                label: p.label,
+              }))}
             />
+            {!slippageMatchesPreset ? (
+              <p className="mt-2 t-small text-[var(--color-warning)]">
+                Currently stored: {slippageBps} bps. Pick a preset to update.
+              </p>
+            ) : null}
+            <div className="mt-3 max-w-2xl t-small text-[var(--color-text-muted)] space-y-1">
+              <p>
+                <strong className="text-[var(--color-text)]">0.5%</strong> ·
+                tight; reliable only on deep stablecoin pairs (USDC/USDT).
+                Triggers may fail to complete in volatile minutes.
+              </p>
+              <p>
+                <strong className="text-[var(--color-text)]">1%</strong> ·{" "}
+                <em>recommended default</em>. Works for most pairs in normal
+                volatility. Solid balance between protection and reliability.
+              </p>
+              <p>
+                <strong className="text-[var(--color-text)]">2%</strong> · for
+                volatile pairs (low-cap, memecoin pools). The price has to
+                drift a lot for the close to revert.
+              </p>
+              <p>
+                <strong className="text-[var(--color-text)]">5%</strong> ·
+                only when the close <em>must</em> complete. Accepts a high
+                price impact tax in exchange for near-zero revert risk.
+              </p>
+              <p className="pt-2">
+                <a
+                  href="/docs/auto-exit#slippage"
+                  className="text-[var(--color-accent-bright)] hover:underline"
+                >
+                  → How slippage affects close transactions
+                </a>
+              </p>
+            </div>
           </div>
-          <div>
-            <Label htmlFor="exitSlippage" hint="for the exit-token swap">
-              Exit-swap slippage
-            </Label>
-            <Input
-              id="exitSlippage"
-              type="number"
-              min={0}
-              max={10000}
-              step={10}
-              value={exitSlippage}
-              onChange={(e) => setExitSlippage(e.target.value)}
-              className="t-num"
+
+          <div className="hairline-t pt-8">
+            <Label>Exit-swap slippage</Label>
+            <Segmented
+              value={String(exitSlippageBps)}
+              onChange={(v) => setExitSlippageBps(Number(v))}
+              options={SLIPPAGE_PRESETS.map((p) => ({
+                value: String(p.bps),
+                label: p.label,
+              }))}
             />
+            {!exitSlippageMatchesPreset ? (
+              <p className="mt-2 t-small text-[var(--color-warning)]">
+                Currently stored: {exitSlippageBps} bps. Pick a preset to
+                update.
+              </p>
+            ) : null}
+            <p className="mt-3 max-w-2xl t-small text-[var(--color-text-muted)]">
+              Only used when an auto-exit also selects an exit token. Same
+              scale as above — same recommendation:{" "}
+              <strong className="text-[var(--color-text)]">1%</strong> for
+              everyday pairs, <strong className="text-[var(--color-text)]">2%</strong>{" "}
+              when the pool is shallow or volatile.
+            </p>
           </div>
-          <div>
-            <Label htmlFor="pollMs" hint="ms · how often to re-read price">
-              Poll interval
-            </Label>
-            <Input
-              id="pollMs"
-              type="number"
-              min={1000}
-              max={600000}
-              step={1000}
-              value={pollMs}
-              onChange={(e) => setPollMs(e.target.value)}
-              className="t-num"
+
+          <div className="hairline-t pt-8">
+            <Label>Poll interval</Label>
+            <Segmented
+              value={String(pollMs)}
+              onChange={(v) => setPollMs(Number(v))}
+              options={POLL_PRESETS.map((p) => ({
+                value: String(p.ms),
+                label: p.label,
+              }))}
             />
+            {!pollMatchesPreset ? (
+              <p className="mt-2 t-small text-[var(--color-warning)]">
+                Currently stored: {(pollMs / 1000).toFixed(0)}s. Pick a preset
+                to update — the previous default of 5s was too aggressive on
+                most RPC providers.
+              </p>
+            ) : null}
+            <div className="mt-3 max-w-2xl t-small text-[var(--color-text-muted)] space-y-1">
+              <p>
+                <strong className="text-[var(--color-text)]">10s</strong> ·
+                fastest reaction. Only worth it for triggers <em>without</em>{" "}
+                time buffer and on a paid RPC (8.6k requests/day per task —
+                burns Helius free tier in 12 days).
+              </p>
+              <p>
+                <strong className="text-[var(--color-text)]">30s</strong> ·{" "}
+                <em>recommended default</em>. Catches every relevant move (LP
+                prices don&apos;t jump 5% in 20s) and fits comfortably in
+                Helius free tier with a few watchers running.
+              </p>
+              <p>
+                <strong className="text-[var(--color-text)]">1 min</strong> ·
+                cheap on RPC. Perfect when you&apos;re using time buffers — the
+                hours-long buffer wait dwarfs the polling cadence.
+              </p>
+              <p>
+                <strong className="text-[var(--color-text)]">5 min</strong> ·
+                only for very long buffers (days) or stable, slow pools. With
+                buffer-less triggers you may miss the cross.
+              </p>
+              <p className="pt-2">
+                <a
+                  href="/docs/auto-exit#polling-interval"
+                  className="text-[var(--color-accent-bright)] hover:underline"
+                >
+                  → Polling interval, RPC cost, and buffers
+                </a>
+              </p>
+            </div>
           </div>
         </div>
 
-        <p className="mt-6 t-small text-[var(--color-text-dim)]">
-          You can still override these per-task on the configure form. Changing
-          a default here only affects new auto-exits.
+        <p className="mt-8 t-small text-[var(--color-text-dim)]">
+          Slippage settings above can be overridden per-task on the configure
+          form. Poll interval is server-wide; the form does not expose a
+          per-task override. Changing a default here only affects new
+          auto-exits.
         </p>
       </section>
 
@@ -273,129 +371,173 @@ function SettingsForm({
 }
 
 // ============================================================================
-// NetworkPanel — switch entre devnet y mainnet con confirmación en dos pasos
+// NetworkPanel — toggle TEST | REAL + panel de confirmación cuando se elige
+// REAL (gate de ADR-006). REAL queda disabled si ALLOW_MAINNET_LIVE no está.
 // ============================================================================
 
 function NetworkPanel({
   network,
   gateAllowed,
+  defaultRpcByNetwork,
+  currentRpcUrl,
+  setRpcUrl,
   refresh,
 }: {
   network: "devnet" | "mainnet";
   gateAllowed: boolean;
+  defaultRpcByNetwork: { mainnet: string; devnet: string };
+  currentRpcUrl: string;
+  setRpcUrl: (v: string) => void;
   refresh: () => void;
 }) {
-  return (
-    <div>
-      <Label htmlFor="network">Network</Label>
-      <div className="mt-2 flex flex-wrap items-baseline gap-3">
-        <span
-          className={`t-num ${
-            network === "mainnet"
-              ? "text-[var(--color-accent-bright)]"
-              : "text-[var(--color-text)]"
-          }`}
-        >
-          {network}
-        </span>
-        {network === "mainnet" ? (
-          <span className="t-eyebrow text-[var(--color-accent-bright)]">
-            · real funds
-          </span>
-        ) : (
-          <span className="t-eyebrow text-[var(--color-text-dim)]">
-            · test network, no real funds
-          </span>
-        )}
-      </div>
-
-      {!gateAllowed ? (
-        <GateClosed />
-      ) : network === "devnet" ? (
-        <SwitchToMainnetAction refresh={refresh} />
-      ) : (
-        <SwitchToDevnetAction refresh={refresh} />
-      )}
-    </div>
-  );
-}
-
-function GateClosed() {
-  return (
-    <p className="mt-2 t-small text-[var(--color-text-dim)]">
-      Mainnet is locked on this server. To enable the switch, set{" "}
-      <code className="t-num text-[var(--color-text)]">
-        ALLOW_MAINNET_LIVE=true
-      </code>{" "}
-      in the server&apos;s environment and restart (see{" "}
-      <a
-        href="/docs/security"
-        className="text-[var(--color-accent-bright)] hover:underline"
-      >
-        /docs/security
-      </a>
-      ). The gate is closed by default per{" "}
-      <a
-        href="/docs/security"
-        className="text-[var(--color-accent-bright)] hover:underline"
-      >
-        ADR-006
-      </a>
-      .
-    </p>
-  );
-}
-
-function SwitchToMainnetAction({ refresh }: { refresh: () => void }) {
-  const [armed, setArmed] = useState(false);
-  const [understood, setUnderstood] = useState(false);
+  const [pendingReal, setPendingReal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const update = trpc.settings.update.useMutation();
 
-  const submit = async () => {
+  /**
+   * Cambia de red persistiendo network y (cuando aplica) rpcUrl en la misma
+   * pasada. Si el rpcUrl actual coincide con el default de la red anterior,
+   * lo migramos al default de la nueva red — el usuario no tenía URL custom,
+   * así que el swap es transparente. Las dos mutations se persisten antes de
+   * refrescar el snapshot para que el useEffect que sincroniza initial → form
+   * vea ya el valor correcto y no sobrescriba el cambio local. Si el rpcUrl
+   * está customizado, no se toca; la copy del campo y el botón "use X default"
+   * le sirven al usuario para revisarlo manualmente.
+   */
+  const performSwitch = async (next: "devnet" | "mainnet"): Promise<void> => {
+    const previousDefault = defaultRpcByNetwork[network];
+    const shouldSwapRpc = currentRpcUrl === previousDefault;
+    const nextRpc = shouldSwapRpc ? defaultRpcByNetwork[next] : null;
+
+    const ops: Array<Promise<unknown>> = [
+      update.mutateAsync({ key: "network", value: next }),
+    ];
+    if (nextRpc !== null) {
+      ops.push(update.mutateAsync({ key: "rpcUrl", value: nextRpc }));
+      // Feedback inmediato en el form mientras la mutation viaja.
+      setRpcUrl(nextRpc);
+    }
+    await Promise.all(ops);
+    refresh();
+  };
+
+  const handleChange = async (next: "devnet" | "mainnet") => {
+    if (next === network) return;
     setError(null);
+    if (next === "mainnet") {
+      setPendingReal(true);
+      return;
+    }
+    if (
+      !confirm(
+        "Switch back to test mode? New auto-exits will run on Solana devnet.",
+      )
+    ) {
+      return;
+    }
     try {
-      await update.mutateAsync({ key: "network", value: "mainnet" });
-      refresh();
-      setArmed(false);
-      setUnderstood(false);
+      await performSwitch("devnet");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  if (!armed) {
-    return (
-      <div className="mt-4">
-        <Button variant="ghost" size="sm" onClick={() => setArmed(true)}>
-          Switch to mainnet →
-        </Button>
-      </div>
-    );
-  }
+  return (
+    <div>
+      <Label>Network</Label>
+      <Segmented
+        value={network}
+        onChange={(v) => handleChange(v as "devnet" | "mainnet")}
+        options={[
+          { value: "devnet", label: "TEST" },
+          {
+            value: "mainnet",
+            label: "REAL",
+            disabled: !gateAllowed,
+            title: gateAllowed
+              ? undefined
+              : "Locked — enable in server environment",
+          },
+        ]}
+      />
+      <p className="mt-3 t-small text-[var(--color-text-muted)]">
+        {network === "mainnet"
+          ? "Real mode — auto-exits sign on Solana mainnet with real funds."
+          : "Test mode — auto-exits run on Solana devnet. No real funds at risk."}
+      </p>
+      {!gateAllowed ? (
+        <p className="mt-2 t-small text-[var(--color-text-dim)]">
+          Real mode is locked on this server.{" "}
+          <a
+            href="/docs/security#mainnet-gate"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            → How to enable it
+          </a>
+        </p>
+      ) : null}
+      {error ? <FieldError>{error}</FieldError> : null}
 
+      {pendingReal ? (
+        <ConfirmRealPanel
+          onConfirm={async () => {
+            setError(null);
+            try {
+              await performSwitch("mainnet");
+              setPendingReal(false);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : String(err));
+            }
+          }}
+          onCancel={() => {
+            setPendingReal(false);
+            setError(null);
+          }}
+          pending={update.isPending}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Confirmación de switch a REAL — segundo paso de la safety net de ADR-006.
+ * El primer paso es el env-var ALLOW_MAINNET_LIVE (gate del server). Aquí
+ * exigimos checkbox de "entiendo" + recordatorios de qué cambia.
+ */
+function ConfirmRealPanel({
+  onConfirm,
+  onCancel,
+  pending,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+  pending: boolean;
+}) {
+  const [understood, setUnderstood] = useState(false);
   return (
     <div className="mt-6 border-l-2 border-[var(--color-accent)] bg-[var(--color-accent-dim)] px-5 py-4">
       <div className="t-eyebrow text-[var(--color-accent-bright)]">
-        Confirm switch to mainnet
+        Confirm switch to real mode
       </div>
       <p className="mt-2 t-small text-[var(--color-text)]">
-        After this switch, every auto-exit you create signs transactions
-        against the real Solana mainnet. Close txs cost real SOL; price moves
-        affect real money. There is no undo on a triggered close.
+        Every auto-exit you create after this will sign transactions on
+        Solana mainnet with real funds. Close transactions cost real SOL;
+        price moves affect real money. There is no undo on a triggered
+        close.
       </p>
       <ul className="mt-3 ml-5 list-disc t-small text-[var(--color-text-muted)] space-y-1">
         <li>
           Update <em>RPC URL</em> below to a mainnet endpoint (Helius,
-          QuickNode, Triton, or your own node). The public devnet URL won&apos;t work.
+          QuickNode, Triton, or your own node). The public devnet URL
+          won&apos;t work.
         </li>
         <li>
           Existing tasks keep their original network — they don&apos;t
-          auto-migrate. Only new auto-exits will be mainnet.
+          auto-migrate. Only new auto-exits will be on mainnet.
         </li>
         <li>
-          Re-test your strategy with dry-run on real prices before disabling
-          simulation.
+          Re-test your strategy on devnet before flipping the switch.
         </li>
       </ul>
 
@@ -407,61 +549,28 @@ function SwitchToMainnetAction({ refresh }: { refresh: () => void }) {
           className="mt-0.5 h-4 w-4"
         />
         <span className="t-small text-[var(--color-text)]">
-          I understand this will sign transactions with real funds and I&apos;ve
-          updated my RPC URL.
+          I understand this will sign transactions with real funds and
+          I&apos;ve updated my RPC URL.
         </span>
       </label>
-
-      {error ? <FieldError>{error}</FieldError> : null}
 
       <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => {
-            setArmed(false);
-            setUnderstood(false);
-            setError(null);
-          }}
-          disabled={update.isPending}
+          onClick={onCancel}
+          disabled={pending}
         >
           Cancel
         </Button>
         <Button
           variant="danger"
-          onClick={submit}
-          disabled={!understood || update.isPending}
+          onClick={onConfirm}
+          disabled={!understood || pending}
         >
-          {update.isPending ? "Switching…" : "Confirm · use real funds"}
+          {pending ? "Switching…" : "Confirm · use real funds"}
         </Button>
       </div>
-    </div>
-  );
-}
-
-function SwitchToDevnetAction({ refresh }: { refresh: () => void }) {
-  const update = trpc.settings.update.useMutation();
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = async () => {
-    setError(null);
-    if (!confirm("Switch back to devnet? New auto-exits will use the test network.")) {
-      return;
-    }
-    try {
-      await update.mutateAsync({ key: "network", value: "devnet" });
-      refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  };
-
-  return (
-    <div className="mt-4">
-      <Button variant="ghost" size="sm" onClick={submit} disabled={update.isPending}>
-        {update.isPending ? "Switching…" : "Switch back to devnet"}
-      </Button>
-      {error ? <FieldError>{error}</FieldError> : null}
     </div>
   );
 }

@@ -87,7 +87,7 @@ En el primer intento solo configuré funder y el cierre falló con `Payer not se
 ## ADR-006 — Safety net mainnet: requiere `ALLOW_MAINNET_LIVE=true`
 
 **Fecha**: 2026-05-20
-**Estado**: Aceptada
+**Estado**: Superada por [ADR-026](#adr-026--mainnet-gate-abierto-por-defecto-la-confirmaci%C3%B3n-de-ui-es-la-safety-net)
 
 **Contexto**: El usuario quiere que el bot NUNCA opere en mainnet en vivo sin un acto consciente. `DRY_RUN=true` por defecto ya es una capa.
 
@@ -521,3 +521,124 @@ Paralelamente, el primer minuto de la herramienta no enseñaba el modelo: el her
 - **Sólo importar `dist/index.mjs` con subpath**: descartada porque el problema NO era el resolver (tsx ya respeta `exports`), sino el bug interno de anchor en ESM. La subpath import no resuelve nada nuevo.
 - **Cambiar `module` de tsconfig a CommonJS para todo el monorepo**: descartada — rompería las imports ESM del resto. createRequire es quirúrgico.
 - **Esperar a que Meteora publique una versión que funcione bajo ESM puro**: sin ETA. Anclar Meteora a un fix futuro es deuda diferida; mejor capturar el workaround ahora.
+
+---
+
+## ADR-025 — Time buffer por trigger: sustained-price con reset duro, in-memory
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada · extiende [ADR-018](#) (TP+SL simultáneos)
+
+**Contexto**: Krystal (la referencia EVM que usa el usuario) ofrece un "time buffer" por trigger: el precio tiene que **mantenerse** en la zona del target durante una duración configurable antes de que el auto-exit dispare el cierre. La descripción literal de Krystal — *"adjust time buffers to determine the duration for which the price must hold to activate the trigger"* — confirma la semántica de continuidad (no se trata de filtrar wicks de 30s, sino de exigir movimiento sostenido durante horas/días). Sin esto, el bot dispara un cierre con cualquier cruce momentáneo (un pump de 5min que revierte, una lectura puntual del oráculo después de un sandwich attack), lo que es exactamente el modo de fallo más caro para una posición LP.
+
+Cuatro decisiones había que cerrar antes de implementar.
+
+**Decisión**:
+
+1. **Buffer por trigger, no global**. Cada uno de `takeProfitPrice` y `stopLossPrice` tiene su propio `*BufferMs`. Lógicamente son condiciones independientes; un usuario puede querer cerrar en TP en cuanto cruce ("estoy seguro, lleva subiendo") pero protegerse en SL con un buffer de 1d ("no quiero salir por una mecha"). Dos columnas nuevas en la tabla `tasks`: `take_profit_buffer_ms` y `stop_loss_buffer_ms`. Null o 0 = sin buffer (comportamiento legacy: dispara en el primer tick que cruza).
+
+2. **Reset duro**. Si el precio sale de la zona del trigger antes de que el cronómetro complete su tiempo, el timestamp `firstCrossedAt` se borra. Cuando el precio vuelva a cruzar, el cronómetro arranca desde cero. Esto se deriva semánticamente de "must **hold**" — si dejó de mantenerse, dejó de cumplir la precondición. Sin hysteresis ni reset suave.
+
+3. **Cronómetro in-memory, reset on restart**. El timestamp del primer cruce vive en `RunningEntry` dentro del `TaskManager`, no en SQLite. Si el server reinicia con un cronómetro a mitad, al reanudar la task el cronómetro arranca de cero. Decisión conservadora: si el server estuvo caído N horas, no sabemos qué hizo el precio durante ese tiempo, y disparar un cierre basado en un "estaba a punto de cumplir" sería falso. Mejor exigir un cumplimiento entero, observado.
+
+4. **Máximo 7 días**. Krystal pone 12h como tope. Subimos a 7d para casos como "cerrar solo si la subida se mantiene una semana entera". Más allá hay diminishing returns: si el precio se mantiene 7 días continuos, ya está clarísimo que el movimiento es real. El zod schema del router rechaza valores mayores; la UI ofrece presets discretos `off / 6h / 12h / 1d / 3d / 7d`.
+
+**Máquina de estados** (en `TaskManager.evalBuffer`):
+
+| Estado del precio | Cronómetro | Acción |
+|---|---|---|
+| Fuera de zona | `null` | No-op. Sigue polling. |
+| Fuera de zona | activo | Reset a `null`. Emit `buffer_reset`. |
+| En zona, sin buffer config | — | Ready inmediato (legacy). |
+| En zona, buffer config | `null` | Arma a `Date.now()`. Emit `buffer_armed`. No ready. |
+| En zona, buffer config | activo, < bufferMs | Sigue polling. No ready. |
+| En zona, buffer config | activo, ≥ bufferMs | Ready. Dispara cierre. |
+
+Eventos nuevos en `history`: `buffer_armed` (payload `{kind, bufferMs}`) y `buffer_reset` (payload `{kind}`). El timeline del UI los renderiza con tono accent (armed) y muted (reset).
+
+**UI**:
+- Form en `/positions/[mint]`: dentro de cada `TriggerInput`, debajo del input de precio, un `Segmented` "Time buffer" con los 6 presets. Default `off`. Acompañado de un copy explicativo que cambia según `bufferMs > 0` ("Close only if the price stays above the target for at least this long. If it leaves the zone, the timer resets.") vs off ("Fire as soon as the price crosses the target — no waiting.").
+- `ExistingWatcher`: bajo cada cell de TP/SL aparece "buffer 12h" + si hay cronómetro activo, "4h 23m left" en accent. El cliente computa el tiempo restante con `Date.now() - firstCrossedAt`. Refresca cada 5s vía la query de tasks.
+- `/tasks/[id]`: igual en el hero (`TriggerBlock`) + una fila nueva "Time buffer" en el panel de Configuration solo si alguno está configurado.
+
+**Consecuencias**:
+- (+) Cubre el caso UX standard de "no me cierres por un wick". Feature-parity con Krystal en su parámetro más distintivo.
+- (+) Backward-compatible por construcción: tasks existentes tienen ambos buffer = null y se comportan exactamente igual que antes.
+- (+) Cronómetros independientes por trigger → flexibilidad real (TP agresivo + SL conservador, o viceversa).
+- (+) Reset on restart elimina la categoría "el bot disparó por algo que no vio porque estuvo caído". Trade-off favorable a la seguridad sobre la conveniencia.
+- (+) Migración aditiva (`0001_fast_silverclaw.sql` es solo dos `ALTER TABLE ADD`), sin destrucción de data.
+- (−) Si el server reinicia justo antes de cumplir un buffer largo (digamos 12h llevaba 11h 50m), el usuario pierde toda la espera. Mitigación documentada en `/docs/auto-exit` (queda pendiente actualizar el artículo).
+- (−) Reset duro puede sorprender en mercados muy volátiles cerca del target ("¿por qué no ha disparado si lleva 4 días pegado?"). Los eventos `buffer_armed`/`buffer_reset` en el timeline lo explican post-hoc, pero la primera vez puede ser confuso.
+- (−) Sin persistencia del cronómetro, no se puede correlacionar cuántos resets hubo en una task (sería visible solo en `history`, no agregado).
+
+**Alternativas consideradas**:
+- **Reset suave (hysteresis)**: el cronómetro tolera salidas breves o pequeñas. Descartado por contradecir la semántica "must hold" de Krystal y por añadir parámetros opacos (¿qué cuenta como "breve"?). Si se demuestra necesario, se puede añadir como segundo parámetro opcional sin romper el modelo actual.
+- **Persistir el cronómetro en SQLite**: descartado por la complejidad operativa (qué hacer si el server estuvo caído 4h durante un buffer de 6h — ¿asumimos que se mantuvo? imposible saberlo sin haber polled). El reset on restart es la respuesta segura.
+- **Buffer global único**: descartado por el feedback explícito del usuario — "el buffer es configurable por auto-exit (es un campo más del stop loss o take profit)".
+- **N polls consecutivos en lugar de tiempo**: descartado por acoplar el comportamiento a `pollMs`. Un buffer de "4 polls" cambia de significado si el usuario sube pollMs de 30s a 5min. El timestamp absoluto es independiente del polling.
+
+---
+
+## ADR-026 — Mainnet gate abierto por defecto; la confirmación de UI es la safety net
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada · supera [ADR-006](#adr-006--safety-net-mainnet-requiere-allow_mainnet_livetrue)
+
+**Contexto**: ADR-006 cerró el switch a mainnet con un doble candado: env var `ALLOW_MAINNET_LIVE=true` al arrancar el server **y** confirmación de doble paso en la UI. El primer candado nació del miedo razonable a que un usuario nuevo, copiando configs sin leer, pasase de devnet a mainnet por accidente. Tras varios meses de uso real y con el panel de `/settings` redondeado (toggle TEST/REAL + checkbox "I understand this will sign with real funds" + botón danger), el env var pasó de ser una protección a ser fricción opaca: cada vez que el usuario quería mover entre redes, tenía que recordar editar un `.env`, reiniciar el server, y volver a la UI. La explicación en la UI ("Real mode is locked. Set ALLOW_MAINNET_LIVE=true and restart…") era confusa incluso para el propio usuario que la escribió.
+
+**Decisión**: El gate de mainnet en el server (`isMainnetGateAllowed()`) devuelve `true` siempre. El switch TEST ↔ REAL en `/settings` está disponible sin pre-configuración. La única safety net activa es la confirmación de doble paso en la UI:
+
+1. Click en el chip <strong>REAL</strong> → no aplica el cambio aún, despliega un panel inline.
+2. Checkbox <em>"I understand this will sign with real funds and I've updated my RPC URL."</em>.
+3. Botón danger <em>Confirm · use real funds</em>. Solo este botón persiste el cambio.
+
+El env var `ALLOW_MAINNET_LIVE` se mantiene en el código del engine (path CLI) con semántica **opt-OUT**: si lo pones explícitamente a `false`, el wrapper `loadBaseConfig()` aborta cualquier ejecución mainnet con `DRY_RUN=false`. Útil para CI / scripts no supervisados donde el operador humano no está presente. El path UI (server tRPC) ignora la variable por completo.
+
+**Consecuencias**:
+- (+) UX limpia: el usuario alterna entre TEST y REAL desde la UI sin tocar archivos ni reiniciar nada.
+- (+) La explicación verbosa "Real mode is locked. Set ALLOW_MAINNET_LIVE=true and restart…" desaparece del settings page.
+- (+) Backward-compatible para el path CLI: usuarios que tenían `ALLOW_MAINNET_LIVE=true` en su `.env` siguen funcionando sin cambios.
+- (+) Si alguna vez se vuelve a necesitar cerrar el gate por defecto (despliegues compartidos, scripts automatizados, decisión empresarial), el campo `mainnetGateAllowed` del snapshot tRPC se mantiene en la API y el código del Segmented soporta `disabled`. Re-cerrar es un cambio de una línea.
+- (−) Pierde una capa de fricción. Un usuario que clickee REAL por error en lugar de TEST necesita pasar por el checkbox + botón danger para confirmar — sigue siendo no-trivial, pero menos paranoico que el doble candado original.
+- (−) La doc de `/docs/security#mainnet-gate` queda como "histórico del modelo anterior" para los que vienen de versiones previas.
+
+**Alternativas consideradas**:
+- **Mantener ADR-006 tal cual**: descartado tras feedback explícito del usuario sobre la fricción opaca.
+- **Default opt-IN suave** (env var sigue cerrando el gate por defecto, pero la UI muestra el toggle siempre con tooltip "lo puedes abrir, mira la doc"): descartado por ser un compromiso sin ganancia clara — sigue requiriendo editar `.env` para usar mainnet.
+- **Eliminar `ALLOW_MAINNET_LIVE` del todo**: descartado para no romper el path CLI de scripts existentes. La inversión a opt-OUT cuesta una línea y mantiene flexibilidad.
+- **Sustituir el env var por un setting persistido en SQLite** (`mainnet_unlocked: bool`, configurable desde una página "Advanced settings"): considerado pero descartado por overengineering — para 10 usuarios self-hosted, una env var es perfectamente adecuada al caso de uso restante (CI / scripts).
+
+---
+
+## ADR-027 — Mainnet como default + RPC canónicas por red
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada · complementa [ADR-026](#adr-026--mainnet-gate-abierto-por-defecto-la-confirmaci%C3%B3n-de-ui-es-la-safety-net)
+
+**Contexto**: Tras ADR-026 (gate abierto por defecto), el siguiente paso de coherencia era el default mismo. Hasta ahora la herramienta arrancaba en `network=devnet` con la URL pública de devnet, asumiendo que el usuario "validaría primero en test" antes de pasarse a mainnet. En la práctica eso convierte el primer arranque en una experiencia de juguete: las posiciones reales del usuario no aparecen, los precios no son los del pool en vivo, y todo huele a entorno de desarrollo. La inversión natural era: arrancar en mainnet (el caso de uso real) y dejar test mode como opción no-default.
+
+Además, había un problema operativo independiente: el campo `rpcUrl` se guardaba como un único valor compartido entre redes. Al cambiar de red por la UI, el `rpcUrl` no se actualizaba, así que el usuario quedaba con un Helius mainnet apuntando a una red devnet o viceversa — falla con un error críptico en el primer auto-exit que intenta crear.
+
+**Decisión**:
+
+1. **Default `network = "mainnet"`** en `DEFAULTS` del router de settings, y `rpcUrl = "https://api.mainnet-beta.solana.com"` (el endpoint canónico público).
+2. **Fallback del cliente** (`packages/web/src/lib/constants.ts`: `NETWORK` y `RPC_URL`) alineado al mismo default — para el breve momento en que la query de settings no ha resuelto.
+3. **Campo nuevo en el snapshot tRPC**: `defaultRpcByNetwork: { mainnet, devnet }`. Expone las URLs canónicas para que la UI las consuma (placeholder dinámico, link "use default", auto-swap).
+4. **Auto-swap del rpcUrl al cambiar de red**: si el `rpcUrl` actual coincide con el default de la red anterior (i.e., el usuario nunca lo customizó), al togglear se sobrescribe con el default de la nueva red. Si tiene una URL custom (Helius personal, por ejemplo), no se toca — la copy del campo le avisa de que la revise.
+5. **Botón "use \<network\> default"** junto al campo de RPC URL — aparece solo si el valor actual difiere del canónico. Click → vuelve al canónico.
+6. **Read del network respeta lo stored**: ADR-026 había hecho `isMainnetGateAllowed()` siempre `true`, lo que volvía irrelevante el "force devnet on locked gate". Ahora el snapshot devuelve estrictamente lo guardado en SQLite si es válido, cayendo a `DEFAULTS.network` solo si la key está ausente (fresh install o reset).
+
+**Consecuencias**:
+- (+) Onboarding alineado con el caso de uso real: el usuario abre la herramienta, ve sus posiciones LP de Orca/Meteora mainnet, y configura un auto-exit. Sin pasos previos de "primero juguetea en devnet".
+- (+) El `rpcUrl` y la red ya no se desincronizan al toggle. Cero tasks "fantasma" creadas con RPC equivocada.
+- (+) Test mode sigue disponible y bien identificado: la UI muestra TEST / REAL con sus URLs canónicas; el doc explica que test usa Solana devnet y que se puede customizar.
+- (+) Para usuarios existentes que ya guardaron `network=devnet` o un `rpcUrl` custom, **nada cambia** — el snapshot respeta el valor stored. El cambio solo aplica a fresh installs y a quienes hacen "Reset to defaults".
+- (−) Mainnet por defecto significa que el usuario nuevo puede crear un auto-exit con fondos reales sin haber probado en devnet. La doble confirmación de UI (ADR-026) y el toggle simulation (ya retirado de la UI, ADR-026 hold) son las protecciones. Si el usuario lee la página de docs/auto-exit#when-the-close-fails antes de ejecutar, ya tiene contexto.
+- (−) La URL pública `api.mainnet-beta.solana.com` está fuertemente rate-limited y no es viable para sostener watchers. La copy bajo el campo deja claro que se debe sustituir por Helius / Triton / QuickNode / nodo propio. Aceptado: el default funciona para el primer arranque y "ver que la herramienta lee tus posiciones", luego el usuario sustituye.
+- (−) Si en el futuro hace falta volver a defaultar devnet (por ejemplo, para una versión "educativa" o demos públicas), es cambio de una línea en `DEFAULTS`.
+
+**Alternativas consideradas**:
+- **Detectar la red a partir del RPC URL configurado** (parseando "mainnet" / "devnet" en la URL): rechazado por brittle — los RPCs custom de Helius/Triton no tienen el nombre de la red en la URL.
+- **Setup wizard al primer arranque** que pregunte al usuario qué red quiere: rechazado por overhead UX para un default que el 95% va a aceptar tal cual.
+- **Default a "no network seleccionada"** forzando al usuario a elegir explícitamente: rechazado — añade un paso bloqueante que no aporta nada para el caso de uso primario.
+- **Persistir el `rpcUrl` por red** (dos columnas: `rpcUrl_mainnet`, `rpcUrl_devnet`): considerado, descartado por overengineering. El auto-swap heurístico cubre el 99% del caso; los pocos que tengan custom URLs para ambas redes van a recordarlo manualmente.

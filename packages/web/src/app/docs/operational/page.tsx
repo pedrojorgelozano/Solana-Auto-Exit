@@ -83,6 +83,60 @@ export default function Operational() {
         </ul>
       </section>
 
+      <section id="timeline" className="hairline-t pt-10">
+        <h2 className="t-h2">Activity timeline</h2>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          Each task page in{" "}
+          <code className="t-num text-[var(--color-text)]">/tasks/[id]</code>{" "}
+          ends with an activity timeline — a chronological list of every
+          event the watcher emitted. Reading it left to right tells you the
+          full life of the auto-exit: when it was created, when it started
+          watching, every buffer arming and reset, the trigger, the close,
+          the verification of the on-chain delta, and any errors.
+        </p>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          The events you&apos;ll see:
+        </p>
+        <ul className="mt-4 space-y-2 t-body text-[var(--color-text-muted)]">
+          <li>
+            <span className="text-[var(--color-text)]">Created · Started · Resumed.</span>{" "}
+            Lifecycle markers. <em>Started</em> the first time, <em>resumed</em> after a
+            pause.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">Buffer started · Buffer reset.</span>{" "}
+            Only present if you configured a time buffer. <em>Started</em> when the price first
+            entered the trigger zone; <em>reset</em> if it left before the
+            buffer completed.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">Triggered.</span> The
+            target was crossed (and the buffer, if any, completed). The
+            close is being prepared.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">Closed · Swapped.</span>{" "}
+            Each transaction signed and submitted. The event payload carries
+            the txId; if you click it, you go to Solscan.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">Close verified · Swap verified.</span>{" "}
+            Best-effort on-chain query: the actual SOL/token deltas observed
+            for the bot wallet after each tx. Lets you compare quoted vs
+            realized.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">Paused · Stopped · Error.</span>{" "}
+            Pauses note their reason (user, vault locked, server restart);
+            stopped is manual; error stores the last message.
+          </li>
+        </ul>
+        <p className="mt-4 t-body text-[var(--color-text-muted)]">
+          History is persisted in SQLite alongside the tasks themselves, so
+          it survives server restarts and is part of the data backup.
+        </p>
+      </section>
+
       <section className="hairline-t pt-10">
         <h2 className="t-h2">Backups and recovery</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">

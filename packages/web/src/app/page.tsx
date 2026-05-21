@@ -150,10 +150,18 @@ function BotWalletEyebrow({
 }) {
   return (
     <section className="pb-8 hairline-b">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">
-        Bot wallet {unlocked ? null : (
-          <span className="ml-2 text-[var(--color-warning)]">· locked</span>
-        )}
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          Bot wallet {unlocked ? null : (
+            <span className="ml-2 text-[var(--color-warning)]">· locked</span>
+          )}
+        </div>
+        <Link
+          href="/docs/bot-wallet"
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+        >
+          → What&apos;s a bot wallet
+        </Link>
       </div>
       <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-2">
         <span className="t-num break-all text-[var(--color-text)]">
@@ -498,6 +506,21 @@ function EmptyPath({
 // Recent activity — feed condensado de tasks terminadas
 // ============================================================================
 
+interface CloseResultShape {
+  dryRun?: boolean;
+  txId?: string;
+}
+
+function isSlippageError(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes("slippage") ||
+    m.includes("tolerance") ||
+    m.includes("price impact") ||
+    m.includes("0x1782")
+  );
+}
+
 function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
   if (tasks.length === 0) return null;
 
@@ -506,9 +529,9 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
       <div className="flex items-baseline justify-between">
         <div>
           <div className="t-eyebrow text-[var(--color-text-muted)]">
-            Recent activity
+            Transaction history
           </div>
-          <h2 className="mt-2 t-h2">History</h2>
+          <h2 className="mt-2 t-h2">Closes, swaps and failures.</h2>
         </div>
         <Link
           href="/tasks"
@@ -522,10 +545,11 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
         <table className="w-full border-collapse">
           <thead>
             <tr className="text-left t-eyebrow text-[var(--color-text-dim)]">
-              <th className="pb-3 font-normal">When</th>
-              <th className="pb-3 font-normal">Position</th>
-              <th className="pb-3 font-normal">Trigger</th>
-              <th className="pb-3 font-normal">Status</th>
+              <th className="pb-3 pr-4 font-normal">When</th>
+              <th className="pb-3 pr-4 font-normal">Position</th>
+              <th className="pb-3 pr-4 font-normal">Trigger</th>
+              <th className="pb-3 pr-4 font-normal">Result</th>
+              <th className="pb-3 pr-4 font-normal">Tx / Error</th>
               <th className="pb-3 font-normal text-right">&nbsp;</th>
             </tr>
           </thead>
@@ -541,21 +565,20 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
 }
 
 function LedgerRow({ task }: { task: TaskRow }) {
-  const view = statusView(task.status as BackendStatus);
-  const tone = TONE_CLASSES[view.tone];
   const when = task.triggeredAt
     ? new Date(task.triggeredAt).getTime()
     : new Date(task.updatedAt).getTime();
+  const closeShape = task.closeResult as CloseResultShape | null;
 
   return (
     <tr className="group">
-      <td className="py-4 align-top t-num text-[var(--color-text-muted)]">
+      <td className="py-4 pr-4 align-top t-num text-[var(--color-text-muted)]">
         {formatTimeAgo(when)}
       </td>
-      <td className="py-4 align-top t-small text-[var(--color-text)]">
+      <td className="py-4 pr-4 align-top t-small text-[var(--color-text)]">
         {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
       </td>
-      <td className="py-4 align-top t-num text-[var(--color-text)]">
+      <td className="py-4 pr-4 align-top t-num text-[var(--color-text)]">
         {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
         {task.exitTokenMint ? (
           <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
@@ -563,8 +586,11 @@ function LedgerRow({ task }: { task: TaskRow }) {
           </span>
         ) : null}
       </td>
-      <td className="py-4 align-top">
-        <span className={`t-eyebrow ${tone.text}`}>{view.label}</span>
+      <td className="py-4 pr-4 align-top">
+        <ResultChip task={task} />
+      </td>
+      <td className="py-4 pr-4 align-top">
+        <TxOrError task={task} closeShape={closeShape} />
       </td>
       <td className="py-4 align-top text-right">
         <Link
@@ -576,6 +602,91 @@ function LedgerRow({ task }: { task: TaskRow }) {
       </td>
     </tr>
   );
+}
+
+/**
+ * Chip de resultado: distingue visualmente Closed / Failed / Stopped en lugar
+ * de mostrar el label genérico de estado. Para errores, anota la causa
+ * detectada (slippage si aplica).
+ */
+function ResultChip({ task }: { task: TaskRow }) {
+  if (task.status === "done") {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)]" />
+        <span className="t-eyebrow text-[var(--color-positive)]">Closed</span>
+        {task.dryRun ? (
+          <span className="t-eyebrow text-[var(--color-warning)]">· sim</span>
+        ) : null}
+      </div>
+    );
+  }
+  if (task.status === "error") {
+    const slip = task.lastError ? isSlippageError(task.lastError) : false;
+    return (
+      <div className="flex items-center gap-2">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
+        <span className="t-eyebrow text-[var(--color-danger)]">Failed</span>
+        {slip ? (
+          <span className="t-eyebrow text-[var(--color-text-muted)]">
+            · slippage
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+  // stopped
+  return (
+    <div className="flex items-center gap-2">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-text-dim)]" />
+      <span className="t-eyebrow text-[var(--color-text-muted)]">Stopped</span>
+    </div>
+  );
+}
+
+/**
+ * Para closes exitosos: link a Solscan con la signature. Para errores:
+ * preview del mensaje (truncado a una línea, hover muestra el completo).
+ * Stopped o dry-run: dash.
+ */
+function TxOrError({
+  task,
+  closeShape,
+}: {
+  task: TaskRow;
+  closeShape: CloseResultShape | null;
+}) {
+  if (task.status === "done" && closeShape?.txId && !closeShape.dryRun) {
+    const cluster = task.network === "mainnet" ? "" : "?cluster=devnet";
+    return (
+      <a
+        href={`https://solscan.io/tx/${closeShape.txId}${cluster}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="t-eyebrow text-[var(--color-accent-bright)] hover:underline t-num"
+      >
+        {truncateAddress(closeShape.txId, 4, 4)} ↗
+      </a>
+    );
+  }
+  if (task.status === "done" && closeShape?.dryRun) {
+    return (
+      <span className="t-eyebrow text-[var(--color-text-dim)]">
+        simulated
+      </span>
+    );
+  }
+  if (task.status === "error" && task.lastError) {
+    return (
+      <span
+        title={task.lastError}
+        className="t-small text-[var(--color-text-muted)] line-clamp-1 max-w-xs"
+      >
+        {task.lastError}
+      </span>
+    );
+  }
+  return <span className="t-eyebrow text-[var(--color-text-dim)]">—</span>;
 }
 
 // ============================================================================

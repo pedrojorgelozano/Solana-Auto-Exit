@@ -67,6 +67,48 @@ export default function Security() {
         </p>
       </section>
 
+      <section id="mainnet-gate" className="hairline-t pt-10">
+        <h2 className="t-h2">Switching to real mode</h2>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          The network toggle in{" "}
+          <a
+            href="/settings"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            /settings
+          </a>{" "}
+          lets you switch between <em>test</em> (Solana devnet) and{" "}
+          <em>real</em> (Solana mainnet) at any time. Clicking <strong className="text-[var(--color-text)]">REAL</strong>{" "}
+          opens an inline confirmation panel — you must check{" "}
+          <em>&ldquo;I understand this will sign with real funds&rdquo;</em>{" "}
+          and click <em>Confirm · use real funds</em>. That two-step click is
+          the safety net.
+        </p>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          Originally (ADR-006) the switch was double-gated: the env var{" "}
+          <code className="t-num text-[var(--color-text)]">ALLOW_MAINNET_LIVE=true</code>{" "}
+          had to be set at server start, AND the UI confirmation. With the
+          tool stabilized and self-hosted by people who know what they&apos;re
+          doing, the env-var gate became friction without a useful payoff
+          — superseded by{" "}
+          <a
+            href="/docs/operational"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            ADR-026
+          </a>
+          . The env var is now opt-OUT: set{" "}
+          <code className="t-num text-[var(--color-text)]">ALLOW_MAINNET_LIVE=false</code>{" "}
+          if you want the CLI path to refuse mainnet (useful for unattended
+          scripts / CI).
+        </p>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          Existing tasks keep the network they were created with — switching
+          to real doesn&apos;t migrate them. Only new auto-exits configured
+          after the switch will run on mainnet.
+        </p>
+      </section>
+
       <section className="hairline-t pt-10">
         <h2 className="t-h2">Cryptography choices</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
