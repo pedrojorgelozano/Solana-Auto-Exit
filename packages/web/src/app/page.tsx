@@ -25,6 +25,18 @@ export default function Home() {
     refetchInterval: 5_000,
   });
 
+  const hasWallet = walletStatus.data?.hasVault ?? false;
+
+  // First-run: la home explica el modelo y dirige al modal. Aún no hay nada
+  // que listar en "Now watching" o "Recent activity", así que esas secciones
+  // serían ruido.
+  if (walletStatus.isLoading) {
+    return <main className="mx-auto max-w-6xl px-6 pt-16" />;
+  }
+  if (!hasWallet) {
+    return <FirstRunHome />;
+  }
+
   const active = (tasks.data ?? []).filter((t) =>
     ["armed", "triggered", "closing", "idle"].includes(t.status),
   );
@@ -32,14 +44,11 @@ export default function Home() {
     ["done", "error", "stopped", "paused"].includes(t.status),
   );
 
-  const hasWallet = walletStatus.data?.hasVault ?? false;
-
   return (
     <main className="mx-auto max-w-6xl px-6 pb-32 pt-16 fade-in">
-      <Hero
+      <DashboardHero
         activeCount={active.length}
         totalCount={tasks.data?.length ?? 0}
-        hasWallet={hasWallet}
       />
 
       <NowWatching tasks={active} />
@@ -50,24 +59,130 @@ export default function Home() {
 }
 
 // ============================================================================
-// Hero
+// First-run home — el usuario aún no tiene wallet
 // ============================================================================
 
-function Hero({
+function FirstRunHome() {
+  const connect = useConnectWallet();
+  return (
+    <main className="mx-auto max-w-4xl px-6 pb-32 pt-16 fade-in">
+      <section className="pb-20">
+        <div className="t-eyebrow text-[var(--color-accent-bright)]">
+          auto exits para pools de liquidez en Solana
+        </div>
+        <h1 className="mt-4 t-display">
+          Set the conditions.
+          <br />
+          <em
+            className="font-normal not-italic text-[var(--color-text-muted)]"
+            style={{ fontVariationSettings: '"opsz" 100, "SOFT" 80, "WONK" 1' }}
+          >
+            Walk away.
+          </em>
+        </h1>
+        <p className="mt-10 max-w-xl t-body text-[var(--color-text-muted)]">
+          Auto-Exit watches your Orca (and soon Meteora) liquidity positions
+          every few seconds and closes them when price hits your take-profit
+          or stop-loss. It runs on this machine and signs with a wallet you
+          control.
+        </p>
+      </section>
+
+      <section className="hairline-t pt-12">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          How it works
+        </div>
+        <h2 className="mt-2 t-h2">Three steps, then nothing.</h2>
+
+        <ol className="mt-10 divide-y divide-[var(--color-hairline)]">
+          <Step
+            n="01"
+            title="Bot wallet"
+            body="A dedicated Solana account whose key lives encrypted on this machine. The bot uses it to sign the close transaction when triggers fire — including while you're asleep. That's the part Phantom-style popups can't do."
+          />
+          <Step
+            n="02"
+            title="Funded positions"
+            body="Fund the bot wallet with SOL (for fees) and the tokens you want it to manage. Open new LP positions from it on Orca, or transfer the NFT of an existing position to it."
+          />
+          <Step
+            n="03"
+            title="Triggers"
+            body="For each position, set a take-profit price, a stop-loss price, or both. The bot closes when whichever hits first; optionally swaps the proceeds into a stable."
+          />
+        </ol>
+      </section>
+
+      <section className="hairline-t mt-12 pt-12">
+        <div className="flex flex-wrap items-baseline gap-4">
+          <Button onClick={connect.open}>Create the bot&apos;s wallet →</Button>
+          <Link
+            href="/docs/getting-started"
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          >
+            Read the full guide →
+          </Link>
+          <span className="t-small text-[var(--color-text-dim)]">
+            Step 1 of 3 · stop and resume at any point.
+          </span>
+        </div>
+      </section>
+
+      <aside className="hairline-t mt-12 max-w-xl pt-10">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          Local stack
+        </div>
+        <p className="mt-3 t-small text-[var(--color-text-dim)]">
+          The server listens on localhost only. Your wallet key is encrypted at
+          rest with your passphrase and decrypted in memory only while
+          unlocked — nothing about your wallet, positions, or trades leaves
+          this machine.
+        </p>
+      </aside>
+    </main>
+  );
+}
+
+function Step({
+  n,
+  title,
+  body,
+}: {
+  n: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <li className="grid grid-cols-12 gap-4 py-8 first:pt-0 md:gap-6">
+      <div className="col-span-12 md:col-span-2">
+        <span className="t-num text-[var(--color-accent-bright)]">{n}</span>
+      </div>
+      <div className="col-span-12 md:col-span-3">
+        <h3 className="t-h2">{title}</h3>
+      </div>
+      <div className="col-span-12 md:col-span-7">
+        <p className="t-body text-[var(--color-text-muted)]">{body}</p>
+      </div>
+    </li>
+  );
+}
+
+// ============================================================================
+// Dashboard hero — el usuario ya tiene wallet
+// ============================================================================
+
+function DashboardHero({
   activeCount,
   totalCount,
-  hasWallet,
 }: {
   activeCount: number;
   totalCount: number;
-  hasWallet: boolean;
 }) {
-  const connect = useConnectWallet();
   return (
     <section className="grid gap-10 pb-16 md:grid-cols-12">
       <div className="md:col-span-7">
         <div className="t-eyebrow text-[var(--color-accent-bright)]">
-          Concentrated liquidity, conditional exits
+          auto exits para pools de liquidez en Solana
         </div>
         <h1 className="mt-4 t-display">
           Set the conditions.
@@ -86,23 +201,12 @@ function Hero({
         </p>
 
         <div className="mt-10 flex flex-wrap items-center gap-3">
-          {hasWallet ? (
-            <>
-              <Link href="/positions">
-                <Button>Set up an auto-exit →</Button>
-              </Link>
-              <Link href="/tasks">
-                <Button variant="ghost">All auto-exits ({totalCount})</Button>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Button onClick={connect.open}>Connect bot wallet →</Button>
-              <span className="t-small text-[var(--color-text-muted)]">
-                Step 1 — set up the wallet that signs your closes.
-              </span>
-            </>
-          )}
+          <Link href="/positions">
+            <Button>Set up an auto-exit →</Button>
+          </Link>
+          <Link href="/tasks">
+            <Button variant="ghost">All auto-exits ({totalCount})</Button>
+          </Link>
         </div>
       </div>
 

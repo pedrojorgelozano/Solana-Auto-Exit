@@ -130,29 +130,39 @@ Un solo archivo `src/main.ts` que: `loadBaseConfig` + leer `wallet.json` + `make
 packages/web/src/
 ├── app/
 │   ├── layout.tsx          (fonts, providers, GlobalHeader)
-│   ├── page.tsx            (home: hero + Now watching + History)
+│   ├── page.tsx            (home: FirstRunHome cuando no hay wallet, DashboardHero + Now watching + History cuando sí)
 │   ├── globals.css         (tokens + utilidades .t-*)
 │   ├── fonts.ts            (next/font config)
 │   ├── not-found.tsx       (404 editorial)
 │   ├── error.tsx           (error boundary global)
 │   ├── wallet/page.tsx     (3 estados + danger zone)
 │   ├── positions/
-│   │   ├── page.tsx        (lista con symbols + chip "auto-exit set")
+│   │   ├── page.tsx        (lista con symbols + chip "auto-exit set"; EmptyOwnedList pedagógico cuando no hay LPs)
 │   │   └── [mint]/page.tsx (recap + form configure con TP/SL + ExistingWatcher si ya hay uno activo)
-│   └── tasks/
-│       ├── page.tsx        (ledger denso con filtros)
-│       └── [id]/page.tsx   (dashboard live + receipts editoriales)
+│   ├── tasks/
+│   │   ├── page.tsx        (ledger denso con filtros)
+│   │   └── [id]/page.tsx   (dashboard live + receipts editoriales)
+│   └── docs/               (documentación in-app editorial — ADR-021)
+│       ├── layout.tsx                       (sidebar + content)
+│       ├── page.tsx                         (índice con los 6 artículos)
+│       ├── _components/{articles.ts, DocsNav.tsx, ArticleHeader.tsx}
+│       ├── getting-started/page.tsx
+│       ├── bot-wallet/page.tsx
+│       ├── auto-exit/page.tsx
+│       ├── operational/page.tsx
+│       ├── security/page.tsx
+│       └── faq/page.tsx
 ├── components/
-│   ├── GlobalHeader.tsx
+│   ├── GlobalHeader.tsx    (logo + link Docs + ServerStatus + VaultChip)
 │   ├── PageHeader.tsx
 │   ├── ServerStatus.tsx
 │   ├── VaultChip.tsx
-│   ├── ConnectWalletModal.tsx
+│   ├── ConnectWalletModal.tsx  (preamble + 3 tabs honestas + ImportWarning + GenerateSuccess)
 │   └── ui/{Button,Card,Input}.tsx
 └── lib/
     ├── trpc.ts             (createTRPCReact<AppRouter>)
     ├── providers.tsx       (QueryClient + tRPC + ConnectWalletProvider)
-    ├── connect-wallet.tsx  (context + useConnectWallet hook)
+    ├── connect-wallet.tsx  (context + useConnectWallet hook que cualquier client component invoca)
     ├── tokens.ts           (registry SOL/USDC/devUSDC + fallback truncado)
     ├── status.ts           (BackendStatus → StatusView con tones)
     ├── format.ts           (formatTriggers, formatNearestDistance, etc)
@@ -161,7 +171,7 @@ packages/web/src/
 
 **Sistema de diseño** (ADR-017):
 - Paleta oxblood + crema + ink en CSS vars (`--color-accent`, `--color-text`, etc).
-- Tipografía via utilidades `.t-display`, `.t-h1`, `.t-h2`, `.t-eyebrow`, `.t-body`, `.t-num`, `.t-num-display`.
+- Tipografía via utilidades `.t-display`, `.t-h1`, `.t-h2`, `.t-h3`, `.t-eyebrow`, `.t-body`, `.t-num`, `.t-num-display`. `t-h3` añadido durante el redesign de onboarding para subsecciones de artículos en `/docs`.
 - Composición con hairlines (`hairline-t`, `rule-t`, `divide-y divide-[var(--color-hairline)]`) en lugar de cards apiladas.
 - Grain overlay global vía SVG turbulence inline.
 - Motion discreto: `.fade-in` (page transitions) y `.pulse-soft` (estados activos).
@@ -173,6 +183,8 @@ packages/web/src/
 **Triggers TP/SL** (ADR-018): formularios con dos `TriggerInput` (TP verde-positive, SL cobre-warning) independientes con sus propios toggles y presets ±%. Display unificado con `formatTriggers(tp, sl)` → `"TP ≥ 25 · SL ≤ 18"`.
 
 **One-watcher-per-position** (ADR-019): `/positions/[mint]` detecta tasks activos para el mint y renderiza `ExistingWatcher` (con Open / Delete CTAs) en vez del form. `/positions` lista marca con chip pulsante `auto-exit set`.
+
+**Onboarding pedagógico editorial** (ADR-021): cuando no hay wallet, la home renderiza `FirstRunHome` con eyebrow + display + tres steps "How it works" + CTAs. El modal pasa de "Connect bot wallet recomendado / Import peligroso" a tres caminos honestos al mismo nivel (Generate / Import key / Advanced · JSON) con `ImportWarning` que explica el blast radius con precisión (= la address concreta, no la wallet entera; la app no acepta seed phrases). Empty states de `/positions` y `/tasks` enseñan la cadena (positions vacío → cómo meter LPs; tasks vacío → ir a positions). Documentación in-app vive en `app/docs/` con 6 artículos editoriales y un sidebar. Links contextuales ("→ Why a bot wallet?", "→ What simulation actually does", etc) sembrados en los puntos donde aparecen conceptos no obvios — sustituto editorial del tour overlay clásico.
 
 ## Contrato `ProtocolAdapter`
 

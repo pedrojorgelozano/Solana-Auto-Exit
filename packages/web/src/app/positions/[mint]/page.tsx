@@ -839,6 +839,12 @@ function SimulationToggle({
             ? "No transactions will be sent. The bot logs the close + swap quotes when the target is hit and stops."
             : "Transactions will be signed and broadcast to the chain. Use only when you're confident."}
         </p>
+        <Link
+          href="/docs/auto-exit"
+          className="mt-2 inline-block t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+        >
+          → What simulation actually does
+        </Link>
       </div>
     </div>
   );

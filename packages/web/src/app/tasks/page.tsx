@@ -65,9 +65,11 @@ function EmptyState() {
     <section className="hairline-t pt-10">
       <div className="t-eyebrow text-[var(--color-text-muted)]">Empty</div>
       <h2 className="mt-3 t-h2">No auto-exits yet.</h2>
-      <p className="mt-3 max-w-md t-body text-[var(--color-text-muted)]">
-        Pick a position and set up an auto-exit; it will show up here from
-        creation through completion.
+      <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+        An auto-exit watches a single LP position and closes it when your
+        take-profit or stop-loss price hits. Configure one on any position
+        the bot wallet owns — it will appear here from creation through
+        completion, including dry-run simulations.
       </p>
       <div className="mt-6">
         <Link href="/positions">

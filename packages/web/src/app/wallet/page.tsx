@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { FieldError } from "@/components/ui/Card";
@@ -23,6 +24,15 @@ export default function WalletPage() {
         description="Encrypted at rest with scrypt + AES-256-GCM. Decrypted in memory only while the wallet is unlocked."
         back={{ href: "/", label: "Home" }}
       />
+
+      <div className="-mt-6 mb-10">
+        <Link
+          href="/docs/security"
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+        >
+          → How encryption and key storage work
+        </Link>
+      </div>
 
       {status.isLoading ? (
         <p className="t-small text-[var(--color-text-muted)]">
@@ -66,14 +76,21 @@ function ConnectCta() {
 
       <section className="hairline-t pt-10">
         <div className="t-eyebrow text-[var(--color-text-muted)]">No wallet</div>
-        <h2 className="mt-3 t-h2">Connect your bot wallet to begin.</h2>
+        <h2 className="mt-3 t-h2">Set up the bot wallet to begin.</h2>
         <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-          Generate a fresh one (recommended) or import an existing key. The
-          server encrypts it with a passphrase and uses it only to sign the
-          closes you configure.
+          Generate a fresh keypair on this machine, or import the private key
+          of a single Solana account from Phantom, Backpack, or the Solana
+          CLI. The key is encrypted with a passphrase and used only to sign
+          the closes you configure.
         </p>
-        <div className="mt-6">
-          <Button onClick={connect.open}>Connect bot wallet →</Button>
+        <div className="mt-6 flex flex-wrap items-baseline gap-4">
+          <Button onClick={connect.open}>Set up bot wallet →</Button>
+          <Link
+            href="/docs/bot-wallet"
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          >
+            → Read about the three paths
+          </Link>
         </div>
       </section>
     </div>
@@ -84,12 +101,13 @@ function Recommendation() {
   return (
     <aside className="border-l-2 border-[var(--color-accent)] pl-5">
       <div className="t-eyebrow text-[var(--color-accent-bright)]">
-        Recommended
+        Scope
       </div>
       <p className="mt-2 max-w-xl t-body text-[var(--color-text)]">
-        Use a <em>dedicated bot wallet</em>, not your main one. Move only the
-        funds you want this server to manage. If your machine is compromised,
-        the blast radius stays small.
+        Whatever key you provide, only <em>that single address</em> is
+        exposed to this server — never a seed phrase, never other accounts.
+        The standard practice is to use an account dedicated to active
+        operations, not the one where you store cold holdings.
       </p>
     </aside>
   );

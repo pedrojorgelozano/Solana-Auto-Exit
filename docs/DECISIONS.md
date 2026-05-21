@@ -377,3 +377,38 @@ En el primer intento solo configuré funder y el cierre falló con `Payer not se
 - (−) El secret viaja del server al cliente vía HTTPS local en la respuesta de la mutation. Localhost-only por default; si en F5 exponemos sobre LAN con token, esto sigue siendo seguro porque la ruta requiere auth, pero documentar en SECURITY.md.
 
 **Alternativa considerada**: wallet adapter real + tx pre-firmadas con durable nonces. Brittle (nonce caduca, parámetros del cierre tienen que conocerse de antemano, sin re-sign si la tx falla). Descartado.
+
+---
+
+## ADR-021 — Onboarding pedagógico: contenido editorial in-app, no tour overlay
+
+**Fecha**: 2026-05-21
+**Estado**: Aceptada · refina [ADR-020](#) corrigiendo el framing del modelo wallet
+
+**Contexto**: Tras navegar el primer flujo de onboarding (modal "Connect bot wallet" estilo Orca, [ADR-020](#)), surgieron dos problemas. (1) La palabra "Connect" colisiona semánticamente con el patrón Phantom/Backpack — promete una experiencia que el producto no puede dar. (2) El copy del Import tab invitaba activamente a pegar la clave de la wallet principal del usuario ("This is what Phantom and Backpack show when you export a private key"), y mi propia explicación del *blast radius* en la conversación era imprecisa: dije "todo lo que tenga tu Backpack" cuando lo correcto es "todos los assets de la address concreta cuya clave importes" — porque la app acepta solo claves privadas individuales, no seed phrases.
+
+Paralelamente, el primer minuto de la herramienta no enseñaba el modelo: el hero era una pieza estética sin pedagogía, no había documentación, los empty states eran mudos. El usuario llegaba sin entender por qué hace falta una "bot wallet", cómo conseguir posiciones en ella, ni qué hace el modo simulación.
+
+**Decisión**: Comprometerse con un onboarding **pedagógico como contenido editorial**, no como tour overlay (Driver.js / Intercom / Shepherd). Cinco piezas implementadas en una sola sesión:
+
+1. **Home first-run hero** dedicado cuando no hay wallet: eyebrow + display + tres steps editoriales ("Bot wallet", "Funded positions", "Triggers") + CTAs.
+2. **Modal redesign** con tres caminos honestos (Generate / Import key / Advanced · JSON) presentados al mismo nivel, sin badge "recommended". Preamble explícito de que no es Phantom-style. Warning técnico con el framing corregido del blast radius — la app no acepta seed phrases por construcción, así que importar una clave nunca puede comprometer más de una address.
+3. **Empty states ricos** en `/positions` (con la address de la bot wallet copiable + los dos sub-caminos para meter LPs) y `/tasks`.
+4. **`/docs` in-app** con 6 artículos editoriales: Getting started, The bot wallet, Auto-exit triggers, Operations, Security model, FAQ. Sidebar de navegación. Hardcoded TSX inicialmente (decisión de velocidad, no de arquitectura).
+5. **Links contextuales** sembrados en los puntos donde aparecen conceptos no obvios (modal preamble, simulation toggle, /wallet description, etc).
+
+**Consecuencias**:
+- (+) Onboarding alineado con la dirección estética (editorial, [ADR-017](#)). Sin overlays que rompan la composición.
+- (+) Sin dependencia nueva (cero coste de runtime, ningún `driver.js` que mantener).
+- (+) El blast radius queda explicado **honestamente y con precisión** — el usuario decide qué cuenta importar con criterio, no con miedo difuso.
+- (+) Documentación in-app sirve también como referencia post-onboarding (vuelves a `/docs` cuando reinicias el server, no solo la primera vez).
+- (+) Empty states pedagógicos siguen una "cadena": `/positions` vacío manda a abrir LPs; `/tasks` vacío manda a `/positions`. Aprendes haciendo.
+- (−) Más texto que mantener cuando algo cambia. Mitigación: TODO captura migrar a markdown single-source cuando los artículos crezcan o cuando enlazamos GitHub README en F4.
+- (−) Sin tour overlay, un usuario muy nuevo podría no descubrir `/docs`. Mitigación: link "Docs" en el GlobalHeader + ghost CTA "Read the full guide" junto al CTA primario del first-run hero.
+- (−) El contenido vive en `app/docs/{slug}/page.tsx` como JSX — no se previsualiza en GitHub. Aceptable mientras el repo sea privado (pre F4).
+
+**Alternativas consideradas**:
+- **Tour overlay (Driver.js / Intercom-style)** — descartado por incompatible con la dirección estética y por infantilizar a una audiencia técnica.
+- **Documentación solo en GitHub README** — descartado por requerir abandonar la app y por no servir cuando F4 entregue Tauri offline.
+- **MDX desde el principio** — descartado por overengineering para 6 artículos cortos; queda en backlog para cuando el contenido crezca.
+- **`/welcome` post-creación** — descartado; el success screen del modal ya cubre el "qué hago ahora" con sus tres pasos, y los empty states refuerzan la cadena.

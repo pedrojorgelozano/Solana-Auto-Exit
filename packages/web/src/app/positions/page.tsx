@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@solana-auto-exit/server/api";
 
@@ -57,9 +58,10 @@ function NeedVault() {
   return (
     <section className="hairline-t pt-10">
       <div className="t-eyebrow text-[var(--color-warning)]">No wallet</div>
-      <h2 className="mt-3 t-h2">Set up your bot wallet first.</h2>
+      <h2 className="mt-3 t-h2">Set up the bot wallet first.</h2>
       <p className="mt-3 max-w-md t-body text-[var(--color-text-muted)]">
-        Without a wallet the server has no key to read positions or sign closes.
+        Without a key, the server can&apos;t read positions or sign closes.
+        Pick a setup path on the wallet page.
       </p>
       <div className="mt-6">
         <Link href="/wallet">
@@ -122,21 +124,7 @@ function OwnedList({ owner }: { owner: string }) {
     );
   }
   if (!list.data || list.data.length === 0) {
-    return (
-      <section className="hairline-t pt-10">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">Empty</div>
-        <h2 className="mt-3 t-h2">No positions in this wallet.</h2>
-        <p className="mt-3 max-w-md t-body text-[var(--color-text-muted)]">
-          Open one in the protocol&apos;s UI ({PROTOCOL} on {NETWORK}: custom
-          range out-of-range, 0.1 SOL) and refresh.
-        </p>
-        <div className="mt-6">
-          <Button variant="secondary" onClick={() => list.refetch()}>
-            Refresh
-          </Button>
-        </div>
-      </section>
-    );
+    return <EmptyOwnedList owner={owner} refresh={() => list.refetch()} />;
   }
 
   return (
@@ -261,6 +249,116 @@ function PositionRow({
           <p className="t-small text-[var(--color-text-dim)]">Loading…</p>
         )}
       </Link>
+    </li>
+  );
+}
+
+// ============================================================================
+// Empty owned list — el wallet existe pero no hay posiciones que cerrar
+// ============================================================================
+
+function EmptyOwnedList({
+  owner,
+  refresh,
+}: {
+  owner: string;
+  refresh: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(owner);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <section className="hairline-t pt-10">
+      <div className="t-eyebrow text-[var(--color-text-muted)]">Empty</div>
+      <h2 className="mt-3 t-h2">No LP positions in this wallet yet.</h2>
+      <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+        The bot can only close positions whose NFT this address holds. There
+        are two ways to put one here.
+      </p>
+
+      {/* Address block — el usuario lo necesita para ambas rutas */}
+      <div className="mt-8 hairline-t hairline-b py-5">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          Bot wallet address
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-4">
+          <span className="t-num break-all text-[var(--color-text)]">
+            {owner}
+          </span>
+          <button
+            type="button"
+            onClick={copy}
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          >
+            {copied ? "copied" : "copy"}
+          </button>
+        </div>
+      </div>
+
+      <ol className="mt-8 divide-y divide-[var(--color-hairline)]">
+        <Path
+          n="01"
+          title="Open new positions from the bot account"
+          body="Import the bot's secret into Phantom or Backpack as a new account (Settings → Add wallet → Import private key). Switch to it, then open an LP on Orca normally. The position NFT will be owned by this same address and will appear here on refresh."
+        />
+        <Path
+          n="02"
+          title="Transfer an existing position NFT"
+          body="From any account that currently owns a Whirlpool position, send the position NFT to the address above. Ownership moves to the bot wallet and the position becomes closable from here. Don't forget to leave the bot wallet enough SOL for close + swap fees."
+        />
+      </ol>
+
+      <div className="mt-10 flex flex-wrap items-center gap-4">
+        <Button variant="secondary" onClick={refresh}>
+          Refresh
+        </Button>
+        <a
+          href={`https://www.orca.so/?network=${NETWORK}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+        >
+          open orca ↗
+        </a>
+        <Link
+          href="/docs/getting-started"
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+        >
+          → Step-by-step guide
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+function Path({
+  n,
+  title,
+  body,
+}: {
+  n: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <li className="grid grid-cols-12 gap-4 py-6 first:pt-0 md:gap-6">
+      <div className="col-span-12 md:col-span-1">
+        <span className="t-num text-[var(--color-accent-bright)]">{n}</span>
+      </div>
+      <div className="col-span-12 md:col-span-4">
+        <h3 className="t-h2 text-[var(--color-text)]">{title}</h3>
+      </div>
+      <div className="col-span-12 md:col-span-7">
+        <p className="t-body text-[var(--color-text-muted)]">{body}</p>
+      </div>
     </li>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea, Label } from "@/components/ui/Input";
@@ -78,21 +79,20 @@ function ModalContent() {
 
   return (
     <>
-      <ModalHeader title="Connect bot wallet" onClose={close} />
+      <ModalHeader title="Set up the bot's wallet" onClose={close} />
+
+      <Preamble />
 
       {/* Tabs */}
       <div className="flex border-b border-[var(--color-hairline)]">
         <TabButton active={tab === "generate"} onClick={() => setTab("generate")}>
-          Generate new
-          <span className="ml-2 inline-flex items-center rounded-[2px] border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/15 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-[var(--color-accent-bright)]">
-            recommended
-          </span>
+          Generate
         </TabButton>
         <TabButton active={tab === "base58"} onClick={() => setTab("base58")}>
-          Import · base58
+          Import key
         </TabButton>
         <TabButton active={tab === "json"} onClick={() => setTab("json")}>
-          Import · JSON
+          Advanced · JSON
         </TabButton>
       </div>
 
@@ -111,6 +111,37 @@ function ModalContent() {
         )}
       </div>
     </>
+  );
+}
+
+// ============================================================================
+// Preamble — explica el modelo antes de las tabs
+// ============================================================================
+
+function Preamble() {
+  const { close } = useConnectWallet();
+  return (
+    <div className="border-b border-[var(--color-hairline)] bg-[var(--color-bg)]/40 px-6 py-5">
+      <p className="t-small text-[var(--color-text-muted)]">
+        This is the wallet the bot uses to sign close transactions
+        autonomously — including while you&apos;re asleep.{" "}
+        <span className="text-[var(--color-text)]">
+          It is not a Phantom-style connect.
+        </span>{" "}
+        Adapters need you to approve every signature, which doesn&apos;t work
+        for a watcher. The key lives encrypted on this machine; the bot
+        decrypts it in memory when needed. Pick how you want to provide one.
+      </p>
+      <div className="mt-3">
+        <Link
+          href="/docs/bot-wallet"
+          onClick={close}
+          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+        >
+          → Why a bot wallet?
+        </Link>
+      </div>
+    </div>
   );
 }
 
@@ -215,9 +246,12 @@ function GenerateTab({
   return (
     <form onSubmit={submit} className="space-y-6">
       <p className="t-body text-[var(--color-text-muted)]">
-        We generate a fresh Solana keypair right here on the server. You&apos;ll
-        see the secret <strong>once</strong> — save it in your password
-        manager. We can&apos;t recover it later.
+        A fresh ed25519 keypair, created on this machine and encrypted with
+        your passphrase. You&apos;ll see the secret <strong>once</strong>{" "}
+        — save it in your password manager. Same format Phantom and Backpack
+        accept, so you can also import the secret into them as a new account
+        and open LP positions from it. <span className="text-[var(--color-text-dim)]">Best when you don&apos;t
+        already have a dedicated operational account.</span>
       </p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -310,9 +344,11 @@ function ImportTab({
     <form onSubmit={submit} className="space-y-6">
       <p className="t-body text-[var(--color-text-muted)]">
         {kind === "base58"
-          ? "Paste the secret key in base58 form. This is what Phantom and Backpack show when you export a private key (≈ 88 characters)."
-          : "Paste the wallet.json contents from the Solana CLI — a JSON array of 64 integers, e.g. [12, 45, 200, …]."}
+          ? "Paste the private key of a single Solana account in base58 form — typically the one Phantom or Backpack exports for a specific account (≈ 88 characters). Seed phrases are not accepted, so only this one address ever reaches this server."
+          : "Paste the wallet.json contents from Solana CLI — a JSON array of 64 integers, e.g. [12, 45, 200, …]. Same scope as the Import key tab: this represents a single account."}
       </p>
+
+      <ImportWarning />
 
       <div>
         <Label
@@ -388,6 +424,32 @@ function ImportTab({
         </Button>
       </div>
     </form>
+  );
+}
+
+// ============================================================================
+// Import warning — corrige la imprecisión "blast radius = wallet entera"
+// ============================================================================
+
+function ImportWarning() {
+  return (
+    <div className="border-l-2 border-[var(--color-warning)] bg-[var(--color-warning-bg)] px-5 py-4">
+      <div className="t-eyebrow text-[var(--color-warning)]">
+        Operational scope
+      </div>
+      <p className="mt-2 t-small text-[var(--color-text)]">
+        The key is held encrypted at rest on this machine and decrypted in
+        memory only while the vault is unlocked. If both your passphrase and
+        the vault file were compromised, the assets at <em>this single
+        address</em> could be moved by the attacker — nothing else in your
+        wallet, no other accounts, no seed-derived addresses.
+      </p>
+      <p className="mt-3 t-small text-[var(--color-text-muted)]">
+        Standard practice is to import an account dedicated to active
+        operations (a &ldquo;hot&rdquo; account separate from cold holdings),
+        not the account where you store everything.
+      </p>
+    </div>
   );
 }
 
@@ -500,12 +562,33 @@ function GenerateSuccess({
           <div className="t-eyebrow text-[var(--color-accent-bright)]">
             Next
           </div>
-          <p className="mt-2 t-small text-[var(--color-text-muted)]">
-            Send SOL (for fees) and the tokens you want to manage to{" "}
-            <span className="t-num text-[var(--color-text)]">
-              {truncateAddress(address, 6, 6)}
-            </span>
-            . Then open <em>Positions</em> and set up an auto-exit.
+          <ol className="mt-3 space-y-2 t-small text-[var(--color-text-muted)]">
+            <li>
+              <span className="text-[var(--color-text-dim)]">01 ·</span>{" "}
+              Import this secret into Phantom or Backpack as a{" "}
+              <em>new account</em> (Settings → Add wallet → Import private
+              key). The bot wallet then sits alongside your main and you can
+              fund it + open LP positions from it via the wallet UI you
+              already know.
+            </li>
+            <li>
+              <span className="text-[var(--color-text-dim)]">02 ·</span> Fund
+              it at{" "}
+              <span className="t-num text-[var(--color-text)]">
+                {truncateAddress(address, 6, 6)}
+              </span>{" "}
+              with SOL (for fees) and the tokens you want it to manage.
+            </li>
+            <li>
+              <span className="text-[var(--color-text-dim)]">03 ·</span> Open
+              an LP position on Orca while the bot account is selected in your
+              wallet. It will appear under <em>Positions</em> here for
+              auto-exit setup.
+            </li>
+          </ol>
+          <p className="mt-3 t-small text-[var(--color-text-dim)]">
+            Alternative: transfer the NFT of an existing position from any
+            account you control to this address.
           </p>
         </div>
 

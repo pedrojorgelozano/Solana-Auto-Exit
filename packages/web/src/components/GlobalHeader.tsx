@@ -25,6 +25,12 @@ export function GlobalHeader() {
         </Link>
 
         <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+          <Link
+            href="/docs"
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            Docs
+          </Link>
           <div className="hidden md:block">
             <ServerStatus />
           </div>

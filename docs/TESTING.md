@@ -145,6 +145,17 @@ Validado el 2026-05-20:
 - `wallet.generate` mutation produce keypair válida (probado vía round-trip: address devuelta = address derivada del secret base58).
 - Vista de éxito requiere checkbox "I've saved this" para habilitar Continue.
 
+### 13. Onboarding redesign (piezas 1–5)
+
+Validado el 2026-05-21:
+- `pnpm --filter @solana-auto-exit/web typecheck` pasa verde tras cada pieza implementada (5 typechecks intermedios, todos OK).
+- Ambos dev servers arrancan limpios: backend en `http://127.0.0.1:7777` (vault path al persisted), Next.js en `http://127.0.0.1:3000` ("Ready in 13.5s" tras compilación inicial).
+- Navegación manual de los nuevos caminos confirmada: `/` (FirstRunHome cuando no hay wallet · DashboardHero cuando sí), `/docs` (index), `/docs/getting-started`, `/docs/bot-wallet`, `/docs/auto-exit`, `/docs/operational`, `/docs/security`, `/docs/faq`. Sidebar de `/docs` muestra el item activo en oxblood, el resto en muted.
+- Modal con copy nuevo abre correctamente al pulsar el chip "set up wallet" o el CTA "Create the bot's wallet →". Tres tabs sin badge "recommended". Preamble y `ImportWarning` visibles en cada flujo.
+- Empty state `EmptyOwnedList` en `/positions` muestra la address de la bot wallet con botón "copy" funcional (copia al portapapeles via `navigator.clipboard.writeText`).
+- Links contextuales navegan correctamente a los artículos correspondientes; el link desde el modal cierra el modal antes de navegar (vía `onClick={close}`).
+- **No validado E2E on-chain** en esta sesión — la sesión fue puramente de UX y copy. La mecánica de auto-exit no se tocó.
+
 ---
 
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)

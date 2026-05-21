@@ -31,7 +31,7 @@ export function VaultChip() {
         onClick={connect.open}
         className={chipClass("accent")}
       >
-        <Lock /> connect wallet
+        <Lock /> set up wallet
       </button>
     );
   }
