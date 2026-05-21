@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { router, publicProcedure, TRPCError } from "../init.js";
+import { assertSafeRpcUrl } from "../../security/rpc-url.js";
 
 // Time buffer per trigger (ADR-025). Max 7 días en ms. Null/0 = sin buffer.
 const MAX_BUFFER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -63,6 +64,18 @@ export const tasksRouter = router({
       // ya no se enforza aquí. La confirmación de doble paso en /settings
       // es la única safety net para cambiar de red. Si en el futuro hace
       // falta volver a cerrar el gate (deploys compartidos), se reintroduce.
+      // SSRF defense-in-depth: el cliente pasa rpcUrl en cada create; lo
+      // validamos también aquí (settings.update tiene la barrera principal,
+      // pero un cliente puede saltarse settings.update y mandar la url
+      // directo en la task).
+      try {
+        assertSafeRpcUrl(input.rpcUrl);
+      } catch (err) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
       return ctx.taskManager.createTask(input);
     }),
 

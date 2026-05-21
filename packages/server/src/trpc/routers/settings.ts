@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { router, publicProcedure, TRPCError } from "../init.js";
 import { settings } from "../../db/schema.js";
+import { assertSafeRpcUrl } from "../../security/rpc-url.js";
 
 /**
  * Snapshot que la UI usa para pre-llenar el form de configure y el listado
@@ -188,6 +189,19 @@ export const settingsRouter = router({
         message:
           "Mainnet is not enabled on this server. Set ALLOW_MAINNET_LIVE=true and restart.",
       });
+    }
+    // SSRF defense-in-depth: rechaza loopback / cloud-metadata / schemes raros
+    // antes de persistir el rpcUrl. Modelo de amenaza y rationale: ver
+    // packages/server/src/security/rpc-url.ts.
+    if (input.key === "rpcUrl") {
+      try {
+        assertSafeRpcUrl(input.value);
+      } catch (err) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
     const dbKey = KEYS[input.key];
     const dbValue = String(input.value);

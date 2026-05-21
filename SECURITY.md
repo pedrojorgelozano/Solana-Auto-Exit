@@ -20,8 +20,11 @@ If any of these assumptions don't hold, the defenses below offer less than they 
 | Remote network attacker reaching the API | Server binds `127.0.0.1` only by default. Docker maps the port localhost-only on the host. |
 | Attacker reading the vault file at rest | `scrypt(N=32768, r=8, p=1)` KDF + AES-256-GCM cipher (Node `node:crypto`). |
 | Attacker tampering with the vault file | GCM authentication tag fails the unlock, so silent garbage is impossible. |
+| Brute-force of the vault passphrase via API | `wallet.unlock` is rate-limited: 5 failed attempts / 5 min in-memory sliding window, then 429 with cooldown. A successful unlock resets the counter. |
+| SSRF via the configurable `rpcUrl` | `assertSafeRpcUrl` blocks loopback, cloud metadata endpoints (`169.254.x.x`), all-interfaces (`0.0.0.0`/`::`), IPv6 link-local, and non-http(s)/ws(s) schemes on both `settings.update` and `tasks.create`. LAN ranges (10/8, 172.16/12, 192.168/16) and Tailscale (100.64/10) remain allowed for power users. Escape hatch `ALLOW_LOOPBACK_RPC=true` for `solana-test-validator`. |
 | Seed-phrase exposure of an entire wallet | The app accepts per-account private keys only (64-byte base58 or 64-int JSON array). Seed phrases are **never** accepted, so importing a key is scoped to exactly one Solana address. |
 | Multi-instance interference | One TaskManager per server process; active tasks are paused at boot and require manual resume after unlock. |
+| Accidental real-funds operation in test workflows | Mainnet vs devnet is a one-click toggle in `/settings`, but switching to REAL requires a two-step confirmation (checkbox + danger button) per ADR-026. Mainnet is the default network per ADR-027 — see `/docs/disclaimer`. |
 
 ### What Is *Not* Defended Against
 
@@ -42,6 +45,18 @@ Before running with anything you would miss:
 5. Lock the vault from the wallet page whenever you're not actively monitoring.
 6. If exposing the server beyond localhost, use Tailscale or Cloudflare Tunnel — never open the port to the internet.
 7. Keep your OS, Node, and Docker up to date.
+8. Read the in-app disclaimer at `/docs/disclaimer` — the project is provided "as is" with no warranty. You are responsible for the funds the bot manages.
+
+## Pre-public Checklist (maintainers)
+
+Before flipping the GitHub repo to public visibility (per ADR-009):
+
+```bash
+# Scan the full git history for secrets that may have slipped in.
+docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source=/repo --redact
+```
+
+If `gitleaks` flags anything (API keys, private keys, JSON wallets, `.env` content), **rotate first**, then rewrite the affected commits with `git filter-repo` before publishing. The repository's `.gitignore` already excludes `.env`, `wallet.json`, `*.vault`, and `packages/server/data/`, but the scan is the only way to verify nothing escaped before the rule was added.
 
 ## Reporting a Vulnerability
 

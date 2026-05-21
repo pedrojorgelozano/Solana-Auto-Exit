@@ -9,6 +9,11 @@ import {
   bytesFromJsonArray,
 } from "../../wallet/import.js";
 import { settings as settingsTable } from "../../db/schema.js";
+import {
+  assertUnlockAllowed,
+  recordUnlockFailure,
+  recordUnlockSuccess,
+} from "../../security/unlock-limiter.js";
 
 const DEFAULT_RPC_URL = "https://api.devnet.solana.com";
 
@@ -81,11 +86,34 @@ export const walletRouter = router({
       return ctx.vault.create(input.passphrase, bytes);
     }),
 
-  /** Desbloquea el vault (descifra el secret y lo guarda en memoria). */
+  /**
+   * Desbloquea el vault (descifra el secret y lo guarda en memoria).
+   * Protegido por unlock-limiter: 5 intentos fallidos / 5 min activan un
+   * cool-down con TOO_MANY_REQUESTS hasta que la ventana deslizante libera
+   * un slot. Un unlock exitoso resetea el contador.
+   */
   unlock: publicProcedure
     .input(z.object({ passphrase: z.string().min(1) }))
     .mutation(async ({ ctx, input }) => {
-      return ctx.vault.unlock(input.passphrase);
+      try {
+        assertUnlockAllowed();
+      } catch (err) {
+        throw new TRPCError({
+          code: "TOO_MANY_REQUESTS",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+      try {
+        const result = await ctx.vault.unlock(input.passphrase);
+        recordUnlockSuccess();
+        return result;
+      } catch (err) {
+        // Cualquier fallo del unlock (passphrase incorrecta, vault corrupt,
+        // tag mismatch del GCM, etc.) cuenta como intento. Le re-lanzamos
+        // el error original para que el cliente vea la causa.
+        recordUnlockFailure();
+        throw err;
+      }
     }),
 
   /**
