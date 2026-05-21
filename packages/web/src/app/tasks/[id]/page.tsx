@@ -246,6 +246,7 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
           mintA={mintA}
           mintB={mintB}
           verified={verifiedClose}
+          network={task.network}
         />
       ) : null}
 
@@ -258,11 +259,12 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
           decimalsA={decimalsA}
           decimalsB={decimalsB}
           verified={verifiedSwap}
+          network={task.network}
         />
       ) : null}
 
       {/* === Activity timeline === */}
-      <ActivityTimeline taskId={task.id} />
+      <ActivityTimeline taskId={task.id} network={task.network} />
     </div>
   );
 }
@@ -620,6 +622,7 @@ function CloseReceipt({
   mintA,
   mintB,
   verified,
+  network,
 }: {
   data: CloseResultShape;
   decimalsA: number;
@@ -627,6 +630,7 @@ function CloseReceipt({
   mintA: string;
   mintB: string;
   verified: VerifiedDeltas | null;
+  network: string;
 }) {
   const { t } = useT();
   const r = t.taskDetail.receipt;
@@ -645,7 +649,7 @@ function CloseReceipt({
           </div>
           <h3 className="mt-2 t-h2">{r.recoveredTitle}</h3>
         </div>
-        {data.txId ? <SolscanLink sig={data.txId} /> : null}
+        {data.txId ? <SolscanLink sig={data.txId} network={network} /> : null}
       </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
@@ -697,6 +701,7 @@ function SwapReceipt({
   decimalsA,
   decimalsB,
   verified,
+  network,
 }: {
   data: SwapResultShape;
   exitTokenMint: string | null;
@@ -704,6 +709,7 @@ function SwapReceipt({
   decimalsA: number;
   decimalsB: number;
   verified: VerifiedDeltas | null;
+  network: string;
 }) {
   const { t } = useT();
   const sw = t.taskDetail.swap;
@@ -741,7 +747,7 @@ function SwapReceipt({
             {toSym}
           </h3>
         </div>
-        {data.txId ? <SolscanLink sig={data.txId} /> : null}
+        {data.txId ? <SolscanLink sig={data.txId} network={network} /> : null}
       </div>
 
       {(() => {
@@ -837,10 +843,11 @@ function Receipt({
   );
 }
 
-function SolscanLink({ sig }: { sig: string }) {
+function SolscanLink({ sig, network }: { sig: string; network: string }) {
+  const cluster = network === "mainnet" ? "" : "?cluster=devnet";
   return (
     <Link
-      href={`https://solscan.io/tx/${sig}?cluster=devnet`}
+      href={`https://solscan.io/tx/${sig}${cluster}`}
       target="_blank"
       rel="noopener noreferrer"
       className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
@@ -1111,7 +1118,13 @@ function ErrorRecovery({
 
 type HistoryEvent = inferRouterOutputs<AppRouter>["tasks"]["history"][number];
 
-function ActivityTimeline({ taskId }: { taskId: string }) {
+function ActivityTimeline({
+  taskId,
+  network,
+}: {
+  taskId: string;
+  network: string;
+}) {
   const { t } = useT();
   const tl = t.taskDetail.timeline;
   const history = trpc.tasks.history.useQuery(
@@ -1155,14 +1168,14 @@ function ActivityTimeline({ taskId }: { taskId: string }) {
       </div>
       <ol className="mt-6 divide-y divide-[var(--color-hairline)]">
         {events.map((ev) => (
-          <EventRow key={ev.id} ev={ev} />
+          <EventRow key={ev.id} ev={ev} network={network} />
         ))}
       </ol>
     </section>
   );
 }
 
-function EventRow({ ev }: { ev: HistoryEvent }) {
+function EventRow({ ev, network }: { ev: HistoryEvent; network: string }) {
   const { t } = useT();
   const desc = describeEvent(ev, t);
   const timestamp =
@@ -1182,7 +1195,7 @@ function EventRow({ ev }: { ev: HistoryEvent }) {
         {desc.description}
         {desc.txId ? (
           <span className="ml-3">
-            <SolscanLink sig={desc.txId} />
+            <SolscanLink sig={desc.txId} network={network} />
           </span>
         ) : null}
       </div>

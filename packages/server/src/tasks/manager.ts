@@ -372,6 +372,14 @@ export class TaskManager {
         continue;
       }
 
+      // Guard race pause/abort vs trigger: si entre `await getPrice` y aquí
+      // alguien llamó pauseTask/stopTask/pauseAllOnVaultLock, el row ya está
+      // en `paused`/`stopped`/etc. en la DB. Disparar el cierre ahora
+      // sobrescribiría ese estado con `closing`/`done`/`error`, ignorando
+      // la intención del usuario. El abort es la señal canónica de "no hagas
+      // nada más en este watcher".
+      if (signal.aborted) return;
+
       // Si por azar los dos están listos en el mismo tick (rango entre
       // SL y TP atravesado y ambos buffers cumplidos), priorizamos take-profit.
       const triggeredBy: "take_profit" | "stop_loss" = tpReady
@@ -380,7 +388,7 @@ export class TaskManager {
 
       // --- Trigger: cierre + (swap opcional) ---
       this.markTriggered(row.id, triggeredBy);
-      await this.executeClose(row, adapter, position);
+      await this.executeClose(row, adapter, position, signal);
       this.running.delete(row.id);
       return;
     }
@@ -392,6 +400,7 @@ export class TaskManager {
     row: TaskRow,
     adapter: ProtocolAdapter,
     position: ResolvedPosition,
+    signal: AbortSignal,
   ): Promise<void> {
     this.markClosing(row.id);
 
@@ -434,7 +443,11 @@ export class TaskManager {
       );
     }
 
-    if (row.exitTokenMint) {
+    // El close ya está hecho y verified. Si nos pausaron entre el close y
+    // el swap opcional, NO disparamos el swap: la task cae al `done` de
+    // abajo con closeResult guardado y sin swapResult. El usuario decide
+    // manualmente si quiere mover los fondos recuperados a otro token.
+    if (row.exitTokenMint && !signal.aborted) {
       try {
         const swapResult = await withRetry(
           () =>
