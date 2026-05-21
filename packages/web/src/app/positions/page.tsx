@@ -8,7 +8,12 @@ import type { AppRouter } from "@solana-auto-exit/server/api";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
-import { NETWORK, PROTOCOL, RPC_URL } from "@/lib/constants";
+import {
+  NETWORK,
+  PROTOCOL_LABELS,
+  type ProtocolName,
+  RPC_URL,
+} from "@/lib/constants";
 import { formatPrice, formatRangeStatus, formatTokenAmount } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
 
@@ -92,8 +97,16 @@ function OwnedList({ owner }: { owner: string }) {
   const rpcUrl = settings.data?.rpcUrl ?? RPC_URL;
   const network = settings.data?.network ?? NETWORK;
 
-  const list = trpc.positions.listOwned.useQuery({
-    protocol: PROTOCOL,
+  // F6.1.b: consultamos cada protocolo registrado en paralelo. React Query
+  // ejecuta las useQuery concurrentemente; merge se hace en el render.
+  const orcaList = trpc.positions.listOwned.useQuery({
+    protocol: "orca",
+    network,
+    rpcUrl,
+    owner,
+  });
+  const meteoraList = trpc.positions.listOwned.useQuery({
+    protocol: "meteora",
     network,
     rpcUrl,
     owner,
@@ -109,51 +122,95 @@ function OwnedList({ owner }: { owner: string }) {
     }
   }
 
-  if (list.isLoading) {
+  const isLoadingAll = orcaList.isLoading && meteoraList.isLoading;
+  const allRefs = [...(orcaList.data ?? []), ...(meteoraList.data ?? [])];
+  const refresh = () => {
+    orcaList.refetch();
+    meteoraList.refetch();
+  };
+
+  if (isLoadingAll) {
     return (
       <p className="t-small text-[var(--color-text-muted)]">
-        Querying the chain for {PROTOCOL} positions of this wallet…
+        Querying the chain for {PROTOCOLS_LABEL} positions of this wallet…
       </p>
     );
   }
-  if (list.error) {
+
+  // Si los DOS protocolos erroraron, mostramos el error de Orca (Meteora
+  // como red secundaria). Si solo uno, lo enseñamos inline pero seguimos
+  // renderizando los datos del otro.
+  if (orcaList.error && meteoraList.error) {
     return (
       <div>
-        <p className="t-small text-[var(--color-danger)]">{list.error.message}</p>
+        <p className="t-small text-[var(--color-danger)]">
+          {orcaList.error.message}
+        </p>
         <div className="mt-4">
-          <Button variant="secondary" onClick={() => list.refetch()}>
+          <Button variant="secondary" onClick={refresh}>
             Retry
           </Button>
         </div>
       </div>
     );
   }
-  if (!list.data || list.data.length === 0) {
-    return <EmptyOwnedList owner={owner} refresh={() => list.refetch()} />;
+
+  if (allRefs.length === 0) {
+    return <EmptyOwnedList owner={owner} refresh={refresh} />;
   }
 
   return (
     <div>
       <div className="flex items-baseline justify-between hairline-b pb-4">
         <div className="t-eyebrow text-[var(--color-text-muted)]">
-          {list.data.length} {list.data.length === 1 ? "position" : "positions"}
+          {allRefs.length} {allRefs.length === 1 ? "position" : "positions"}
+          {orcaList.isLoading || meteoraList.isLoading ? (
+            <span className="ml-2 text-[var(--color-text-dim)]">· still loading</span>
+          ) : null}
         </div>
         <button
-          onClick={() => list.refetch()}
+          onClick={refresh}
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
         >
           refresh
         </button>
       </div>
+      {orcaList.error ? (
+        <ProtocolErrorRow protocol="orca" message={orcaList.error.message} />
+      ) : null}
+      {meteoraList.error ? (
+        <ProtocolErrorRow protocol="meteora" message={meteoraList.error.message} />
+      ) : null}
       <ul className="divide-y divide-[var(--color-hairline)]">
-        {list.data.map((ref) => (
+        {allRefs.map((ref) => (
           <PositionRow
-            key={ref.id}
+            key={`${ref.protocol}:${ref.id}`}
             posRef={ref}
             activeTaskId={activeByPosition.get(ref.id) ?? null}
           />
         ))}
       </ul>
+    </div>
+  );
+}
+
+const PROTOCOLS_LABEL = "Orca + Meteora";
+
+function ProtocolErrorRow({
+  protocol,
+  message,
+}: {
+  protocol: "orca" | "meteora";
+  message: string;
+}) {
+  return (
+    <div className="hairline-b py-3">
+      <span className="t-eyebrow text-[var(--color-danger)]">
+        {PROTOCOL_LABELS[protocol]} failed
+      </span>
+      <span className="ml-2 t-small text-[var(--color-text-muted)]">
+        {message}
+      </span>
     </div>
   );
 }
@@ -168,7 +225,7 @@ function PositionRow({
   // Reuse del cache de settings (TanStack Query deduplica con OwnedList).
   const settings = trpc.settings.get.useQuery();
   const summary = trpc.positions.getSummary.useQuery({
-    protocol: PROTOCOL,
+    protocol: posRef.protocol,
     network: settings.data?.network ?? NETWORK,
     rpcUrl: settings.data?.rpcUrl ?? RPC_URL,
     ref: posRef,
@@ -197,7 +254,17 @@ function PositionRow({
                 ) : null}
               </div>
               <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
-                {posRef.protocol} · {posRef.label.split(" ").slice(-1)[0]}
+                <span
+                  className={
+                    posRef.protocol === "meteora"
+                      ? "text-[var(--color-accent-bright)]"
+                      : ""
+                  }
+                >
+                  {PROTOCOL_LABELS[posRef.protocol as ProtocolName] ??
+                    posRef.protocol}
+                </span>{" "}
+                · {posRef.label.split(" ").slice(-1)[0]}
               </div>
             </div>
             <div className="col-span-3">

@@ -11,7 +11,13 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { trpc } from "@/lib/trpc";
-import { NETWORK, PROTOCOL, RPC_URL } from "@/lib/constants";
+import {
+  NETWORK,
+  PROTOCOL,
+  PROTOCOL_LABELS,
+  type ProtocolName,
+  RPC_URL,
+} from "@/lib/constants";
 import {
   formatDistance,
   formatNearestDistance,
@@ -40,9 +46,21 @@ export default function PositionPage() {
   const network = settings.data?.network ?? NETWORK;
   const rpcUrl = settings.data?.rpcUrl ?? RPC_URL;
 
-  const list = trpc.positions.listOwned.useQuery(
+  // F6.1.b: agregamos los dos protocolos en paralelo para que la página
+  // funcione tanto con posiciones Orca como Meteora (estas últimas son
+  // read-only hasta F6.2).
+  const orcaList = trpc.positions.listOwned.useQuery(
     {
-      protocol: PROTOCOL,
+      protocol: "orca",
+      network,
+      rpcUrl,
+      owner: owner ?? "",
+    },
+    { enabled: !!owner && walletStatus.data?.unlocked === true },
+  );
+  const meteoraList = trpc.positions.listOwned.useQuery(
+    {
+      protocol: "meteora",
       network,
       rpcUrl,
       owner: owner ?? "",
@@ -50,10 +68,16 @@ export default function PositionPage() {
     { enabled: !!owner && walletStatus.data?.unlocked === true },
   );
 
-  const posRef = useMemo(
-    () => list.data?.find((r) => r.id === mint),
-    [list.data, mint],
+  const allRefs = useMemo(
+    () => [...(orcaList.data ?? []), ...(meteoraList.data ?? [])],
+    [orcaList.data, meteoraList.data],
   );
+  const posRef = useMemo(
+    () => allRefs.find((r) => r.id === mint),
+    [allRefs, mint],
+  );
+  const isLoading = orcaList.isLoading || meteoraList.isLoading;
+  const firstError = orcaList.error ?? meteoraList.error;
 
   return (
     <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
@@ -63,12 +87,12 @@ export default function PositionPage() {
         back={{ href: "/positions", label: "Positions" }}
       />
 
-      {walletStatus.isLoading || list.isLoading ? (
+      {walletStatus.isLoading || isLoading ? (
         <p className="t-small text-[var(--color-text-muted)]">Loading…</p>
       ) : !walletStatus.data?.hasVault || !walletStatus.data.unlocked ? (
         <NeedWallet hasVault={walletStatus.data?.hasVault ?? false} />
-      ) : list.error ? (
-        <p className="t-small text-[var(--color-danger)]">{list.error.message}</p>
+      ) : !posRef && firstError ? (
+        <p className="t-small text-[var(--color-danger)]">{firstError.message}</p>
       ) : !posRef ? (
         <p className="t-small text-[var(--color-danger)]">
           Position{" "}
@@ -102,6 +126,31 @@ function NeedWallet({ hasVault }: { hasVault: boolean }) {
   );
 }
 
+/**
+ * Mensaje que sale cuando la posición es de un protocolo que el bot
+ * aún solo lee (no cierra). F6.1.b muestra Meteora pero F6.2 abrirá el
+ * close + claim fees.
+ */
+function ReadOnlyProtocolNotice({ protocol }: { protocol: string }) {
+  return (
+    <section className="hairline-t pt-10">
+      <div className="t-eyebrow text-[var(--color-warning)]">
+        Read-only protocol
+      </div>
+      <h2 className="mt-3 t-h2">
+        Auto-exits on {PROTOCOL_LABELS[protocol as ProtocolName] ?? protocol}{" "}
+        are not configurable yet.
+      </h2>
+      <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+        F6.1 added discovery for {PROTOCOL_LABELS[protocol as ProtocolName] ?? protocol}{" "}
+        positions — you can see them here, including current price, range
+        and pending fees. The close + swap path will land in F6.2 / F6.3.
+        Until then the auto-exit form is intentionally locked.
+      </p>
+    </section>
+  );
+}
+
 // ============================================================================
 // Editor
 // ============================================================================
@@ -127,7 +176,7 @@ function Editor({
   const rpcUrl = settings.data?.rpcUrl ?? RPC_URL;
 
   const summary = trpc.positions.getSummary.useQuery({
-    protocol: PROTOCOL,
+    protocol: posRef.protocol,
     network,
     rpcUrl,
     ref: posRef,
@@ -142,6 +191,10 @@ function Editor({
       ["idle", "armed", "triggered", "closing", "paused"].includes(t.status),
   );
 
+  // F6.1.b: Meteora es read-only en esta fase. Mostramos summary pero no
+  // dejamos configurar auto-exit hasta que F6.2 implemente closePosition.
+  const isReadOnlyProtocol = posRef.protocol === "meteora";
+
   return (
     <div className="space-y-12">
       <PositionRecap
@@ -153,6 +206,8 @@ function Editor({
 
       {activeTask ? (
         <ExistingWatcher task={activeTask} />
+      ) : isReadOnlyProtocol ? (
+        <ReadOnlyProtocolNotice protocol={posRef.protocol} />
       ) : summary.data ? (
         <ConfigureForm
           mint={mint}

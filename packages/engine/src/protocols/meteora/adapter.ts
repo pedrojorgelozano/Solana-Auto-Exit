@@ -172,17 +172,19 @@ export class MeteoraAdapter implements ProtocolAdapter {
     const lbPairKey = new PublicKey(ref.poolId);
     const dlmm = await DLMM.create(conn, lbPairKey);
 
-    // Recargamos las posiciones del owner (también podríamos usar
-    // PositionV2Wrapper.fetch para una sola, pero esto reutiliza el
-    // path validado del SDK).
-    const owner = this.walletAddress
-      ? new PublicKey(this.walletAddress)
-      : null;
-    if (!owner) {
+    // Self-sufficient: no exige attachWallet. Extraemos el owner del
+    // byte layout de la posición y desde ahí entramos al path del SDK
+    // que da el PositionInfo completo. Esto permite que la procedure
+    // positions.getSummary del backend trabaje sin tener que firmar.
+    const positionPk = new PublicKey(ref.id);
+    const positionAccount = await conn.getAccountInfo(positionPk);
+    if (!positionAccount) {
       throw new Error(
-        "MeteoraAdapter.getPositionSummary: wallet no asignada. Llama attachWallet() antes.",
+        `MeteoraAdapter.getPositionSummary: position ${ref.id} no existe on-chain.`,
       );
     }
+    const owner = new PublicKey(positionAccount.data.subarray(40, 72));
+
     const all = await DLMM.getAllLbPairPositionsByUser(conn, owner);
     const info = all.get(ref.poolId);
     if (!info) {
