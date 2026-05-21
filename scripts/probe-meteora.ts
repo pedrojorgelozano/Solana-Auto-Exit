@@ -98,6 +98,36 @@ async function main(): Promise<void> {
       } catch (err) {
         console.log(`  getPrice() failed: ${(err as Error).message}`);
       }
+
+      // F6.2.a: si se pasa --close-dry-run, ejercemos closePosition en modo
+      // simulación para validar el quote.
+      if (process.argv.includes("--close-dry-run")) {
+        try {
+          const close = await adapter.closePosition(
+            {
+              id: ref.id,
+              poolLabel: ref.label,
+              raw: {
+                lbPair: ref.poolId,
+                position: ref.id,
+                decimalsX: sum.tokenA.decimals,
+                decimalsY: sum.tokenB.decimals,
+              },
+            },
+            100,
+            true,
+          );
+          const eA = scaleAmount(close.estimatedTokenA ?? "0", sum.tokenA.decimals);
+          const eB = scaleAmount(close.estimatedTokenB ?? "0", sum.tokenB.decimals);
+          const fA = scaleAmount(close.feesTokenA ?? "0", sum.tokenA.decimals);
+          const fB = scaleAmount(close.feesTokenB ?? "0", sum.tokenB.decimals);
+          console.log(
+            `  closePosition(dryRun): receive ${eA} ${symA} + ${eB} ${symB}, fees ${fA} ${symA} + ${fB} ${symB}`,
+          );
+        } catch (err) {
+          console.log(`  closePosition(dryRun) failed: ${(err as Error).message}`);
+        }
+      }
     } catch (err) {
       console.log(`  summary failed: ${(err as Error).message}`);
     }

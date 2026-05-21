@@ -286,10 +286,60 @@ export class MeteoraAdapter implements ProtocolAdapter {
     return Number.parseFloat(activeBin.pricePerToken);
   }
 
-  async closePosition(): Promise<CloseResult> {
-    throw new Error(
-      "MeteoraAdapter.closePosition: no implementado en F6.1. Pendiente F6.2.",
+  async closePosition(
+    position: ResolvedPosition,
+    _slippageBps: number,
+    dryRun: boolean,
+  ): Promise<CloseResult> {
+    if (!dryRun) {
+      throw new Error(
+        "MeteoraAdapter.closePosition real path no implementado en F6.2.a. " +
+          "Pendiente F6.2.b: requiere conversión KeyPairSigner (kit v5) → " +
+          "Keypair (web3.js v1) exponiendo el raw secret del WalletVault.",
+      );
+    }
+
+    // Dry-run: leemos el estado actual on-chain y devolvemos el quote. NO
+    // firmamos ni enviamos. La fuente de verdad es positionData del SDK:
+    // totalXAmount/totalYAmount son la liquidez actual en raw lamports,
+    // feeX/feeY son las fees acumuladas pendientes de claim.
+    const conn = this.getConnection();
+    const cfg = position.raw as MeteoraConfig;
+
+    const positionPk = new PublicKey(cfg.position);
+    const positionAccount = await conn.getAccountInfo(positionPk);
+    if (!positionAccount) {
+      throw new Error(
+        `MeteoraAdapter.closePosition: position ${cfg.position} no existe on-chain.`,
+      );
+    }
+    const owner = new PublicKey(positionAccount.data.subarray(40, 72));
+
+    const all = await DLMM.getAllLbPairPositionsByUser(conn, owner);
+    const info = all.get(cfg.lbPair);
+    if (!info) {
+      throw new Error(
+        `MeteoraAdapter.closePosition: el wallet ${owner.toBase58()} no tiene posiciones en ${cfg.lbPair}.`,
+      );
+    }
+    const pos = info.lbPairPositionsData.find(
+      (p) => p.publicKey.toBase58() === cfg.position,
     );
+    if (!pos) {
+      throw new Error(
+        `MeteoraAdapter.closePosition: posición ${cfg.position} no encontrada en el pool.`,
+      );
+    }
+
+    return {
+      dryRun: true,
+      estimatedTokenA: pos.positionData.totalXAmount,
+      estimatedTokenB: pos.positionData.totalYAmount,
+      feesTokenA: pos.positionData.feeX.toString(),
+      feesTokenB: pos.positionData.feeY.toString(),
+      notes:
+        "DRY_RUN: quote read-only. Para cerrar la posición real, espera a F6.2.b (requiere firma con web3.js v1 Keypair).",
+    };
   }
 
   async swapToExit(): Promise<SwapExitResult> {
