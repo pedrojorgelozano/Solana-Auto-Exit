@@ -17,6 +17,6 @@
       ]
     },
     "shell:allow-kill",
-    "dialog:allow-confirm"
+    "dialog:allow-message"
   ]
 }

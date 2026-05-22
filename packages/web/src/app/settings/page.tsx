@@ -74,6 +74,7 @@ function SettingsForm({
     defaultSlippageBps: number;
     defaultExitSlippageBps: number;
     defaultPollMs: number;
+    updaterAutoCheck: boolean;
     factoryDefaults: {
       network: "devnet" | "mainnet";
       rpcUrl: string;
@@ -169,7 +170,7 @@ function SettingsForm({
   );
 
   const onReset = async () => {
-    if (!confirm(s.resetPrompt)) return;
+    if (!(await confirm(s.resetPrompt))) return;
     setError(null);
     try {
       await reset.mutateAsync();
@@ -371,6 +372,8 @@ function SettingsForm({
         </p>
       </section>
 
+      <UpdaterPanel enabled={initial.updaterAutoCheck} refresh={refresh} />
+
       {error ? <FieldError>{error}</FieldError> : null}
 
       {/* Actions */}
@@ -401,6 +404,58 @@ function SettingsForm({
         </div>
       </section>
     </div>
+  );
+}
+
+// ============================================================================
+// UpdaterPanel — toggle del auto-check de actualizaciones. Standalone: guarda
+// al instante (no entra en el dirty-tracking del form). Off por defecto — el
+// check es egress a GitHub, así que es opt-in (auditoría / ADR-032).
+// ============================================================================
+
+function UpdaterPanel({
+  enabled,
+  refresh,
+}: {
+  enabled: boolean;
+  refresh: () => Promise<void>;
+}) {
+  const { t } = useT();
+  const s = t.settings.updater;
+  const [error, setError] = useState<string | null>(null);
+  const update = trpc.settings.update.useMutation();
+
+  const onChange = async (next: boolean) => {
+    if (next === enabled) return;
+    setError(null);
+    try {
+      await update.mutateAsync({ key: "updaterAutoCheck", value: next });
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  return (
+    <section className="hairline-t pt-10">
+      <div className="t-eyebrow text-[var(--color-text-muted)]">{s.eyebrow}</div>
+      <h2 className="mt-3 t-h2">{s.title}</h2>
+      <div className="mt-8">
+        <Label>{s.label}</Label>
+        <Segmented
+          value={enabled ? "on" : "off"}
+          onChange={(v) => onChange(v === "on")}
+          options={[
+            { value: "off", label: "Off" },
+            { value: "on", label: "On" },
+          ]}
+        />
+        <p className="mt-3 max-w-2xl t-small text-[var(--color-text-muted)]">
+          {s.copy}
+        </p>
+        {error ? <FieldError>{error}</FieldError> : null}
+      </div>
+    </section>
   );
 }
 
@@ -464,7 +519,7 @@ function NetworkPanel({
       setPendingReal(true);
       return;
     }
-    if (!confirm(s.switchTestPrompt)) {
+    if (!(await confirm(s.switchTestPrompt))) {
       return;
     }
     try {

@@ -336,8 +336,8 @@ function Controls({
       <Button
         variant="danger"
         size="sm"
-        onClick={() => {
-          if (confirm(c.deleteConfirm)) {
+        onClick={async () => {
+          if (await confirm(c.deleteConfirm)) {
             del.mutate({ id: task.id });
           }
         }}

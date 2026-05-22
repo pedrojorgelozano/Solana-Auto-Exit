@@ -484,6 +484,13 @@ export const es: typeof en = {
       "Los defaults de RPC, slippage y polling pre-rellenan el formulario de auto-exit. El form deja sobrescribirlos por task; esto es solo el punto de partida.",
     backLabel: "Inicio",
 
+    updater: {
+      eyebrow: "Actualizaciones",
+      title: "Buscar versiones nuevas.",
+      label: "Comprobar al arrancar",
+      copy: "Si está activo, la app pregunta a GitHub si hay una versión nueva cada vez que arranca. Off por defecto — esa comprobación es una petición de red que sale de tu ordenador, así que es opt-in.",
+    },
+
     networkSection: {
       eyebrow: "Red & RPC",
       title: "Dónde lee la cadena este servidor.",

@@ -512,6 +512,13 @@ export const en = {
       "RPC, slippage and polling defaults pre-fill the auto-exit form. The form lets you override per-task; this is just the starting point.",
     backLabel: "Home",
 
+    updater: {
+      eyebrow: "Updates",
+      title: "Check for new versions.",
+      label: "Auto-check on startup",
+      copy: "When on, the app asks GitHub for a newer version each time it starts. Off by default — that check is a network request that leaves your machine, so it's opt-in.",
+    },
+
     networkSection: {
       eyebrow: "Network & RPC",
       title: "Where this server reads the chain.",

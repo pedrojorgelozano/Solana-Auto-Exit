@@ -32,10 +32,78 @@ fn strip_verbatim(p: PathBuf) -> PathBuf {
     }
 }
 
+/// Override correctivo de `window.confirm` para el webview.
+///
+/// `tauri-plugin-dialog` 2.7.1 inyecta un `init-iife.js` que reemplaza
+/// `window.confirm` por una llamada al comando `plugin:dialog|confirm` — un
+/// comando que esa versión del plugin YA NO registra (lo fusionó en `message`;
+/// ver su CHANGELOG). Resultado: cualquier `confirm()` del webview revienta con
+/// "command not found". Reinyectamos aquí un override que llama al comando
+/// `message` (sí existe) con botones OkCancel. Se registra como plugin propio
+/// DESPUÉS de tauri-plugin-dialog para que su script corra el último y gane.
+/// Devuelve `Promise<bool>`; el web hace `await confirm(...)` (en navegador
+/// normal `await` sobre el bool síncrono nativo también funciona).
+const CONFIRM_FIX_JS: &str = r#"
+(function () {
+  window.confirm = function (message) {
+    return window.__TAURI_INTERNALS__
+      .invoke('plugin:dialog|message', {
+        message: String(message == null ? '' : message),
+        buttons: 'OkCancel',
+      })
+      .then(function (r) { return r === 'Ok' || r === 'Yes' || r === true; });
+  };
+})();
+"#;
+
+/// Empaqueta el override correctivo de `window.confirm` como plugin Tauri.
+/// Es genérico sobre el runtime para que `R` se infiera en `.plugin()` (igual
+/// que hace `tauri_plugin_dialog::init`): construir el `Builder` inline en
+/// `run()` deja el runtime ambiguo y no compila (E0283).
+fn confirm_fix_plugin<R: tauri::Runtime>() -> tauri::plugin::TauriPlugin<R> {
+    tauri::plugin::Builder::<R>::new("confirm-fix")
+        .js_init_script(CONFIRM_FIX_JS.to_string())
+        .build()
+}
+
+/// Consulta al sidecar (ya levantado) si el usuario activó el auto-check de
+/// updates en /settings. HTTP plano a localhost por TCP crudo — sin reqwest
+/// ni TLS (reqwest+rustls exige un crypto provider y entra en pánico hasta
+/// para una GET HTTP simple). Cualquier fallo → false (opt-out por defecto).
+fn updater_auto_check_enabled() -> bool {
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let probe = || -> Option<String> {
+        let mut s = TcpStream::connect("127.0.0.1:7777").ok()?;
+        s.set_read_timeout(Some(Duration::from_secs(3))).ok()?;
+        s.write_all(
+            b"GET /trpc/settings.get HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+        )
+        .ok()?;
+        let mut raw = String::new();
+        s.read_to_string(&mut raw).ok()?;
+        Some(raw)
+    };
+    // El setting es un booleano; basta buscar su forma serializada en la
+    // respuesta — robusto frente a headers / chunked encoding.
+    probe()
+        .map(|raw| raw.contains("\"updaterAutoCheck\":true"))
+        .unwrap_or(false)
+}
+
 /// Comprueba si hay una versión nueva publicada y, si la hay, pregunta antes
 /// de instalar. Nunca reinicia sin confirmación: un reinicio detiene los
 /// watchers de auto-exit activos, así que la decisión es del usuario.
+///
+/// Opt-in: solo corre si el usuario activó el auto-check en /settings. El
+/// check hace un fetch a GitHub (egress de red), así que por defecto no se
+/// ejecuta — ver ADR-032 y la auditoría de egress.
 async fn check_for_updates(app: tauri::AppHandle) {
+    if !updater_auto_check_enabled() {
+        return;
+    }
     let updater = match app.updater() {
         Ok(u) => u,
         Err(e) => {
@@ -74,6 +142,9 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        // Debe ir DESPUÉS de tauri-plugin-dialog: su script de init corre tras
+        // el del plugin y así nuestro `window.confirm` es el que prevalece.
+        .plugin(confirm_fix_plugin())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SidecarHandle::default())
         .setup(|app| {
@@ -162,10 +233,14 @@ pub fn run() {
 
             // Drenamos stdout/stderr del sidecar a la consola (visible en
             // `tauri dev`) y a `sidecar.log` (única vía de depurar la app
-            // release, que es GUI sin consola).
+            // release, que es GUI sin consola). Cuando el server anuncia que
+            // ya escucha, lanzamos el check de updates — que primero consulta
+            // el setting opt-in a través del propio sidecar.
+            let updater_app = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 use std::io::Write;
                 use tauri_plugin_shell::process::CommandEvent;
+                let mut updater_started = false;
                 while let Some(event) = rx.recv().await {
                     let line = match event {
                         CommandEvent::Stdout(b) => {
@@ -189,11 +264,16 @@ pub fn run() {
                     {
                         let _ = writeln!(f, "{}", line);
                     }
+                    // El server ya escucha → el sidecar puede responder a la
+                    // consulta del setting. Disparamos el check una sola vez.
+                    if !updater_started && line.contains("listening on http") {
+                        updater_started = true;
+                        tauri::async_runtime::spawn(check_for_updates(
+                            updater_app.clone(),
+                        ));
+                    }
                 }
             });
-
-            // Comprobación de actualizaciones al arrancar, no bloqueante.
-            tauri::async_runtime::spawn(check_for_updates(app.handle().clone()));
 
             Ok(())
         })

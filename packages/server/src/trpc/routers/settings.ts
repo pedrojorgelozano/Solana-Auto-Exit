@@ -35,6 +35,12 @@ export interface SettingsSnapshot {
   /** Intervalo de poll del watcher, en ms. */
   defaultPollMs: number;
   /**
+   * Si la app desktop comprueba actualizaciones al arrancar. Off por
+   * defecto: el check hace un fetch a GitHub, así que es opt-in (auditoría
+   * de egress de red). Ver ADR-032.
+   */
+  updaterAutoCheck: boolean;
+  /**
    * Valores factory-default — lo que el snapshot devolvería tras un Reset.
    * La UI los usa para implementar Reset imperativamente, sin depender de
    * que TanStack Query detecte un cambio en el snapshot (que puede ser
@@ -74,6 +80,8 @@ const DEFAULTS = {
   // Con time-buffers la latencia del polling es cosmética; 30s es el sweet
   // spot que cabe en Helius free tier por watcher. Ver explicación en /settings.
   defaultPollMs: 30_000,
+  // Auditoría de egress: el check de updates pinga GitHub, así que es opt-in.
+  updaterAutoCheck: false,
 };
 
 /**
@@ -95,6 +103,7 @@ const KEYS = {
   defaultSlippageBps: "default_slippage_bps",
   defaultExitSlippageBps: "default_exit_slippage_bps",
   defaultPollMs: "default_poll_ms",
+  updaterAutoCheck: "updater_auto_check",
 } as const;
 
 const updateInput = z.discriminatedUnion("key", [
@@ -117,6 +126,10 @@ const updateInput = z.discriminatedUnion("key", [
   z.object({
     key: z.literal("defaultPollMs"),
     value: z.number().int().min(1_000).max(600_000),
+  }),
+  z.object({
+    key: z.literal("updaterAutoCheck"),
+    value: z.boolean(),
   }),
 ]);
 
@@ -161,6 +174,8 @@ export const settingsRouter = router({
         map.get(KEYS.defaultPollMs),
         DEFAULTS.defaultPollMs,
       ),
+      // Boolean persistido como texto; cualquier cosa que no sea "true" → off.
+      updaterAutoCheck: map.get(KEYS.updaterAutoCheck) === "true",
       // factoryDefaults representa "lo que devolvería el snapshot tras un
       // Reset". El Reset preserva la red, así que rpcUrl tiene que ser la
       // canónica de la red ACTUAL (no una fija). El resto son constantes.
