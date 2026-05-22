@@ -8,6 +8,7 @@ import type { AppRouter } from "@solana-auto-exit/server/api";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
+import { taskDetailHref } from "@/lib/routes";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import {
   formatDistance,
@@ -325,7 +326,7 @@ function Row({ row }: { row: TaskRow }) {
       </td>
       <td className="py-4 align-baseline text-right">
         <Link
-          href={`/tasks/${row.id}`}
+          href={taskDetailHref(row.id)}
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)]"
         >
           {t.common.open}

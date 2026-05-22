@@ -7,6 +7,7 @@ import type { AppRouter } from "@solana-auto-exit/server/api";
 
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
+import { positionDetailHref, taskDetailHref } from "@/lib/routes";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { useT } from "@/i18n/context";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
@@ -409,14 +410,14 @@ function PositionHubRow({
       <div className="col-span-12 md:col-span-2 md:text-right">
         {activeTask ? (
           <Link
-            href={`/tasks/${activeTask.id}`}
+            href={taskDetailHref(activeTask.id)}
             className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
           >
             {t.common.details}
           </Link>
         ) : (
           <Link
-            href={`/positions/${posRef.id}`}
+            href={positionDetailHref(posRef.id)}
             className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
           >
             {t.common.autoExit}
@@ -716,7 +717,7 @@ function LedgerRow({ task }: { task: TaskRow }) {
       </td>
       <td className="py-4 align-top text-right">
         <Link
-          href={`/tasks/${task.id}`}
+          href={taskDetailHref(task.id)}
           className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)]"
         >
           open →

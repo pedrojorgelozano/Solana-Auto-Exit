@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
+import { positionDetailHref } from "@/lib/routes";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
 import {
   formatAmountWithSymbol,
@@ -64,8 +65,8 @@ interface ProtocolConfigShape {
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
 export default function TaskPage() {
-  const params = useParams<{ id: string }>();
-  const id = params.id;
+  const searchParams = useSearchParams();
+  const id = searchParams.get("id") ?? "";
   const utils = trpc.useUtils();
   const task = trpc.tasks.get.useQuery({ id }, { refetchInterval: 2_000 });
   const refresh = () => utils.tasks.get.invalidate({ id });
@@ -997,7 +998,7 @@ function ErrorRecovery({
   const del = trpc.tasks.delete.useMutation({
     onSuccess: () => {
       refresh();
-      router.push(`/positions/${positionId}`);
+      router.push(positionDetailHref(positionId));
     },
   });
   const [confirming, setConfirming] = useState(false);
@@ -1093,7 +1094,7 @@ function ErrorRecovery({
         <div className="mt-8 flex flex-wrap items-center justify-end gap-3 hairline-t pt-6">
           {slippage ? (
             <Link
-              href={`/positions/${positionId}`}
+              href={positionDetailHref(positionId)}
               className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
             >
               {e.setUpNew}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
@@ -12,6 +12,7 @@ import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/Segmented";
 import { trpc } from "@/lib/trpc";
+import { taskDetailHref } from "@/lib/routes";
 import { NETWORK, RPC_URL } from "@/lib/constants";
 import {
   formatBuffer,
@@ -34,9 +35,9 @@ type SlippageBps = 50 | 100 | 200 | 500;
 type PositionSummary = inferRouterOutputs<AppRouter>["positions"]["getSummary"];
 
 export default function PositionPage() {
-  const params = useParams<{ mint: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
-  const mint = params.mint;
+  const mint = searchParams.get("mint") ?? "";
   const { t } = useT();
 
   const walletStatus = trpc.wallet.status.useQuery();
@@ -314,7 +315,7 @@ function ExistingWatcher({
             >
               {e.deleteCta}
             </Button>
-            <Link href={`/tasks/${task.id}`}>
+            <Link href={taskDetailHref(task.id)}>
               <Button>{e.openCta}</Button>
             </Link>
           </>
@@ -637,7 +638,7 @@ function ConfigureForm({
         exitSwapSlippageBps: exitSlippageBps,
       });
       await start.mutateAsync({ id: task.id });
-      router.push(`/tasks/${task.id}`);
+      router.push(taskDetailHref(task.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
