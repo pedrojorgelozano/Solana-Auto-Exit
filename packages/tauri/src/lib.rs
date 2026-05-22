@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use tauri::{Manager, RunEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use tauri_plugin_shell::{process::CommandChild, ShellExt};
+use tauri_plugin_updater::UpdaterExt;
 
 /// Handle al child process del sidecar guardado en el state global.
 /// Lo usamos para matarlo cuando la ventana se cierra (sin esto, el
@@ -30,10 +32,49 @@ fn strip_verbatim(p: PathBuf) -> PathBuf {
     }
 }
 
+/// Comprueba si hay una versión nueva publicada y, si la hay, pregunta antes
+/// de instalar. Nunca reinicia sin confirmación: un reinicio detiene los
+/// watchers de auto-exit activos, así que la decisión es del usuario.
+async fn check_for_updates(app: tauri::AppHandle) {
+    let updater = match app.updater() {
+        Ok(u) => u,
+        Err(e) => {
+            eprintln!("[updater] no configurado: {e}");
+            return;
+        }
+    };
+    let update = match updater.check().await {
+        Ok(Some(u)) => u,
+        Ok(None) => return, // ya está al día
+        Err(e) => {
+            eprintln!("[updater] check falló: {e}");
+            return;
+        }
+    };
+    let approved = app
+        .dialog()
+        .message(format!(
+            "Hay una versión nueva ({}). ¿Instalarla ahora? La app se reiniciará.",
+            update.version
+        ))
+        .title("Actualización disponible")
+        .buttons(MessageDialogButtons::OkCancel)
+        .blocking_show();
+    if !approved {
+        return;
+    }
+    match update.download_and_install(|_, _| {}, || {}).await {
+        Ok(()) => app.restart(),
+        Err(e) => eprintln!("[updater] instalación falló: {e}"),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(SidecarHandle::default())
         .setup(|app| {
             // `app_data_dir`: writable, per-OS, para la DB SQLite y el vault.
@@ -150,6 +191,9 @@ pub fn run() {
                     }
                 }
             });
+
+            // Comprobación de actualizaciones al arrancar, no bloqueante.
+            tauri::async_runtime::spawn(check_for_updates(app.handle().clone()));
 
             Ok(())
         })

@@ -15,6 +15,7 @@
     "build:tauri-prep": "pnpm build:web-export && pnpm build:server-binary",
     "tauri:dev": "pnpm --filter @solana-auto-exit/tauri exec tauri dev",
     "tauri:build": "pnpm --filter @solana-auto-exit/tauri exec tauri build",
+    "tauri:release": "pnpm --filter @solana-auto-exit/tauri exec tauri build --config tauri.updater.conf.json",
     "db:generate": "pnpm --filter @solana-auto-exit/server exec drizzle-kit generate",
     "typecheck": "tsc --noEmit && pnpm --filter @solana-auto-exit/web typecheck",
     "test": "vitest run",
