@@ -83,6 +83,8 @@ Today the Docker image bundles only the backend. Run `pnpm dev:web` separately, 
 
 ## Quick start (Tauri desktop)
 
+**Just want to use it?** Download the installer from the [latest release](https://github.com/pedrojorgelozano/Solana-Auto-Exit/releases/latest) — step-by-step instructions (download verification, the SmartScreen warning, first launch) in [`docs/INSTALL.md`](docs/INSTALL.md). The rest of this section is for building from source.
+
 Building the desktop installer locally requires three toolchains beyond Node + pnpm:
 
 - **Bun** — the desktop sidecar *is* the Bun runtime; it ships the deployed server and runs it.
