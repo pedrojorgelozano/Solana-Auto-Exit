@@ -2,13 +2,22 @@
 
 ## En curso
 
-(nada activo)
+- [ ] **Docker self-hosted: server + web** — rama `feature/docker-web`.
+  `docker compose up` levanta server (:7777) + web (:3000) accesible por
+  navegador; da un camino de uso en Linux/Mac sin el empaquetado nativo de
+  Tauri. Verificado a nivel de infra (build, arranque, server + web + CORS);
+  falta el walkthrough completo de UI en navegador y luego merge a `main`.
+  Al mergear: `/documenta` completo (ADR del Docker server+web, CHANGELOG,
+  TESTING).
 
 ## Próximo (orden sugerido)
 
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
+- [ ] **Revisar los mockups y planificar el rediseño de UI** — hay mockups
+  en `mockups/` (dirección "refined minimal dark"). Revisarlos, decidir el
+  alcance del rediseño y planificarlo.
 
 ## Backlog (sin orden)
 
@@ -124,6 +133,13 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Fixes de mensajes de error de wallet (2026-05-22)**: al importar una
+  clave privada, `createKeyPairSignerFromBytes` lanzaba SolanaErrors
+  crípticos que `wallet.create` no capturaba (#3704004 keypair incoherente,
+  #8078012 caracteres no-base58). Ahora `vault` / `wallet` / `import` los
+  traducen a mensajes accionables — el de base58 nombra los caracteres
+  malos con su code point y detecta homoglifos no-ASCII (letras cirílicas
+  idénticas a las latinas). Commits `254e73e`, `82aa750`.
 - **Primer release público v0.1.0 (2026-05-22)**: repo abierto a público
   (`gh repo edit --visibility public`, tras `gitleaks` limpio) y release
   `v0.1.0` de la app desktop publicada en GitHub (instalador `.exe` +
