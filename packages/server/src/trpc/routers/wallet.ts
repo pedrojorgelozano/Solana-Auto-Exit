@@ -83,7 +83,16 @@ export const walletRouter = router({
           message: err instanceof Error ? err.message : String(err),
         });
       }
-      return ctx.vault.create(input.passphrase, bytes);
+      try {
+        return await ctx.vault.create(input.passphrase, bytes);
+      } catch (err) {
+        // `vault.create` lanza Errors claros (vault ya existe, passphrase
+        // corta, clave inválida) — todos son error de input del usuario.
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
     }),
 
   /**
