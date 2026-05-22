@@ -3,6 +3,7 @@
 // puerta abierta a F4-mobile si algún día nos da por ahí, sin tener
 // que reorganizar el código.
 
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use tauri::{Manager, RunEvent};
@@ -14,6 +15,21 @@ use tauri_plugin_shell::{process::CommandChild, ShellExt};
 #[derive(Default)]
 struct SidecarHandle(Mutex<Option<CommandChild>>);
 
+/// Quita el prefijo verbatim `\\?\` que Tauri devuelve en Windows desde
+/// `resource_dir()` / `app_data_dir()`. El sidecar es código JS que concatena
+/// rutas con `/` (p.ej. drizzle: `${dir}/meta/_journal.json`), y las rutas
+/// `\\?\` no toleran forward slashes — sin esto, la migración falla con ENOENT.
+fn strip_verbatim(p: PathBuf) -> PathBuf {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{rest}"))
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        PathBuf::from(rest)
+    } else {
+        p
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -24,10 +40,11 @@ pub fn run() {
             //    Windows: %APPDATA%/com.autoexit.desktop
             //    macOS:   ~/Library/Application Support/com.autoexit.desktop
             //    Linux:   $XDG_DATA_HOME/com.autoexit.desktop
-            let app_data_dir = app
-                .path()
-                .app_data_dir()
-                .expect("app_data_dir unavailable");
+            let app_data_dir = strip_verbatim(
+                app.path()
+                    .app_data_dir()
+                    .expect("app_data_dir unavailable"),
+            );
             std::fs::create_dir_all(&app_data_dir)
                 .expect("failed to create app_data_dir");
 
@@ -38,20 +55,38 @@ pub fn run() {
             //  - release: se resuelve desde `resource_dir()`. El empaquetado
             //    real de server-app (paths largos / aplanado) es de F4.2.
             let server_app_dir = if cfg!(debug_assertions) {
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
                     .join("binaries")
                     .join("server-app")
             } else {
-                app.path()
-                    .resource_dir()
-                    .expect("resource_dir unavailable")
-                    .join("server-app")
+                strip_verbatim(
+                    app.path()
+                        .resource_dir()
+                        .expect("resource_dir unavailable"),
+                )
+                .join("binaries")
+                .join("server-app")
             };
             let server_entry = server_app_dir.join("src").join("main.ts");
             let migrations_dir = server_app_dir.join("drizzle");
 
             let db_path = app_data_dir.join("auto-exit.db");
             let vault_path = app_data_dir.join("wallet.vault");
+
+            // Log del sidecar a fichero: en release la app es GUI sin consola,
+            // así que el stdout/stderr del server se perdería. Persistirlo en
+            // app_data es la única vía de depurar la app instalada.
+            let sidecar_log = app_data_dir.join("sidecar.log");
+            let _ = std::fs::write(
+                &sidecar_log,
+                format!(
+                    "[setup] server_entry={} (exists={})\n[setup] migrations={} (exists={})\n",
+                    server_entry.display(),
+                    server_entry.exists(),
+                    migrations_dir.display(),
+                    migrations_dir.exists(),
+                ),
+            );
 
             // Spawn del sidecar. `auto-exit-server` es el runtime de Bun, que
             // Tauri resuelve a `binaries/auto-exit-server-<triple>[.exe]`
@@ -84,29 +119,34 @@ pub fn run() {
             let handle = app.state::<SidecarHandle>();
             *handle.0.lock().unwrap() = Some(child);
 
-            // Drenamos stdout/stderr del sidecar al log de Tauri para que
-            // los errores del server sean visibles durante desarrollo y al
-            // depurar bugs reportados (`pnpm tauri dev` los muestra).
+            // Drenamos stdout/stderr del sidecar a la consola (visible en
+            // `tauri dev`) y a `sidecar.log` (única vía de depurar la app
+            // release, que es GUI sin consola).
             tauri::async_runtime::spawn(async move {
+                use std::io::Write;
                 use tauri_plugin_shell::process::CommandEvent;
                 while let Some(event) = rx.recv().await {
-                    match event {
-                        CommandEvent::Stdout(line) => {
-                            println!("[sidecar] {}", String::from_utf8_lossy(&line));
+                    let line = match event {
+                        CommandEvent::Stdout(b) => {
+                            format!("[stdout] {}", String::from_utf8_lossy(&b))
                         }
-                        CommandEvent::Stderr(line) => {
-                            eprintln!("[sidecar] {}", String::from_utf8_lossy(&line));
+                        CommandEvent::Stderr(b) => {
+                            format!("[stderr] {}", String::from_utf8_lossy(&b))
                         }
-                        CommandEvent::Terminated(payload) => {
-                            eprintln!(
-                                "[sidecar] terminated (code={:?}, signal={:?})",
-                                payload.code, payload.signal
-                            );
+                        CommandEvent::Terminated(p) => {
+                            format!("[terminated] code={:?} signal={:?}", p.code, p.signal)
                         }
-                        CommandEvent::Error(err) => {
-                            eprintln!("[sidecar] error: {}", err);
-                        }
-                        _ => {}
+                        CommandEvent::Error(e) => format!("[error] {}", e),
+                        _ => continue,
+                    };
+                    let line = line.trim_end();
+                    println!("[sidecar] {}", line);
+                    if let Ok(mut f) = std::fs::OpenOptions::new()
+                        .create(true)
+                        .append(true)
+                        .open(&sidecar_log)
+                    {
+                        let _ = writeln!(f, "{}", line);
                     }
                 }
             });

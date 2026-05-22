@@ -17,9 +17,8 @@
  * como argumento; Bun lo ejecuta resolviendo las deps desde
  * `server-app/node_modules`.
  *
- * NOTA: `pnpm deploy` deja un node_modules con la store `.pnpm` + junctions.
- * Funciona en sitio (`tauri dev`); para el instalador relocatable de
- * `tauri build` habrá que aplanarlo — pendiente de F4.2.
+ * El deploy usa `--node-linker=hoisted` para que `server-app/node_modules`
+ * sea plano y sin symlinks — relocatable, empaquetable por `tauri build`.
  *
  * Requisitos:
  *   - Bun en PATH (`irm bun.sh/install.ps1 | iex` en Windows).
@@ -56,6 +55,12 @@ const PLATFORMS: Record<string, PlatformSpec> = {
 //    de app-data via env vars, así que esto sería solo basura sensible.
 //  - scripts/ y drizzle.config.ts: solo se usan en build/dev.
 const PRUNE_FROM_DEPLOY = ["data", "scripts", "drizzle.config.ts"];
+
+// Paquetes de node_modules a eliminar del sidecar: corre con Bun y usa
+// `bun:sqlite`, así que `better-sqlite3` (módulo nativo, ~67 MB con sus
+// intermedios de compilación MSVC) es puro peso muerto. Sigue siendo dep del
+// server para el path Node/dev/Docker — por eso se poda aquí, no del manifest.
+const PRUNE_DEPS = ["better-sqlite3"];
 
 /** Primer `bun` ejecutable encontrado en PATH. */
 function findBunExe(): string {
@@ -131,6 +136,11 @@ function main(): void {
   console.log(`[build-binary] target: ${spec.triple}`);
 
   // 1. `pnpm deploy` del server → server-app/ con su propio node_modules.
+  //    `--node-linker=hoisted`: node_modules plano (estilo npm), sin symlinks
+  //    ni store `.pnpm` — relocatable, empaquetable tal cual por Tauri. Solo
+  //    funciona con `verifyDepsBeforeRun: false` en pnpm-workspace.yaml: si no,
+  //    pnpm ve el cambio de linker e intenta purgar el node_modules del
+  //    workspace (aborta sin TTY).
   fs.rmSync(serverAppDir, { recursive: true, force: true });
   console.log(`[build-binary] deploying server -> ${serverAppDir}`);
   run(
@@ -141,18 +151,26 @@ function main(): void {
       "deploy",
       "--prod",
       "--legacy",
+      "--node-linker=hoisted",
       serverAppDir,
     ],
     repoRoot,
   );
 
   // 2. Pruning de lo que no debe viajar (sobre todo data/: DB + wallet.vault
-  //    de desarrollo).
+  //    de desarrollo) y de los node_modules muertos en el sidecar.
   for (const entry of PRUNE_FROM_DEPLOY) {
     const target = path.join(serverAppDir, entry);
     if (fs.existsSync(target)) {
       fs.rmSync(target, { recursive: true, force: true });
-      console.log(`[build-binary] pruned ${entry}/ from deploy`);
+      console.log(`[build-binary] pruned ${entry} from deploy`);
+    }
+  }
+  for (const dep of PRUNE_DEPS) {
+    const target = path.join(serverAppDir, "node_modules", dep);
+    if (fs.existsSync(target)) {
+      fs.rmSync(target, { recursive: true, force: true });
+      console.log(`[build-binary] pruned node_modules/${dep} from deploy`);
     }
   }
 

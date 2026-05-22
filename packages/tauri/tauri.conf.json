@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm --filter @solana-auto-exit/web dev",
     "devUrl": "http://localhost:3000",
-    "beforeBuildCommand": "pnpm build:tauri-prep",
+    "beforeBuildCommand": "pnpm -w run build:tauri-prep",
     "frontendDist": "../web/out"
   },
   "app": {
@@ -39,6 +39,9 @@
     "publisher": "Pedro Lozano",
     "externalBin": [
       "binaries/auto-exit-server"
+    ],
+    "resources": [
+      "binaries/server-app"
     ],
     "icon": [
       "icons/32x32.png",
