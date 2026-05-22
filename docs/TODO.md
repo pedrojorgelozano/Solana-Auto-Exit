@@ -6,17 +6,17 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **Verificar el build Tauri end-to-end** (queda al maintainer).
-  El código de F4.1.b está cableado pero requiere instalar Bun + Rust +
-  Windows Build Tools en la máquina para producir un binary real.
-  Pasos: `pnpm build:tauri-prep` (debe pasar sin error) y luego
-  `pnpm tauri:dev` (debe abrir la ventana y arrancar el sidecar).
 - [ ] **F4.2** — Builds unsigned para distribución + auto-update.
   `.msi` (Win), `.dmg` (Mac), `.AppImage`/`.deb` (Linux) **sin codesign
   del SO** — el usuario decidió distribuir solo a amigos técnicos, asi
   que aceptamos el "Open Anyway" de primera ejecución. Auto-update via
   `tauri-plugin-updater` con keypair propia (gratis, independiente
   del codesign de Apple/Microsoft). GitHub Releases como hosting.
+  Prerrequisito: `tauri build` necesita aplanar `server-app/node_modules`
+  — hoy usa el layout `.pnpm` (junctions + paths >260 chars), no
+  relocatable. `--node-linker=hoisted` en el deploy no vale (pnpm purga
+  el workspace). Y podar `better-sqlite3` del sidecar (peso muerto: el
+  runtime Bun usa `bun:sqlite`).
 - [ ] **Abrir el repo a público** (5 min): `gh repo edit --visibility public`.
   Activa GitHub Security advisories automáticamente. Puede ir antes o
   después de F4.1.
@@ -124,6 +124,13 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **F4.1.b verificado — sidecar Tauri rediseñado (2026-05-22)**:
+  `pnpm tauri:dev` arranca end-to-end (ventana + sidecar + server). El
+  enfoque `bun --compile` de ADR-029 resultó inviable (better-sqlite3
+  nativo, WASM de Orca, Meteora vía `createRequire`); el sidecar pasa a
+  ser el runtime de Bun + el server desplegado con `pnpm deploy`. Driver
+  SQLite dual (bun:sqlite / better-sqlite3). [ADR-031](DECISIONS.md).
+  Commits `437b1cf`, `efe9ac3`, `ae278f5`.
 - **Pre-public infra (2026-05-21)**: `.github/workflows/ci.yml` con typecheck
   + tests + gitleaks-action; issue templates + PR template + `CONTRIBUTING.md`;
   `.gitleaksignore` con 4 fingerprints documentados; `attribution.commit = ""`
