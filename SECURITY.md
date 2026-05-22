@@ -34,6 +34,17 @@ If any of these assumptions don't hold, the defenses below offer less than they 
 - **Third-party dependencies.** Supply-chain attacks on `@orca-so/whirlpools`, `@solana/kit`, `better-sqlite3`, or any transitive dep are not in this project's threat model. Audit the lockfile and pin commits if you need this guarantee.
 - **Phantom / Backpack / hardware wallet UIs.** If you import the bot wallet key into Phantom/Backpack as a second account and that wallet UI is compromised, the same key is exposed there. This is true for any key managed by both a wallet UI and this tool.
 
+### Network Egress
+
+The tool is built to stay quiet on the network. It makes **no outbound connections of its own**:
+
+- **Solana RPC** is the only network traffic in normal operation, and it always goes to the URL *you* configure in `/settings`. Pick an RPC you trust.
+- **No telemetry, no analytics.** There is no analytics SDK, no crash reporter, no usage beacon. Next.js build telemetry is disabled (`NEXT_TELEMETRY_DISABLED=1`).
+- **No external assets.** Fonts are self-hosted at build time; there are no CDN, Google Fonts, or third-party script tags. The desktop webview runs under a strict Content-Security-Policy that limits `connect-src` to the local sidecar — an injected script cannot phone home.
+- **Auto-update is opt-in.** The desktop app can check GitHub Releases for a new version, but that check is **off by default**; it only runs if you enable it in `/settings`. With it off, the app never contacts GitHub.
+
+If you run on a hardened machine (VPN, egress firewall), nothing here should trip your filters except the RPC endpoint you chose. The full audit — scope, method, findings per area, verdict — is in [`docs/SECURITY-AUDIT.md`](docs/SECURITY-AUDIT.md); the decisions it drove are recorded in [ADR-033](docs/DECISIONS.md).
+
 ## Hardening Checklist
 
 Before running with anything you would miss:

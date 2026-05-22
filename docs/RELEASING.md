@@ -68,7 +68,14 @@ Produce dos ficheros:
 
 ## Cómo se comprueban los updates
 
-La app, al arrancar, llama a `check_for_updates` (`packages/tauri/src/lib.rs`):
-descarga `latest.json`, compara la versión, y si hay una nueva muestra un
-diálogo nativo. Si el usuario acepta, descarga el instalador, verifica su
-firma contra la pubkey de `tauri.conf.json`, instala y reinicia.
+El auto-check es **opt-in**: solo corre si el usuario lo activó en
+`/settings` → panel "Updates" (off por defecto — el check hace egress a
+GitHub; ver [ADR-033](DECISIONS.md)). Si está activado, la app al arrancar
+llama a `check_for_updates` (`packages/tauri/src/lib.rs`): descarga
+`latest.json`, compara la versión, y si hay una nueva muestra un diálogo
+nativo. Si el usuario acepta, descarga el instalador, verifica su firma
+contra la pubkey de `tauri.conf.json`, instala y reinicia.
+
+Para que un release llegue automáticamente a un usuario, este debe tener
+el opt-in activado; sin él la actualización es manual (descargar el
+instalador nuevo desde la Release de GitHub).

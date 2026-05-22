@@ -269,7 +269,8 @@ packages/tauri/
 │                          release: lto, opt-level=s, strip, panic=abort)
 ├── Cargo.lock            (versionado — es una crate binaria)
 ├── tauri.conf.json       (identifier, ventana, externalBin + resources,
-│                          plugins.updater con pubkey + endpoint)
+│                          plugins.updater con pubkey + endpoint,
+│                          security.csp estricta — ADR-033)
 ├── tauri.updater.conf.json  (overlay: createUpdaterArtifacts, solo release)
 ├── build.rs              (invoca tauri_build::build())
 ├── capabilities/default.json
@@ -280,14 +281,15 @@ packages/tauri/
 │   └── server-app/       server desplegado (src + drizzle + node_modules)
 ├── src/
 │   ├── main.rs           (entry con #![windows_subsystem="windows"] release)
-│   └── lib.rs            (Builder: registra plugins, setup() spawnea el
-│                          sidecar y lanza check_for_updates(),
-│                          RunEvent::Exit mata el sidecar)
+│   └── lib.rs            (Builder: registra plugins + confirm_fix_plugin,
+│                          setup() spawnea el sidecar; check_for_updates()
+│                          es opt-in — ADR-033; RunEvent::Exit mata el
+│                          sidecar)
 ├── target/               (build artifacts Rust — gitignored)
 └── gen/                  (assets generados por Tauri — gitignored)
 ```
 
-**Estado**: F4.1 (shell + sidecar + static export + iconos) y F4.2 (instalador funcional + auto-update) completas. `pnpm tauri:dev` itera con hot-reload; `pnpm tauri:build` produce `.msi` + `.exe` NSIS; `pnpm tauri:release` añade los artefactos firmados del updater. El sidecar es el runtime `bun` ejecutando `server-app/` — ver [ADR-031](DECISIONS.md) (por qué no `bun --compile`). La app comprueba actualizaciones al arrancar ([ADR-032](DECISIONS.md)); proceso de release en [RELEASING.md](RELEASING.md). Requiere Rust toolchain + Bun + (en Windows) MSVC Build Tools en la máquina de dev.
+**Estado**: F4.1 (shell + sidecar + static export + iconos) y F4.2 (instalador funcional + auto-update) completas. `pnpm tauri:dev` itera con hot-reload; `pnpm tauri:build` produce `.msi` + `.exe` NSIS; `pnpm tauri:release` añade los artefactos firmados del updater. El sidecar es el runtime `bun` ejecutando `server-app/` — ver [ADR-031](DECISIONS.md) (por qué no `bun --compile`). La app puede comprobar actualizaciones al arrancar si el usuario activa el opt-in en `/settings` ([ADR-032](DECISIONS.md), [ADR-033](DECISIONS.md)); proceso de release en [RELEASING.md](RELEASING.md). Requiere Rust toolchain + Bun + (en Windows) MSVC Build Tools en la máquina de dev.
 
 ## Contrato `ProtocolAdapter`
 

@@ -332,6 +332,18 @@ Validado el 2026-05-22:
 
 ---
 
+### 24. F4.2.b — updater opt-in + fix `window.confirm`
+
+Verificado a mano en `tauri dev` el 2026-05-22:
+
+- **Updater opt-in**: el panel "Updates" aparece en `/settings`, off por defecto. Activarlo a On no lanza error y persiste tras recargar. Con el opt-in en off, el arranque no emite ninguna línea `[updater]` — `check_for_updates` retorna antes de cualquier fetch a GitHub. Ver [ADR-033](DECISIONS.md).
+- **`window.confirm`**: "Reset to defaults" en `/settings` muestra un diálogo nativo OK/Cancel — sin el error `dialog.confirm not allowed. Command not found` que daba la regresión de F4.2.b. Cancel no hace nada; OK resetea. Ver [ADR-034](DECISIONS.md).
+- El fix `confirm_fix_plugin` cubre los 3 `confirm()` del web (`/settings` reset, toggle TEST/REAL, borrar task).
+
+Nota: supersede el "el updater corre al arrancar" del punto 23 — desde esta sesión el check es opt-in.
+
+---
+
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)
 
 Validado end-to-end en devnet el 2026-05-20.

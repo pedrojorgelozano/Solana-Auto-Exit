@@ -73,6 +73,14 @@
   al `nativeMintWrappingStrategy` del SDK).
 - [ ] Métricas / observabilidad: logs estructurados (JSON), opción de
   exportar a fichero rotado o Prometheus.
+- [ ] Reportar upstream el bug de `tauri-plugin-dialog` 2.7.1: su
+  `init-iife.js` sobrescribe `window.confirm` para invocar el comando
+  `plugin:dialog|confirm`, que esa versión ya no registra. Mitigado en
+  local con `confirm_fix_plugin` ([ADR-034](DECISIONS.md)); si upstream
+  lo arregla, retirar el workaround.
+- [ ] `build-binary.ts` no poda los `*.test.ts` del `server-app/`
+  desplegado — peso muerto en el bundle del instalador. Añadirlos a la
+  poda (junto a `data/`, `scripts/`, `drizzle.config.ts`).
 - [ ] **Hallazgos QA audit NO aplicados** (de la auditoría conjunta peer +
   self review). Documentados con archivo:línea + mecanismo + fix
   propuesto en la sesión correspondiente. Por orden de impacto:
@@ -113,6 +121,15 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Auditoría de egress + updater opt-in + fix `window.confirm` (2026-05-22)**:
+  auditoría de filtraciones de datos fuera del equipo — el código no
+  exfiltra nada (sin telemetría/analytics, sin CDN externo, RPC siempre
+  del usuario). Fixes: CSP estricta del webview, telemetría de Next off.
+  El auto-check de updates pasa a opt-in (off por defecto, toggle en
+  `/settings`). Fix de una regresión de F4.2.b que rompía `window.confirm`
+  en Tauri (bug de `tauri-plugin-dialog` 2.7.1). [ADR-033](DECISIONS.md),
+  [ADR-034](DECISIONS.md). Commits `32d9a84`, `73ea8f3`, `198e0dd`,
+  `9f7b8a5`.
 - **F4.2 — instalador Tauri + auto-update (2026-05-22)**:
   `tauri build` produce `.msi`/`.exe` que arrancan en la app instalada;
   la app comprueba updates al arrancar (diálogo nativo, nunca reinicia

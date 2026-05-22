@@ -805,7 +805,7 @@ Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **s
 ## ADR-032 — Auto-update con tauri-plugin-updater (builds unsigned)
 
 **Fecha**: 2026-05-22
-**Estado**: Aceptada
+**Estado**: Aceptada (el punto 3 — check al arrancar — refinado por ADR-033: el check pasa a opt-in, off por defecto)
 
 **Contexto**: F4.2 distribuye la app como builds **sin codesign del SO** a un grupo pequeño de amigos técnicos, vía GitHub Releases. Sin auto-update, cada versión nueva exigiría reinstalación manual. Hace falta un mecanismo de actualización que no dependa del codesign de Apple/Microsoft.
 
@@ -831,3 +831,52 @@ Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **s
 - **Check desde el frontend** (`@tauri-apps/plugin-updater`): acopla el updater al frontend en rediseño; el check Rust-side es más limpio.
 - **Auto-instalar en silencio**: descartada — reiniciar sin avisar puede dejar una posición sin su watcher de stop-loss.
 - **`createUpdaterArtifacts: true` permanente en el config**: rompería `tauri build` para cualquiera sin la clave de firma.
+
+## ADR-033 — Auditoría de egress de red: CSP estricta, telemetría off, updater opt-in
+
+**Fecha**: 2026-05-22
+**Estado**: Aceptada
+
+**Contexto**: El público objetivo de la herramienta usa equipos hardenizados (VPN, firewalls, capado de filtraciones). Una app que gestiona una clave privada de Solana no debería emitir ningún dato fuera del equipo salvo lo estrictamente necesario. Hizo falta auditar toda la superficie de red y cerrar lo que no estuviera justificado.
+
+**Decisión**:
+
+1. **Veredicto de la auditoría**: el código no exfiltra datos. Sin SDK de analytics/telemetría, sin CDN ni fuentes externas (`next/font` self-hostea las fuentes en el build), el RPC de Solana siempre lo configura el usuario, y ningún dato sensible (clave, passphrase, contenido del vault) se loguea ni se transmite. La única salida de red no iniciada por el usuario era el auto-check de updates.
+2. **CSP estricta del webview** (`tauri.conf.json` → `app.security.csp`): de `null` a una política que limita `connect-src` a `'self'`, `ipc:` y el sidecar local (`127.0.0.1:7777` / `localhost:7777`); `default-src 'self'`, `object-src 'none'`, `frame-src 'none'`, `base-uri 'self'`. Defensa en profundidad: aunque un script malicioso entrara (p.ej. dep comprometida), no puede llamar a casa.
+3. **Telemetría de Next desactivada**: `NEXT_TELEMETRY_DISABLED=1` vía `cross-env` en los scripts `dev` / `build` / `start` del paquete web. Next.js envía telemetría anónima de build por defecto.
+4. **Auto-check de updates → opt-in**: el check hace un fetch a GitHub Releases. Pasa a estar gobernado por un setting `updaterAutoCheck` (bool, default `false`); el check en Rust solo corre si el usuario lo activó en `/settings`. Refina el punto 3 de ADR-032 (que lo hacía siempre al arrancar). La consulta del setting desde Rust va por HTTP plano sobre `TcpStream` crudo al sidecar — no `reqwest` (su backend rustls exige un crypto provider y entra en pánico "No provider set" sin él).
+
+**Consecuencias**:
+- (+) La app no emite ningún paquete de red en su flujo normal salvo al RPC que el propio usuario eligió.
+- (+) CSP como red de seguridad frente a inyección de scripts.
+- (+) El usuario decide explícitamente si quiere que la app contacte con GitHub.
+- (−) Sin el opt-in activado, el usuario no se entera de versiones nuevas — actualizar vuelve a ser manual por defecto.
+- (−) La CSP hay que mantenerla si en el futuro el frontend necesita hablar con otro origen.
+
+**Alternativas consideradas**:
+- **Dejar el updater siempre activo**: descartado — es egress no consentido, incoherente con el público objetivo.
+- **CSP permisiva**: descartada — desaprovecha una defensa barata.
+
+## ADR-034 — `confirm_fix_plugin`: workaround del `window.confirm` roto de tauri-plugin-dialog
+
+**Fecha**: 2026-05-22
+**Estado**: Aceptada
+
+**Contexto**: Registrar `tauri-plugin-dialog` (necesario para el diálogo nativo del updater, ADR-032) hace que el plugin inyecte un `init-iife.js` en el webview que sobrescribe `window.confirm`. En la versión 2.7.1 ese override invoca el comando IPC `plugin:dialog|confirm`, pero esa versión del plugin ya no registra ese comando — lo fusionó en `message` (ver su CHANGELOG). Resultado: cualquier `confirm()` del webview revienta con "command not found". Además el override es asíncrono, incompatible con los `confirm()` síncronos que el web usaba en 3 sitios.
+
+**Decisión**:
+
+1. **`confirm_fix_plugin`**: un plugin Tauri propio, mínimo, registrado **después** de `tauri-plugin-dialog` (el orden de registro determina el orden de los init scripts), que reinyecta un `window.confirm` correcto. Llama al comando `message` (que sí existe en 2.7.1) con botones `OkCancel` y devuelve `Promise<bool>`.
+2. **Capability `dialog:allow-message`** en lugar de `dialog:allow-confirm` — el comando real que se invoca ahora es `message`.
+3. **`await confirm(...)`** en los 3 call sites del web. El override es async; `await` sobre el `confirm` síncrono nativo del navegador también funciona, así que el web sigue corriendo igual fuera de Tauri.
+
+**Consecuencias**:
+- (+) `window.confirm` funciona en la app Tauri sin renunciar al plugin de diálogo (que el updater necesita).
+- (+) El web no se acopla a Tauri: `await confirm()` es válido también en navegador normal.
+- (−) Es un workaround de un bug de un tercero; hay que retirarlo si upstream lo arregla (ver TODO).
+- (−) Depende del orden de registro de plugins para que el init script propio gane.
+
+**Alternativas consideradas**:
+- **Downgrade / upgrade de `tauri-plugin-dialog`**: incierto — depende de que otra versión tenga el `init-iife.js` coherente con sus comandos registrados.
+- **Quitar `tauri-plugin-dialog`**: no viable — el diálogo nativo del updater lo necesita.
+- **Sustituir los `confirm()` por paneles de confirmación inline** (patrón ya usado en otras pantallas del web): más correcto a largo plazo pero de mayor alcance; queda como posible mejora futura.

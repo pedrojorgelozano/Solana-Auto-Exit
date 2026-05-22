@@ -34,7 +34,7 @@ If you do not agree, do not install or use it. The full plain-English disclaimer
 | Mainnet default + UI gate | ✅ Mainnet is default; switching to TEST/REAL is one click with two-step confirmation (ADR-026 + ADR-027) |
 | Light cuaderno UI + EN/ES toggle | ✅ Crema + terracota + Fraunces / Source Serif. Spanish translation toggleable from the header. |
 | Docs in-app (`/docs`) | ✅ Seven editorial articles including the disclaimer |
-| Tauri desktop installer (Win/Mac/Linux) | ✅ `tauri build` produces `.msi` / NSIS `.exe` installers with a Bun-runtime sidecar; auto-update via GitHub Releases (ADR-031, ADR-032). Build needs Bun + Rust + OS build tools. |
+| Tauri desktop installer (Win/Mac/Linux) | ✅ `tauri build` produces `.msi` / NSIS `.exe` installers with a Bun-runtime sidecar; opt-in auto-update via GitHub Releases (ADR-031, ADR-032, ADR-033). Build needs Bun + Rust + OS build tools. |
 | Automated tests | ✅ 53 baseline (Vitest) covering security guards + task lifecycle. Coverage gaps documented in [`docs/TESTING.md`](docs/TESTING.md) |
 | CI (typecheck + tests + sidecar smoke + gitleaks) | ✅ GitHub Actions on every push/PR to `main` |
 
@@ -101,7 +101,7 @@ pnpm tauri:release  # release build with signed auto-update artifacts
 
 `pnpm tauri:build` static-exports the Next frontend, deploys the server with its `node_modules` via `pnpm deploy`, copies the Bun runtime as the sidecar, and bundles everything into the platform installer (`.msi` + NSIS `.exe` on Windows, `.dmg` on macOS, `.AppImage`/`.deb` on Linux). The server is **not** compiled into a single binary — `bun --compile` can't package the project's WASM/native deps; see [ADR-031](docs/DECISIONS.md).
 
-Builds are **not** OS-code-signed (Apple Developer ID and Microsoft EV certificates are paid). First launch shows a Gatekeeper / SmartScreen warning the user accepts once. The app auto-updates through a self-managed signing keypair + GitHub Releases — independent of OS code-signing; see [ADR-032](docs/DECISIONS.md) and [`docs/RELEASING.md`](docs/RELEASING.md).
+Builds are **not** OS-code-signed (Apple Developer ID and Microsoft EV certificates are paid). First launch shows a Gatekeeper / SmartScreen warning the user accepts once. The app can check for updates through a self-managed signing keypair + GitHub Releases — independent of OS code-signing — but this check is **opt-in and off by default** (it reaches out to GitHub, so you enable it in `/settings`); see [ADR-032](docs/DECISIONS.md), [ADR-033](docs/DECISIONS.md) and [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Quick start (CLI, legacy)
 
@@ -145,7 +145,8 @@ For end users (recommended — start here):
 
 For contributors (developer-facing, in the repo):
 
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — ADRs (32 architectural decisions).
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) — ADRs (34 architectural decisions).
+- [`docs/SECURITY-AUDIT.md`](docs/SECURITY-AUDIT.md) — network-egress audit: scope, method, findings, verdict.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layered architecture in detail.
 - [`docs/TESTING.md`](docs/TESTING.md) — what's validated, with on-chain tx hashes for the close + swap flow.
 - [`docs/TODO.md`](docs/TODO.md) — open work and backlog.
@@ -158,6 +159,7 @@ For contributors (developer-facing, in the repo):
 - Wallet key encrypted at rest with `scrypt(N=32768)` + `AES-256-GCM` (Node `node:crypto`, zero deps).
 - The app accepts **per-account private keys only** — never seed phrases. The "blast radius" of importing a key is bounded to that one Solana address; other accounts in your Phantom/Backpack are unaffected.
 - Switching from test (devnet) to real (mainnet) is one click + two-step UI confirmation (checkbox + danger button). The legacy `ALLOW_MAINNET_LIVE` env var has become opt-OUT (set it to `false` to harden the CLI path against unattended mainnet runs). Full model: ADR-026 + ADR-027.
+- Nothing leaves your machine but calls to the RPC you configured — no telemetry, no analytics, no external assets, and auto-update is opt-in. Verified by a network-egress audit ([`docs/SECURITY-AUDIT.md`](docs/SECURITY-AUDIT.md)).
 
 Full threat model and hardening checklist in [`SECURITY.md`](SECURITY.md).
 
