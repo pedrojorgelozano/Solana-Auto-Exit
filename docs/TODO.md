@@ -6,9 +6,6 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **Abrir el repo a público** (5 min): `gh repo edit --visibility public`.
-  Activa GitHub Security advisories automáticamente. Puede ir antes o
-  después de F4.1.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
@@ -81,6 +78,12 @@
 - [ ] `build-binary.ts` no poda los `*.test.ts` del `server-app/`
   desplegado — peso muerto en el bundle del instalador. Añadirlos a la
   poda (junto a `data/`, `scripts/`, `drizzle.config.ts`).
+- [ ] Empaquetar la app desktop para macOS y Linux. El release v0.1.0 es
+  solo Windows — `tauri build` no hace cross-compile del instalador, así
+  que requiere buildear en cada SO (o un CI con runners macOS/Linux).
+- [ ] Verificar el flujo real de auto-update: descargar e instalar una
+  versión nueva vía el updater. Solo se puede probar con una v0.1.x
+  posterior publicada, con el opt-in activado.
 - [ ] **Hallazgos QA audit NO aplicados** (de la auditoría conjunta peer +
   self review). Documentados con archivo:línea + mecanismo + fix
   propuesto en la sesión correspondiente. Por orden de impacto:
@@ -121,6 +124,14 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Primer release público v0.1.0 (2026-05-22)**: repo abierto a público
+  (`gh repo edit --visibility public`, tras `gitleaks` limpio) y release
+  `v0.1.0` de la app desktop publicada en GitHub (instalador `.exe` +
+  `.msi` + `latest.json` + `SHA256SUMS.txt`). El primer install-test real
+  destapó dos bugs latentes — CORS (la app instalada no llegaba al
+  sidecar) y navegación a rutas dinámicas (no resolvían en el export
+  estático) — ambos arreglados. Nueva `docs/INSTALL.md`.
+  [ADR-035](DECISIONS.md). Commits `9d32963`, `84a6de0`, `e081b6a`.
 - **Auditoría de egress + updater opt-in + fix `window.confirm` (2026-05-22)**:
   auditoría de filtraciones de datos fuera del equipo — el código no
   exfiltra nada (sin telemetría/analytics, sin CDN externo, RPC siempre

@@ -721,7 +721,7 @@ Además, había un problema operativo independiente: el campo `rpcUrl` se guarda
 ## ADR-030 — Next.js `output: 'export'` con `generateStaticParams` placeholder
 
 **Fecha**: 2026-05-21
-**Estado**: Aceptada
+**Estado**: Aceptada (el punto 3 — navegación client-side al placeholder vía `useParams()` — no funcionaba en el export real; corregido por ADR-035)
 
 **Contexto**: Para que Tauri bundlee el frontend Next.js como HTML estático (sin servidor Node corriendo dentro de Tauri sirviendo HTML — eso lo hace el sidecar separado), Next.js debe estar configurado con `output: 'export'`. Pero el repo tiene dos rutas dinámicas en App Router:
 
@@ -880,3 +880,27 @@ Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **s
 - **Downgrade / upgrade de `tauri-plugin-dialog`**: incierto — depende de que otra versión tenga el `init-iife.js` coherente con sus comandos registrados.
 - **Quitar `tauri-plugin-dialog`**: no viable — el diálogo nativo del updater lo necesita.
 - **Sustituir los `confirm()` por paneles de confirmación inline** (patrón ya usado en otras pantallas del web): más correcto a largo plazo pero de mayor alcance; queda como posible mejora futura.
+
+## ADR-035 — Navegación a las vistas de detalle por query string (no path param)
+
+**Fecha**: 2026-05-22
+**Estado**: Aceptada
+
+**Contexto**: ADR-030 resolvió el static export de las rutas dinámicas (`/positions/[mint]`, `/tasks/[id]`) con un placeholder `_`, y afirmaba (punto 3) que la navegación client-side a `/positions/<mint-real>` funcionaría porque el router de Next hidrata el placeholder leyendo `useParams()`. El primer install-test real demostró que **no es así**: en el HTML estático solo existe `/positions/_`, y navegar — incluso client-side con `<Link>` — a un `mint` que no es `_` no resuelve (con `dynamicParams = false` el router no encuentra la ruta). La app instalada no podía abrir ninguna posición ni task. `tauri dev` nunca lo destapó porque en dev corre el server de Next, que resuelve cualquier ruta dinámica.
+
+**Decisión**:
+
+1. **El id viaja como query string, no en el path**. La navegación apunta siempre a la ruta placeholder existente con el id en query: `/positions/_?mint=<x>` y `/tasks/_?id=<y>`. El path (`/positions/_`) sí es un HTML estático real, así que resuelve siempre — client-side y en refresh.
+2. **Helper centralizado** `packages/web/src/lib/routes.ts` (`positionDetailHref`, `taskDetailHref`): el patrón `_?mint=` es no obvio; se encapsula en un sitio para no copiarlo mal y documentar el porqué.
+3. **La vista lee el id con `useSearchParams()`** en vez de `useParams()`. Como `useSearchParams()` exige un boundary de Suspense en el export, el `page.tsx` envuelve el client component en `<Suspense>`.
+4. Se mantiene lo demás de ADR-030: el `output: 'export'` opt-in por `TAURI_BUILD=1`, el split shim + client, el `generateStaticParams` con placeholder `_`, `images: { unoptimized: true }`.
+
+**Consecuencias**:
+- (+) La app de escritorio puede navegar a posiciones y tasks — antes era imposible en el build instalado.
+- (+) El caveat del refresh de ADR-030 (F5 en URL dinámica → 404) desaparece: la URL es siempre `/positions/_`, una página estática real.
+- (−) Es la alternativa que ADR-030 había rechazado por "refactor de todos los `<Link>`"; ese coste (~8 sitios de navegación) resultó ser inevitable.
+- (−) Las URLs llevan un `_` decorativo (`/positions/_?mint=...`). Invisible en una app de escritorio; el helper lo mantiene fuera del código de las pantallas.
+
+**Alternativas consideradas**:
+- **Custom Tauri protocol handler** que reescriba rutas no encontradas a `index.html`: lo que ADR-030 reservaba como plan B; más código Rust. La query string resuelve el problema sin tocar Rust.
+- **Ruta `/detail` propia** en vez del placeholder `_`: más limpio conceptualmente, pero implica renombrar directorios; se prefirió el cambio mínimo dado que la app estaba en mitad de un release.

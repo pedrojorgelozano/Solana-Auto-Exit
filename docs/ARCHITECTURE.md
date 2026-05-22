@@ -415,7 +415,7 @@ solana-auto-exit/
 
 Notas sobre el layout actual:
 - `packages/server/src/security/` — guards de defense-in-depth (SSRF + brute-force unlock) añadidos en el sprint pre-public. Ver ADR-026/027 + entradas de PROGRESS.
-- `packages/web/src/app/{positions,tasks}/[*]/{page.tsx, client.tsx}` — split en Server Component shim + Client Component para soportar Next.js static export. Ver [ADR-030](DECISIONS.md).
+- `packages/web/src/app/{positions,tasks}/[*]/{page.tsx, client.tsx}` — split en Server Component shim + Client Component para soportar Next.js static export; la navegación al detalle va por query string (`lib/routes.ts`). Ver [ADR-030](DECISIONS.md), [ADR-035](DECISIONS.md).
 - `packages/tauri/{binaries, capabilities, scripts}` — infraestructura del sidecar (F4.1 + F4.2). `binaries/.gitkeep` versionado; el contenido (runtime `bun` + `server-app/`) gitignored, lo genera `build-binary.ts`.
 - Archivos local-only (no en repo, gitignored): `CLAUDE.md` (índice personal), `docs/PROGRESS.md` (bitácora), `docs/sessions/` (notas de sesión).
 

@@ -40,7 +40,14 @@ Produce dos ficheros:
    - `nsis/Auto-Exit_<ver>_x64-setup.exe` + `nsis/Auto-Exit_<ver>_x64-setup.exe.sig`
    - `msi/Auto-Exit_<ver>_x64_en-US.msi` + `msi/...msi.sig`
 
-3. Escribe `latest.json` (Tauri no lo autogenera). El `signature` es el
+3. **Install-test obligatorio**. Instala el `.exe` producido en un equipo y
+   comprueba que la app arranca, conecta con el sidecar y navega (abrir una
+   posición, una task). `tauri dev` NO sustituye esto: sirve el frontend
+   desde otro origen y por otro mecanismo que el build instalado — los bugs
+   de CORS y de routing del primer release solo salieron aquí (ver ADR-035).
+   No publiques sin pasar este test.
+
+4. Escribe `latest.json` (Tauri no lo autogenera). El `signature` es el
    contenido literal del fichero `.sig` del instalador NSIS:
 
    ```json
@@ -60,11 +67,18 @@ Produce dos ficheros:
    Añade entradas `darwin-x86_64` / `linux-x86_64` si algún día se buildea en
    esos OS (cada una con su propio `.sig` y `url`).
 
-4. Crea la Release en GitHub con tag `v<ver>` y sube como assets:
+5. Genera `SHA256SUMS.txt` — una línea por instalador, formato
+   `<sha256>  <nombre-de-fichero>` (el mismo de `sha256sum`). Permite al
+   usuario verificar la descarga con `Get-FileHash`.
+
+6. Crea la Release en GitHub con tag `v<ver>` y sube como assets:
    - el instalador NSIS `.exe` (y opcionalmente el `.msi` para instalación
      limpia)
    - `latest.json` — debe llamarse exactamente así: el endpoint del updater
      apunta a `releases/latest/download/latest.json`.
+   - `SHA256SUMS.txt`.
+
+   Incluye los hashes también en el cuerpo de las notas del release.
 
 ## Cómo se comprueban los updates
 

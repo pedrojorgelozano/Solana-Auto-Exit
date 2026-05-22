@@ -344,6 +344,20 @@ Nota: supersede el "el updater corre al arrancar" del punto 23 — desde esta se
 
 ---
 
+### 25. Primer install-test real + release v0.1.0
+
+Verificado el 2026-05-22 instalando el `.exe` empaquetado en el sistema —
+la verificación que F4.2 (punto 23) había dejado explícitamente pendiente:
+
+- **Bug encontrado — CORS**: la app instalada arrancaba pero el frontend no llegaba al sidecar ("bot inalcanzable"). El origin del webview de Tauri en Windows (`http://tauri.localhost`) no estaba en la lista CORS del server. Arreglado (`9d32963`).
+- **Bug encontrado — rutas dinámicas**: con CORS arreglado, navegar a una posición o task fallaba — las rutas dinámicas no resuelven en el HTML estático. Arreglado con navegación por query string (`84a6de0`, [ADR-035](DECISIONS.md)).
+- Tras el tercer build, install-test OK: la app instala, arranca, conecta wallet, lista posiciones y navega a configurar un auto-exit.
+- **Release `v0.1.0` publicada** en GitHub con instalador firmado + `.msi` + `latest.json` + `SHA256SUMS.txt`.
+
+Pendiente de verificar: el flujo real de un *update* descargado e instalado (requiere una v0.1.x posterior con el opt-in activado).
+
+---
+
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)
 
 Validado end-to-end en devnet el 2026-05-20.
