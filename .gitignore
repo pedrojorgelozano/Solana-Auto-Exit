@@ -17,6 +17,9 @@ docs/PROGRESS.md
 docs/sessions/
 orca-auto-exit.ts
 
+# Mockups del rediseño de UI — exploración local, no se publica.
+mockups/
+
 # Server runtime data: SQLite DB, WAL files, wallet vault encriptado (futuro).
 # El esquema vive en packages/server/drizzle/ y SÍ se versiona.
 packages/server/data/
