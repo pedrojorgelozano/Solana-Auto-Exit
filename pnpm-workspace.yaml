@@ -22,5 +22,12 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - tsx@4.22.3
 
+# `build-binary.ts` ejecuta `pnpm deploy`, que deja el node_modules del
+# workspace marcado en modo production. Con la verificación de deps pre-run
+# activa, el siguiente comando pnpm dispara un `install --production` que
+# quiere purgar las dev deps y aborta sin TTY. La desactivamos: en este repo
+# (cuyo build anida pnpm dentro de pnpm) el pre-check hace más daño que bien.
+verifyDepsBeforeRun: false
+
 patchedDependencies:
   '@orca-so/whirlpools-core@3.1.0': patches/@orca-so__whirlpools-core@3.1.0.patch
