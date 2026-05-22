@@ -20,13 +20,10 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .manage(SidecarHandle::default())
         .setup(|app| {
-            // Resolvemos los paths que el server necesita en runtime:
-            //  - `app_data_dir`: writable, per-OS, para SQLite + vault.
+            // `app_data_dir`: writable, per-OS, para la DB SQLite y el vault.
             //    Windows: %APPDATA%/com.autoexit.desktop
             //    macOS:   ~/Library/Application Support/com.autoexit.desktop
             //    Linux:   $XDG_DATA_HOME/com.autoexit.desktop
-            //  - `resource_dir`: read-only, contiene los assets bundled.
-            //    Aquí ponemos las migrations de drizzle.
             let app_data_dir = app
                 .path()
                 .app_data_dir()
@@ -34,23 +31,37 @@ pub fn run() {
             std::fs::create_dir_all(&app_data_dir)
                 .expect("failed to create app_data_dir");
 
-            let resource_dir = app
-                .path()
-                .resource_dir()
-                .expect("resource_dir unavailable");
-            let migrations_dir = resource_dir.join("drizzle");
+            // El sidecar es el runtime de Bun; ejecuta el server desplegado en
+            // `server-app/` (lo genera `pnpm build:server-binary`).
+            //  - dev (`tauri dev`): server-app/ se lee de `binaries/` vía
+            //    CARGO_MANIFEST_DIR, sin pasar por el mecanismo de resources.
+            //  - release: se resuelve desde `resource_dir()`. El empaquetado
+            //    real de server-app (paths largos / aplanado) es de F4.2.
+            let server_app_dir = if cfg!(debug_assertions) {
+                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                    .join("binaries")
+                    .join("server-app")
+            } else {
+                app.path()
+                    .resource_dir()
+                    .expect("resource_dir unavailable")
+                    .join("server-app")
+            };
+            let server_entry = server_app_dir.join("src").join("main.ts");
+            let migrations_dir = server_app_dir.join("drizzle");
 
             let db_path = app_data_dir.join("auto-exit.db");
             let vault_path = app_data_dir.join("wallet.vault");
 
-            // Spawn del sidecar. `auto-exit-server` es el nombre que Tauri
-            // resuelve a `binaries/auto-exit-server-<target-triple>[.exe]`
-            // según el host actual. Configurado en tauri.conf.json bajo
-            // `bundle.externalBin`.
+            // Spawn del sidecar. `auto-exit-server` es el runtime de Bun, que
+            // Tauri resuelve a `binaries/auto-exit-server-<triple>[.exe]`
+            // (config en tauri.conf.json `bundle.externalBin`). Se le pasa el
+            // entrypoint del server desplegado como argumento.
             let sidecar = app
                 .shell()
                 .sidecar("auto-exit-server")
                 .expect("sidecar binary not found")
+                .args([server_entry.to_string_lossy().to_string()])
                 .env("DB_PATH", db_path.to_string_lossy().to_string())
                 .env(
                     "WALLET_VAULT_PATH",
@@ -110,7 +121,11 @@ pub fn run() {
             // un proceso server huérfano en el SO.
             if let RunEvent::Exit = event {
                 let handle = app_handle.state::<SidecarHandle>();
-                if let Some(child) = handle.0.lock().unwrap().take() {
+                // Sacamos el child a una variable propia para soltar el
+                // MutexGuard antes de fin de bloque: si no, el guard temporal
+                // sigue prestado de `handle` cuando `handle` se dropea (E0597).
+                let child = handle.0.lock().unwrap().take();
+                if let Some(child) = child {
                     let _ = child.kill();
                 }
             }

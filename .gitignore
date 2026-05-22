@@ -35,10 +35,11 @@ next-env.d.ts
 **/target/
 packages/tauri/gen/
 
-# Sidecar binary del server (generado por bun build) y copia de migrations.
-# Se versiona solo el .gitkeep para que el dir exista en repo.
+# Sidecar del server, generado por `pnpm build:server-binary`: el runtime de
+# Bun (auto-exit-server-*) y el server desplegado (server-app/, incluye su
+# node_modules y drizzle). Se versiona solo el .gitkeep para que el dir exista.
 packages/tauri/binaries/auto-exit-server-*
-packages/tauri/binaries/drizzle/
+packages/tauri/binaries/server-app/
 
 # Next.js static export output (input para tauri build)
 packages/web/out/

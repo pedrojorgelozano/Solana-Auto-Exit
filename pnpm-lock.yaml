@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@orca-so/whirlpools-core@3.1.0': f895d77bf2560f32dfa3daac3ac0985e1cc35c667b63c81ee92bae163220747d
+
 importers:
 
   .:
@@ -55,7 +58,7 @@ importers:
         version: 7.0.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@orca-so/whirlpools-core':
         specifier: ^3.1.0
-        version: 3.1.0
+        version: 3.1.0(patch_hash=f895d77bf2560f32dfa3daac3ac0985e1cc35c667b63c81ee92bae163220747d)
       '@solana/kit':
         specifier: ^5.5.1
         version: 5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
@@ -3430,13 +3433,13 @@ snapshots:
     dependencies:
       '@solana/kit': 5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)
 
-  '@orca-so/whirlpools-core@3.1.0': {}
+  '@orca-so/whirlpools-core@3.1.0(patch_hash=f895d77bf2560f32dfa3daac3ac0985e1cc35c667b63c81ee92bae163220747d)': {}
 
   '@orca-so/whirlpools@8.0.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)':
     dependencies:
       '@orca-so/tx-sender': 3.0.1(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@orca-so/whirlpools-client': 7.0.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
-      '@orca-so/whirlpools-core': 3.1.0
+      '@orca-so/whirlpools-core': 3.1.0(patch_hash=f895d77bf2560f32dfa3daac3ac0985e1cc35c667b63c81ee92bae163220747d)
       '@solana-program/memo': 0.10.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana-program/system': 0.10.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))
       '@solana-program/token': 0.9.0(@solana/kit@5.5.1(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6))

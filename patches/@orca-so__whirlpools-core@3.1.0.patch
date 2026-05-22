@@ -1,0 +1,12 @@
+diff --git a/dist/nodejs/package.json b/dist/nodejs/package.json
+index e0d8fabcc43cdb92e49ae5b4491b2c7c5bd6bc91..5f9097b60922ed705cd3dd7f498b7abce07b46c9 100644
+--- a/dist/nodejs/package.json
++++ b/dist/nodejs/package.json
+@@ -1,6 +1,7 @@
+ {
+   "name": "orca_whirlpools_core_js_bindings",
+   "version": "3.0.0",
++  "type": "commonjs",
+   "files": [
+     "orca_whirlpools_core_js_bindings_bg.wasm",
+     "orca_whirlpools_core_js_bindings.js",

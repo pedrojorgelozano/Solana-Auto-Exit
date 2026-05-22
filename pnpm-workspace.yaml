@@ -21,3 +21,6 @@ allowBuilds:
 # excluimos tsx para que la versión instalada arranque sin esperas.
 minimumReleaseAgeExclude:
   - tsx@4.22.3
+
+patchedDependencies:
+  '@orca-so/whirlpools-core@3.1.0': patches/@orca-so__whirlpools-core@3.1.0.patch
