@@ -28,9 +28,10 @@ await taskManager.boot();
 const app = new Hono();
 
 // -----------------------------------------------------------------------------
-// CORS: solo se permiten orígenes del frontend local (Next dev + Next prod
-// servido localmente). Cualquier otro origen recibe 403/no-Access-Control-Allow.
-// Para acceso remoto vía VPS (F3+), añadir el host configurado por env.
+// CORS: se permiten los orígenes del frontend local (Next dev/prod, por env)
+// y el webview de la app Tauri, cuyo origin depende del SO. Cualquier otro
+// origen no recibe Access-Control-Allow-Origin. Acceso remoto vía VPS (F3+):
+// añadir el host por env CORS_ORIGINS.
 // -----------------------------------------------------------------------------
 const corsOrigins = (
   process.env.CORS_ORIGINS ?? "http://127.0.0.1:3000,http://localhost:3000"
@@ -39,10 +40,24 @@ const corsOrigins = (
   .map((s) => s.trim())
   .filter(Boolean);
 
+// El webview de Tauri tiene un origin propio según la plataforma: Windows usa
+// `http://tauri.localhost`, macOS/Linux `tauri://localhost`. Se aceptan ambos
+// además de la lista configurada — sin esto, la app de escritorio no puede
+// hablar con su sidecar (el frontend en `tauri dev` sí, porque va por
+// localhost:3000, y por eso el bug no salía hasta instalar la app).
+function resolveCorsOrigin(origin: string): string | null {
+  if (!origin) return null;
+  if (corsOrigins.includes(origin)) return origin;
+  if (/^https?:\/\/tauri\.localhost$/.test(origin)) return origin;
+  if (origin === "tauri://localhost") return origin;
+  console.warn(`[cors] origen rechazado: ${origin}`);
+  return null;
+}
+
 app.use(
   "/trpc/*",
   cors({
-    origin: corsOrigins,
+    origin: (origin) => resolveCorsOrigin(origin),
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     credentials: false,
