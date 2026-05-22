@@ -685,7 +685,7 @@ Además, había un problema operativo independiente: el campo `rpcUrl` se guarda
 ## ADR-029 — Tauri sidecar pattern: server Node empaquetado con Bun `--compile`
 
 **Fecha**: 2026-05-21
-**Estado**: Aceptada · ejecuta [ADR-015](#adr-015--tauri-en-f4-f5-no-desde-f1)
+**Estado**: Superada por [ADR-031](#adr-031--el-sidecar-tauri-no-usa-bun---compile-runtime-bun--pnpm-deploy) en cuanto al empaquetado `--compile`. El patrón sidecar, la comunicación HTTP y la resolución de paths por Rust (puntos 1, 5, 6) siguen vigentes.
 
 **Contexto**: F4.1.a montó el shell Tauri vacío. F4.1.b debía cerrar el bucle: empaquetar el backend Node (Hono + tRPC + Drizzle + better-sqlite3) dentro del bundle desktop para que el usuario final no necesite Node ni pnpm. La frontera del problema: convertir un workspace TypeScript con ~200 MB de `node_modules` en un único binario ejecutable.
 
@@ -752,3 +752,50 @@ El `mint` y el `id` son valores que el usuario descubre en runtime (sus posicion
 - **Hash routing puro** (`/#/positions/<mint>`): Next.js no lo soporta nativamente; requeriría rehacer la capa de routing. Rechazado por coste.
 - **Custom Tauri protocol handler** (rewrite todas las rutas no encontradas a `index.html`): viable pero añade código Rust no trivial. Reservado para si el caveat del refresh se vuelve molesto.
 - **Server Components que reciban `params` y pasen el mint al Client**: cosmético, no resuelve el problema fundamental (Next sigue exigiendo `generateStaticParams`).
+
+---
+
+## ADR-031 — El sidecar Tauri no usa `bun --compile`: runtime Bun + `pnpm deploy`
+
+**Fecha**: 2026-05-22
+**Estado**: Aceptada · supersede el empaquetado de [ADR-029](#adr-029--tauri-sidecar-pattern-server-node-empaquetado-con-bun---compile)
+
+**Contexto**: [ADR-029](#adr-029--tauri-sidecar-pattern-server-node-empaquetado-con-bun---compile) decidió empaquetar el server como binario único con `bun build --compile`. Al verificar el build F4.1.b end-to-end (instalando Bun + Rust + MSVC Build Tools), el enfoque resultó inviable. El patrón sidecar, la comunicación HTTP por `127.0.0.1:7777`, el naming `auto-exit-server-<triple>` y la resolución de paths por Rust (puntos 1, 5, 6 de ADR-029) se mantienen intactos; lo único que cae es el empaquetado `--compile`.
+
+**Los tres muros de `bun --compile`** (cada uno verificado ejecutando el binario resultante):
+
+1. **`better-sqlite3` (módulo nativo)**: usa el paquete `bindings`, que en runtime recorre el filesystem buscando un `node_modules` para localizar su `.node` — layout inexistente dentro de un binario compilado.
+2. **`@orca-so/whirlpools-core` (WASM)**: glue de wasm-bindgen. (a) El bundler de Bun lo malclasifica como ESM y rompe su `module.exports` — emite una referencia a un namespace que nunca declara; (b) su `.wasm` se carga con `readFileSync(__dirname + ...)` en runtime, invisible para `--compile`. Marcarlo `--external` tampoco sirve: un binario `bun --compile` no resuelve módulos externos desde disco (filesystem virtual sellado; ignora cwd y `NODE_PATH`).
+3. **`@meteora-ag/dlmm`**: el engine lo carga vía `createRequire` ([ADR-024](#adr-024--coexistencia-de-sdks-solana-en-los-adapters--workaround-esmcjs-de-anchor), workaround del bug ESM de anchor). El bundler nunca ve ese require, así que el paquete queda fuera del bundle pase lo que pase.
+
+Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **sólo un `node_modules` real en disco funciona**.
+
+**Decisión**:
+
+1. **Driver SQLite dual por runtime**. `packages/server/src/db/client.ts` ramifica según `process.versions.bun`:
+   - Bun (el sidecar) → `bun:sqlite` + `drizzle-orm/bun-sqlite`. `bun:sqlite` va embebido en el runtime de Bun: cero módulos nativos.
+   - Node (dev `tsx`, Docker, Vitest) → `better-sqlite3` + `drizzle-orm/better-sqlite3`.
+   Imports dinámicos para que ningún runtime resuelva el módulo del otro; los specifiers de la rama Bun llevan `as string` para que TypeScript no exija `@types/bun`. El tipo `Db` exportado es el de better-sqlite3 — ambos drivers exponen la misma API de query de drizzle.
+2. **El sidecar no se compila**. `packages/server/scripts/build-binary.ts` produce, en `packages/tauri/binaries/`:
+   - `auto-exit-server-<triple>[.exe]` — copia del ejecutable `bun` (el runtime ES el sidecar).
+   - `server-app/` — el server desplegado con `pnpm deploy --legacy --prod` (código + `drizzle/` + un `node_modules` real con todo el árbol de deps).
+   El `setup()` de Rust hace spawn del runtime Bun pasándole `server-app/src/main.ts` como argumento; Bun resuelve las deps desde `server-app/node_modules`.
+3. **Pruning del deploy**: `data/` (contiene la DB y el `wallet.vault` de desarrollo — secreto que NO debe distribuirse), `scripts/` y `drizzle.config.ts` se eliminan del `server-app/`.
+4. **Resolución de `server-app/` por entorno** en `lib.rs`: en debug (`tauri dev`) se lee de `CARGO_MANIFEST_DIR/binaries/server-app` sin pasar por el mecanismo de `resources` de Tauri; en release, de `resource_dir()`.
+5. **Patch de `@orca-so/whirlpools-core`** vía `pnpm patch`: añade `"type": "commonjs"` explícito a su `dist/nodejs/package.json` (el build CJS de wasm-bindgen viene sin etiquetar, bajo un `package.json` raíz con `"type": "module"`) para que el runtime de Bun cargue el paquete sin ambigüedad.
+
+**Consecuencias**:
+- (+) El build F4.1.b verifica end-to-end: el sidecar arranca y sirve, con Orca, Meteora y SQLite resolviendo correctamente.
+- (+) `pnpm deploy` materializa las versiones exactas del lockfile — el sidecar corre el mismo árbol de deps que se testea, sin divergencia dev/prod.
+- (+) Cero bundler en el camino del sidecar → cero bugs de bundler con WASM / native / `createRequire`.
+- (+) `bun:sqlite` es más rápido que `better-sqlite3` y no necesita toolchain de compilación nativa.
+- (−) Footprint mayor: ~98 MB (runtime Bun) + ~174 MB (`server-app/`) ≈ 272 MB, frente a los ~100 MB que prometía el binario único de ADR-029.
+- (−) `server-app/node_modules` usa el layout `.pnpm` (store + junctions, con paths >260 chars). Funciona en sitio para `tauri dev`; el instalador relocatable de `tauri build` necesitará aplanarlo. `--node-linker=hoisted` en el deploy no es viable — pnpm lo trata como cambio de config y fuerza un purge del `node_modules` del workspace. Pendiente de F4.2.
+- (−) `better-sqlite3` viaja en el `server-app/` aunque el sidecar Bun nunca lo use, porque sigue siendo dependencia del server para el path Node/Docker. Peso muerto podable.
+- (−) Tocar dependencias del server obliga a re-ejecutar `build-binary.ts` para regenerar `server-app/`.
+
+**Alternativas consideradas**:
+- **`bun --compile` + `--external` para las deps WASM/nativas**: descartada — Muro 3, el binario compilado no resuelve externals desde disco.
+- **`bun --compile` parcheando Orca** (forzar CJS + reescribir la carga del `.wasm` a import estático): rewrite frágil de glue generado por wasm-bindgen, y Meteora seguiría sin poder bundlearse (Muro 3 de Meteora vía `createRequire`).
+- **Bundle con `bun build` sin `--compile` + runtime Bun**: el bundler tiene el mismo bug con Orca y tampoco ve el `createRequire` de Meteora — habría que externalizar medio árbol de deps igualmente. `pnpm deploy` produce ese `node_modules` de forma más limpia y con las versiones exactas del lockfile.
+- **Reescribir el server en Rust**: fuera de alcance (sería F8+), igual que se descartó en ADR-029.
