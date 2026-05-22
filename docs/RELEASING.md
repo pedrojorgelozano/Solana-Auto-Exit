@@ -23,7 +23,9 @@ Produce dos ficheros:
 ## Cada release
 
 1. Sube el número de versión en `packages/tauri/tauri.conf.json` (`version`)
-   y en los `package.json` que corresponda.
+   y en los `package.json` que corresponda. En `CHANGELOG.md`, mueve los
+   cambios de `[Unreleased]` a una sección nueva `[<ver>]` con la fecha, y
+   actualiza los enlaces de comparación del final del archivo.
 
 2. Build firmado, con las env vars de la clave privada. El flag
    `--config tauri.updater.conf.json` activa la generación de artefactos de

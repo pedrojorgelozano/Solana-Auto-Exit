@@ -147,13 +147,14 @@ For end users (recommended — start here):
 
 For contributors (developer-facing, in the repo):
 
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — ADRs (34 architectural decisions).
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) — ADRs (35 architectural decisions).
 - [`docs/SECURITY-AUDIT.md`](docs/SECURITY-AUDIT.md) — network-egress audit: scope, method, findings, verdict.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layered architecture in detail.
 - [`docs/TESTING.md`](docs/TESTING.md) — what's validated, with on-chain tx hashes for the close + swap flow.
 - [`docs/TODO.md`](docs/TODO.md) — open work and backlog.
 - [`docs/RELEASING.md`](docs/RELEASING.md) — desktop release process: signing keypair, auto-update artifacts, GitHub Release.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — what's welcome, what isn't, dev setup.
+- [`CHANGELOG.md`](CHANGELOG.md) — version history: what changed in each release.
 
 ## Security
 
