@@ -54,6 +54,54 @@ jobs:
       - name: Tests
         run: pnpm test
 
+  sidecar-smoke:
+    name: Sidecar smoke (server boots under Bun)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Boot server under Bun and probe
+        # El sidecar de la app desktop ES el runtime de Bun ejecutando el
+        # server (ver ADR-031). Este smoke test arranca el server bajo Bun
+        # — ejercita el driver bun:sqlite y que las deps resuelvan bajo Bun
+        # — y comprueba que responde. No empaqueta (eso es build:server-binary).
+        run: |
+          set -e
+          DB_PATH=/tmp/smoke.db \
+          WALLET_VAULT_PATH=/tmp/smoke.vault \
+          DRIZZLE_MIGRATIONS=packages/server/drizzle \
+          SERVER_PORT=7799 \
+          bun packages/server/src/main.ts &
+          SERVER_PID=$!
+          for i in $(seq 1 25); do
+            if curl -sf http://127.0.0.1:7799/ >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          RESP=$(curl -sf http://127.0.0.1:7799/ || true)
+          kill "$SERVER_PID" 2>/dev/null || true
+          echo "Response: $RESP"
+          echo "$RESP" | grep -q "solana-auto-exit server" \
+            || { echo "SMOKE FAILED: server did not boot/respond under Bun"; exit 1; }
+          echo "SMOKE OK"
+
   secret-scan:
     name: Gitleaks (secret scan)
     runs-on: ubuntu-latest
