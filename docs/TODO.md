@@ -6,17 +6,6 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **F4.2** — Builds unsigned para distribución + auto-update.
-  `.msi` (Win), `.dmg` (Mac), `.AppImage`/`.deb` (Linux) **sin codesign
-  del SO** — el usuario decidió distribuir solo a amigos técnicos, asi
-  que aceptamos el "Open Anyway" de primera ejecución. Auto-update via
-  `tauri-plugin-updater` con keypair propia (gratis, independiente
-  del codesign de Apple/Microsoft). GitHub Releases como hosting.
-  Prerrequisito: `tauri build` necesita aplanar `server-app/node_modules`
-  — hoy usa el layout `.pnpm` (junctions + paths >260 chars), no
-  relocatable. `--node-linker=hoisted` en el deploy no vale (pnpm purga
-  el workspace). Y podar `better-sqlite3` del sidecar (peso muerto: el
-  runtime Bun usa `bun:sqlite`).
 - [ ] **Abrir el repo a público** (5 min): `gh repo edit --visibility public`.
   Activa GitHub Security advisories automáticamente. Puede ir antes o
   después de F4.1.
@@ -124,6 +113,16 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **F4.2 — instalador Tauri + auto-update (2026-05-22)**:
+  `tauri build` produce `.msi`/`.exe` que arrancan en la app instalada;
+  la app comprueba updates al arrancar (diálogo nativo, nunca reinicia
+  sin permiso). F4.2.a: `pnpm deploy --node-linker=hoisted` (node_modules
+  plano y relocatable), poda de better-sqlite3, `server-app/` como
+  resource de Tauri, fix del prefijo verbatim `\\?\`. F4.2.b:
+  `tauri-plugin-updater` + `tauri-plugin-dialog`, keypair del maintainer,
+  `docs/RELEASING.md`. [ADR-031](DECISIONS.md), [ADR-032](DECISIONS.md).
+  Commits `a3344ad`, `5598343`, `2ef198d`, `4d11b10`. Sin verificar aún:
+  el flujo real de un update publicado (lo prueba el primer release).
 - **F4.1.b verificado — sidecar Tauri rediseñado (2026-05-22)**:
   `pnpm tauri:dev` arranca end-to-end (ventana + sidecar + server). El
   enfoque `bun --compile` de ADR-029 resultó inviable (better-sqlite3

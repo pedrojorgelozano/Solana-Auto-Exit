@@ -34,9 +34,9 @@ If you do not agree, do not install or use it. The full plain-English disclaimer
 | Mainnet default + UI gate | ✅ Mainnet is default; switching to TEST/REAL is one click with two-step confirmation (ADR-026 + ADR-027) |
 | Light cuaderno UI + EN/ES toggle | ✅ Crema + terracota + Fraunces / Source Serif. Spanish translation toggleable from the header. |
 | Docs in-app (`/docs`) | ✅ Seven editorial articles including the disclaimer |
-| Tauri desktop installer (Win/Mac/Linux) | ⏳ F4.1.b code wired (sidecar + static export + icons); needs Bun + Rust + OS build tools to produce installers — see Quick start (Tauri desktop) below |
+| Tauri desktop installer (Win/Mac/Linux) | ✅ `tauri build` produces `.msi` / NSIS `.exe` installers with a Bun-runtime sidecar; auto-update via GitHub Releases (ADR-031, ADR-032). Build needs Bun + Rust + OS build tools. |
 | Automated tests | ✅ 53 baseline (Vitest) covering security guards + task lifecycle. Coverage gaps documented in [`docs/TESTING.md`](docs/TESTING.md) |
-| CI (typecheck + tests + gitleaks) | ✅ GitHub Actions on every push/PR to `main` |
+| CI (typecheck + tests + sidecar smoke + gitleaks) | ✅ GitHub Actions on every push/PR to `main` |
 
 ## Quick start (web UI, devnet)
 
@@ -81,11 +81,11 @@ The container:
 
 Today the Docker image bundles only the backend. Run `pnpm dev:web` separately, or build the Tauri desktop bundle (next section) which packages both.
 
-## Quick start (Tauri desktop, in progress)
+## Quick start (Tauri desktop)
 
 Building the desktop installer locally requires three toolchains beyond Node + pnpm:
 
-- **Bun** (any recent) — compiles the backend into a single-file binary that ships as a Tauri sidecar.
+- **Bun** — the desktop sidecar *is* the Bun runtime; it ships the deployed server and runs it.
   - Windows: `powershell -c "irm bun.sh/install.ps1 | iex"`
   - macOS / Linux: `curl -fsSL https://bun.sh/install | bash`
 - **Rust** stable — compiles the Tauri shell. Install via [rustup.rs](https://rustup.rs/).
@@ -94,13 +94,14 @@ Building the desktop installer locally requires three toolchains beyond Node + p
 Once installed:
 
 ```bash
-pnpm tauri:dev      # iterate with hot-reload (frontend HMR, server respawn on file changes)
+pnpm tauri:dev      # iterate with hot-reload
 pnpm tauri:build    # produce installers in packages/tauri/target/release/bundle/
+pnpm tauri:release  # release build with signed auto-update artifacts
 ```
 
-`pnpm tauri:build` runs three steps: static-export the Next frontend (`build:web-export`), compile the server to a sidecar with Bun (`build:server-binary`), and bundle everything into the platform installer (`.msi` on Windows, `.dmg` on macOS, `.AppImage`/`.deb` on Linux).
+`pnpm tauri:build` static-exports the Next frontend, deploys the server with its `node_modules` via `pnpm deploy`, copies the Bun runtime as the sidecar, and bundles everything into the platform installer (`.msi` + NSIS `.exe` on Windows, `.dmg` on macOS, `.AppImage`/`.deb` on Linux). The server is **not** compiled into a single binary — `bun --compile` can't package the project's WASM/native deps; see [ADR-031](docs/DECISIONS.md).
 
-The build is **not** code-signed today (Apple Developer ID and Microsoft EV certificates are paid). First launch will show a Gatekeeper / SmartScreen warning that the user must accept once. See [`docs/TODO.md`](docs/TODO.md) and [`SECURITY.md`](SECURITY.md) for the planned hardening path.
+Builds are **not** OS-code-signed (Apple Developer ID and Microsoft EV certificates are paid). First launch shows a Gatekeeper / SmartScreen warning the user accepts once. The app auto-updates through a self-managed signing keypair + GitHub Releases — independent of OS code-signing; see [ADR-032](docs/DECISIONS.md) and [`docs/RELEASING.md`](docs/RELEASING.md).
 
 ## Quick start (CLI, legacy)
 
@@ -144,10 +145,11 @@ For end users (recommended — start here):
 
 For contributors (developer-facing, in the repo):
 
-- [`docs/DECISIONS.md`](docs/DECISIONS.md) — ADRs (27+ architectural decisions).
+- [`docs/DECISIONS.md`](docs/DECISIONS.md) — ADRs (32 architectural decisions).
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — layered architecture in detail.
 - [`docs/TESTING.md`](docs/TESTING.md) — what's validated, with on-chain tx hashes for the close + swap flow.
 - [`docs/TODO.md`](docs/TODO.md) — open work and backlog.
+- [`docs/RELEASING.md`](docs/RELEASING.md) — desktop release process: signing keypair, auto-update artifacts, GitHub Release.
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — what's welcome, what isn't, dev setup.
 
 ## Security

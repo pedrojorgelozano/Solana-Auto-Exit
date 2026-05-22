@@ -57,6 +57,7 @@ GitHub Actions: `.github/workflows/ci.yml`. En cada push/PR a `main`:
 | Job | Pasos | Duración típica |
 |---|---|---:|
 | `test` | pnpm install → typecheck (root + web + server + engine + cli) → vitest | ~1m |
+| `sidecar-smoke` | setup Bun → pnpm install → arranca el server bajo Bun y comprueba que responde (ejercita el driver `bun:sqlite` — ADR-031) | ~1m |
 | `secret-scan` | checkout full history → gitleaks-action | ~10s |
 
 Cancelación concurrente: runs previos del mismo branch/PR se cancelan al llegar uno nuevo.
@@ -310,6 +311,24 @@ Validado el 2026-05-21:
 **No validado E2E**: el usuario aún no ha instalado Rust toolchain ni Microsoft C++ Build Tools en su máquina Windows. Hasta que lo haga, `pnpm tauri:dev` no puede compilar el crate. La primera vez compilará ~1-2 min descargando crates (`tauri`, `wry`, ~200 deps transitivas) y abrirá una ventana nativa. Si truena por algún detalle del SDK de Windows o las features de Tauri, hay que iterar — F4.1.a es el código fuente; F4.1.a-validation es lo que sigue cuando el usuario tenga el toolchain.
 
 Sidecar (F4.1.b) y bundle de producción siguen pendientes — `pnpm tauri:build` fallará hoy por (a) frontend sin static export, (b) backend sin bundlear, (c) iconos sin crear. Todos los pendientes están listados en el README del package.
+
+### 22. F4.1.b verificado — sidecar Tauri rediseñado
+
+Validado el 2026-05-22 (instalados Bun 1.3.14 + Rust 1.95; MSVC Build Tools ya estaba):
+
+- El enfoque de ADR-029 (`bun build --compile` → binario único) resultó inviable. Tres muros, cada uno verificado ejecutando el binario: `better-sqlite3` (módulo nativo) no resuelve su `.node` dentro del binario; el bundler de Bun rompe el glue WASM de `@orca-so/whirlpools-core`; `@meteora-ag/dlmm` se carga vía `createRequire` y el bundler nunca lo ve. Decisión en [ADR-031](DECISIONS.md).
+- Rediseño: driver SQLite dual (`bun:sqlite` en el sidecar, `better-sqlite3` en Node/dev) + el sidecar pasa a ser el runtime `bun` ejecutando el server desplegado con `pnpm deploy`.
+- `pnpm typecheck` verde y `pnpm test` 53/53 verde tras el refactor de `db/client.ts`.
+- `pnpm tauri:dev` arranca end-to-end: Rust compila, la ventana abre, `[sidecar] [server] listening on http://127.0.0.1:7777`, `GET / 200`. La primera compilación de Rust destapó un borrow-checker E0597 latente en `lib.rs` (handler `RunEvent::Exit`), corregido.
+
+### 23. F4.2 — instalador Tauri + auto-update
+
+Validado el 2026-05-22:
+
+- **F4.2.a**: `pnpm tauri:build` produce `.msi` (66 MB) + `.exe` NSIS (38 MB). El exe release arranca el sidecar end-to-end — `sidecar.log` (nuevo, en app-data) confirma `[server] listening`. Bug encontrado y corregido: `resource_dir()` devuelve rutas con prefijo verbatim `\\?\` en Windows; el sidecar (JS) concatena rutas con `/` y `\\?\` no lo tolera → drizzle no encontraba `meta/_journal.json`. Fix: `strip_verbatim()` en `lib.rs`.
+- **F4.2.b**: `cargo build` compila con `tauri-plugin-updater` 2.10.1 + `tauri-plugin-dialog` 2.7.1. `pnpm tauri:dev` confirma que la app arranca, el updater corre al arrancar y degrada bien (`[updater] check falló: Could not fetch a valid release JSON` — esperado sin release publicada).
+- Nuevo job de CI `sidecar-smoke` (ver tabla CI arriba): arranca el server bajo Bun y comprueba que responde — ejercita `bun:sqlite` en cada build.
+- **No verificado**: el flujo real de descarga + instalación de un update (requiere una release publicada); el install-test del `.msi` instalándolo de verdad en el sistema. El primer release del maintainer (ver [RELEASING.md](RELEASING.md)) cerrará esa verificación.
 
 ---
 

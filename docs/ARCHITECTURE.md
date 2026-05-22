@@ -17,7 +17,7 @@ Cuatro formas de correr el mismo motor:
 | **CLI** | Validación rápida, una posición, en tu máquina. `.env` como fuente de config. | `pnpm start` |
 | **Server local + Web** | Backend tRPC + UI Next.js en dev. Multi-posición, persistencia, HMR. | `pnpm dev:server` y `pnpm dev:web` |
 | **Docker** | "Producción" personal headless: arranque automático, restart-unless-stopped. Solo backend, conectas con la UI por separado. | `docker compose up -d` |
-| **Tauri desktop** | Distribución a usuarios finales. Frontend y server empaquetados en un único `.msi`/`.dmg`/`.AppImage`. | `pnpm tauri:build` (requiere Bun + Rust + OS build tools — ver [ADR-029](DECISIONS.md)) |
+| **Tauri desktop** | Distribución a usuarios finales. Frontend + server empaquetados en un instalador `.msi`/`.exe`/`.dmg`/`.AppImage` con auto-update. | `pnpm tauri:build` (requiere Bun + Rust + OS build tools — ver [ADR-031](DECISIONS.md)) |
 
 Todos los modos bindean por defecto a `127.0.0.1` (ver [ADR-016](DECISIONS.md)).
 
@@ -72,9 +72,9 @@ Cuando se construye con `pnpm tauri:build`, una capa extra envuelve el stack:
                    │ tauri://localhost  │ spawn child process
                    ▼                    ▼
         ┌──────────────────┐   ┌───────────────────────────────┐
-        │ webview          │   │ auto-exit-server (binario     │
-        │ packages/web/out │   │ único producido por bun       │
-        │ + useParams()    │   │ build --compile)              │
+        │ webview          │   │ sidecar: el runtime `bun`     │
+        │ packages/web/out │   │ ejecuta server-app/src/       │
+        │ + useParams()    │   │ main.ts (server desplegado)   │
         └────────┬─────────┘   │ ├── DB_PATH=app_data/auto-... │
                  │             │ ├── WALLET_VAULT_PATH=...     │
                  │ fetch       │ ├── DRIZZLE_MIGRATIONS=res/.. │
@@ -83,33 +83,38 @@ Cuando se construye con `pnpm tauri:build`, una capa extra envuelve el stack:
                                └───────────────────────────────┘
 ```
 
-Comunicación: el webview hace fetch a `http://127.0.0.1:7777/trpc/*` (igual que en dev). Los paths runtime (DB, vault, migrations) los resuelve el Rust shell via `app.path().app_data_dir()` y `app.path().resource_dir()` y se los pasa al sidecar como env vars en el momento del spawn. Detalle en [ADR-029](DECISIONS.md).
+El sidecar **no es un binario compilado** — es una copia del runtime `bun` que ejecuta el server desplegado (`server-app/`, ver Pipeline de build). `bun --compile` no podía empaquetar las deps WASM/nativas del proyecto; ver [ADR-031](DECISIONS.md). El webview hace fetch a `http://127.0.0.1:7777/trpc/*` (igual que en dev). Los paths runtime (DB, vault, migrations) los resuelve el Rust shell via `app.path().app_data_dir()` y `app.path().resource_dir()` y se los pasa al sidecar como env vars en el momento del spawn. La app comprueba actualizaciones al arrancar ([ADR-032](DECISIONS.md)).
 
 ## Pipeline de build (Tauri desktop)
 
-Tres pasos encadenados que ejecuta `pnpm tauri:build` automáticamente vía `beforeBuildCommand` en `tauri.conf.json`:
+`pnpm tauri:build` encadena, vía `beforeBuildCommand` en `tauri.conf.json`:
 
 ```
 pnpm tauri:build
-  ├── pnpm build:tauri-prep          (beforeBuildCommand)
-  │   ├── pnpm build:web-export      → packages/web/out/
+  ├── pnpm -w run build:tauri-prep    (beforeBuildCommand)
+  │   ├── pnpm build:web-export       → packages/web/out/
   │   │   └── cross-env TAURI_BUILD=1 next build
-  │   └── pnpm build:server-binary   → packages/tauri/binaries/auto-exit-server-<triple>[.exe]
-  │       └── tsx packages/server/scripts/build-binary.ts
-  │           ├── detect host platform → target triple
-  │           ├── bun build --compile --target=<bunTarget> --outfile <out>
-  │           └── copy drizzle/*.sql → packages/tauri/binaries/drizzle/
+  │   └── pnpm build:server-binary    → tsx scripts/build-binary.ts
+  │       ├── pnpm deploy --legacy --prod --node-linker=hoisted
+  │       │     → binaries/server-app/ (server + node_modules
+  │       │       plano, sin symlinks, relocatable)
+  │       ├── poda data/ y better-sqlite3 del deploy
+  │       └── copia el ejecutable `bun` del host
+  │             → binaries/auto-exit-server-<triple>[.exe]
   └── cargo build --release (Rust + bundle)
       ├── frontend bundled desde packages/web/out/
-      ├── sidecar binary embebido como externalBin
-      ├── drizzle/ copiada como resource
-      └── output → packages/tauri/target/release/bundle/{msi,dmg,appimage,deb}/
+      ├── runtime `bun` embebido como externalBin (el sidecar)
+      ├── server-app/ copiada como resource
+      └── output → packages/tauri/target/release/bundle/{msi,nsis}/
 ```
+
+El build de release con artefactos de auto-update es `pnpm tauri:release` (= `tauri build --config tauri.updater.conf.json`); ver [RELEASING.md](RELEASING.md).
 
 Decisiones de cada pieza:
 
 - **`output: 'export'` opt-in vía `TAURI_BUILD=1`**: ver [ADR-030](DECISIONS.md). Dev y Docker no se afectan.
-- **`bun build --compile` por target del host**: ver [ADR-029](DECISIONS.md). Cross-compile no es viable para módulos nativos (`better-sqlite3`); F4.2 usará CI matrix multi-OS.
+- **Sidecar = runtime `bun` + `pnpm deploy`, no `bun --compile`**: ver [ADR-031](DECISIONS.md). El bundler de Bun no podía empaquetar el WASM de Orca ni el `createRequire` de Meteora; el server viaja desplegado con su `node_modules` real (hoisted, relocatable).
+- **Auto-update**: `tauri-plugin-updater` con keypair propia, hosting en GitHub Releases. Ver [ADR-032](DECISIONS.md) y [RELEASING.md](RELEASING.md).
 - **Iconos**: PNG fuente generado por `packages/tauri/scripts/generate-icon-source.py` (PIL); set completo (ICO, ICNS, iOS, Android, Windows Store) producido por `pnpm exec tauri icon scripts/source.png`.
 
 ## Flujo de una watch-task
@@ -246,37 +251,43 @@ packages/web/src/
 
 **Onboarding pedagógico editorial** (ADR-021): cuando no hay wallet, la home renderiza `FirstRunHome` con eyebrow + display + tres steps "How it works" + CTAs. El modal pasa de "Connect bot wallet recomendado / Import peligroso" a tres caminos honestos al mismo nivel (Generate / Import key / Advanced · JSON) con `ImportWarning` que explica el blast radius con precisión (= la address concreta, no la wallet entera; la app no acepta seed phrases). Empty states de `/positions` y `/tasks` enseñan la cadena (positions vacío → cómo meter LPs; tasks vacío → ir a positions). Documentación in-app vive en `app/docs/` con 6 artículos editoriales y un sidebar. Links contextuales ("→ Why a bot wallet?", "→ What simulation actually does", etc) sembrados en los puntos donde aparecen conceptos no obvios — sustituto editorial del tour overlay clásico.
 
-### `packages/tauri` (desktop shell — F4.1.a, scaffolding)
+### `packages/tauri` (desktop shell — F4.1 + F4.2 completas)
 
-Wrapper nativo que empaqueta el frontend Next.js + el server como app desktop. Implementa la decisión estratégica de [ADR-015](DECISIONS.md) ("Tauri en F4-F5, no desde F1"). Sexto miembro del workspace pnpm.
+Wrapper nativo que empaqueta el frontend Next.js + el server como app desktop. Sexto miembro del workspace pnpm. Estrategia en [ADR-015](DECISIONS.md); empaquetado del sidecar en [ADR-031](DECISIONS.md); auto-update en [ADR-032](DECISIONS.md).
 
 **Stack**:
-- [Tauri v2](https://v2.tauri.app/) (Rust): `tauri = "2.0"` + `tauri-build = "2.0"`.
-- WebView2 en Windows / WKWebView en Mac / WebKitGTK en Linux (cero Chromium bundleado — binario final ~10MB en lugar de ~150MB de Electron).
-- `@tauri-apps/cli@^2.0.0` como devDep del package para invocar `tauri dev` / `tauri build`.
+- [Tauri v2](https://v2.tauri.app/) (Rust): `tauri` + `tauri-build` 2.x.
+- Plugins: `tauri-plugin-shell` (spawn del sidecar), `tauri-plugin-updater` (auto-update), `tauri-plugin-dialog` (prompt del updater).
+- WebView2 en Windows / WKWebView en Mac / WebKitGTK en Linux (cero Chromium bundleado — el shell Rust pesa ~5MB).
+- `@tauri-apps/cli` 2.x como devDep para invocar `tauri dev` / `tauri build` / `tauri signer`.
 
 **Layout**:
 ```
 packages/tauri/
-├── package.json          (declara @tauri-apps/cli como devDep)
-├── Cargo.toml            (tauri 2.0, perfil release optimizado: lto, opt-level=s, strip, panic=abort)
-├── tauri.conf.json       (identifier com.autoexit.desktop, ventana 1280x820, beforeDevCommand → pnpm dev:web, devUrl → http://localhost:3000)
-├── build.rs              (invoca tauri_build::build() — genera bindings IPC)
+├── package.json
+├── Cargo.toml            (tauri + plugins shell/updater/dialog; perfil
+│                          release: lto, opt-level=s, strip, panic=abort)
+├── Cargo.lock            (versionado — es una crate binaria)
+├── tauri.conf.json       (identifier, ventana, externalBin + resources,
+│                          plugins.updater con pubkey + endpoint)
+├── tauri.updater.conf.json  (overlay: createUpdaterArtifacts, solo release)
+├── build.rs              (invoca tauri_build::build())
+├── capabilities/default.json
+├── icons/                (PNG, ICO, ICNS + iOS/Android/Windows Store)
+├── scripts/{generate-icon-source.py, source.png}
+├── binaries/             (gitignored salvo .gitkeep)
+│   ├── auto-exit-server-<triple>[.exe]   copia del runtime `bun`
+│   └── server-app/       server desplegado (src + drizzle + node_modules)
 ├── src/
-│   ├── main.rs           (entry point con #![windows_subsystem="windows"] en release)
-│   └── lib.rs            (Tauri Builder + setup() placeholder — F4.1.b spawneará el sidecar aquí)
+│   ├── main.rs           (entry con #![windows_subsystem="windows"] release)
+│   └── lib.rs            (Builder: registra plugins, setup() spawnea el
+│                          sidecar y lanza check_for_updates(),
+│                          RunEvent::Exit mata el sidecar)
 ├── target/               (build artifacts Rust — gitignored)
 └── gen/                  (assets generados por Tauri — gitignored)
 ```
 
-**Estado F4.1.a**: `pnpm tauri:dev` arranca el web dev server vía `beforeDevCommand` y abre una ventana nativa apuntando a `localhost:3000`. La app se ve como en el navegador pero en su propia ventana del SO. Requiere Rust toolchain + (en Windows) Microsoft C++ Build Tools instalados en la máquina de dev.
-
-**Pendiente F4.1.b**:
-1. **Sidecar bundling**: empaquetar el server Hono/Node como binario único (probablemente `bun build --compile` o Node SEA) y spawnearlo desde el `setup()` de `src/lib.rs`. Hoy el usuario necesita `pnpm dev:server` corriendo en otra terminal.
-2. **Next.js static export**: añadir `output: 'export'` en `next.config.ts` + `generateStaticParams` en `[mint]` y `[id]` para que el bundle se compile estáticamente. `tauri.conf.json` ya tiene `frontendDist: "../web/out"` apuntando al output esperado.
-3. **Iconos**: PNG/ICO/ICNS para `bundle.icon`. Tauri usa defaults en dev pero los exige para `tauri build`.
-
-**Pendiente F4.2**: builds unsigned (sin codesign del SO) + auto-update con keypair propia vía GitHub Releases. Decidido distribuir solo a amigos técnicos sin pagar a Apple/Microsoft (aceptamos "Open Anyway" de primera ejecución).
+**Estado**: F4.1 (shell + sidecar + static export + iconos) y F4.2 (instalador funcional + auto-update) completas. `pnpm tauri:dev` itera con hot-reload; `pnpm tauri:build` produce `.msi` + `.exe` NSIS; `pnpm tauri:release` añade los artefactos firmados del updater. El sidecar es el runtime `bun` ejecutando `server-app/` — ver [ADR-031](DECISIONS.md) (por qué no `bun --compile`). La app comprueba actualizaciones al arrancar ([ADR-032](DECISIONS.md)); proceso de release en [RELEASING.md](RELEASING.md). Requiere Rust toolchain + Bun + (en Windows) MSVC Build Tools en la máquina de dev.
 
 ## Contrato `ProtocolAdapter`
 
@@ -334,7 +345,8 @@ solana-auto-exit/
 │   ├── TODO.md
 │   ├── DECISIONS.md
 │   ├── ARCHITECTURE.md
-│   └── TESTING.md
+│   ├── TESTING.md
+│   └── RELEASING.md
 ├── scripts/
 │   ├── gen-wallet.ts
 │   ├── export-base58.ts
@@ -385,22 +397,24 @@ solana-auto-exit/
     │       ├── components/
     │       ├── i18n/{en,es,context,LangToggle}.ts
     │       └── lib/{trpc,format,tokens,constants,status}.ts
-    └── tauri/                 (desktop shell — F4.1.a + F4.1.b)
+    └── tauri/                 (desktop shell — F4.1 + F4.2)
         ├── package.json       (name: @solana-auto-exit/tauri)
-        ├── Cargo.toml         (tauri 2.0 + tauri-plugin-shell + perfil release optimizado)
-        ├── tauri.conf.json    (externalBin sidecar + resources drizzle + bundle)
+        ├── Cargo.toml         (tauri + plugins shell/updater/dialog)
+        ├── Cargo.lock         (versionado — crate binaria)
+        ├── tauri.conf.json    (externalBin + resources + plugins.updater)
+        ├── tauri.updater.conf.json  (overlay createUpdaterArtifacts)
         ├── build.rs           (invoca tauri_build::build())
         ├── capabilities/default.json  (shell:allow-spawn restringido al sidecar)
         ├── icons/             (PNG, ICO, ICNS + iOS + Android + Windows Store)
-        ├── binaries/          (gitignored: sidecar binary y migrations copiadas)
+        ├── binaries/          (gitignored: runtime bun + server-app desplegado)
         ├── scripts/{generate-icon-source.py, source.png}
-        └── src/{main,lib}.rs  (entry + Builder con spawn sidecar + cleanup)
+        └── src/{main,lib}.rs  (entry + Builder: spawn sidecar + updater + cleanup)
 ```
 
 Notas sobre el layout actual:
 - `packages/server/src/security/` — guards de defense-in-depth (SSRF + brute-force unlock) añadidos en el sprint pre-public. Ver ADR-026/027 + entradas de PROGRESS.
 - `packages/web/src/app/{positions,tasks}/[*]/{page.tsx, client.tsx}` — split en Server Component shim + Client Component para soportar Next.js static export. Ver [ADR-030](DECISIONS.md).
-- `packages/tauri/{binaries, capabilities, scripts}` — infraestructura F4.1.b. `binaries/.gitkeep` versionado, contenido (`.exe` + `drizzle/`) gitignored.
+- `packages/tauri/{binaries, capabilities, scripts}` — infraestructura del sidecar (F4.1 + F4.2). `binaries/.gitkeep` versionado; el contenido (runtime `bun` + `server-app/`) gitignored, lo genera `build-binary.ts`.
 - Archivos local-only (no en repo, gitignored): `CLAUDE.md` (índice personal), `docs/PROGRESS.md` (bitácora), `docs/sessions/` (notas de sesión).
 
 ## Cómo añadir un protocolo nuevo
