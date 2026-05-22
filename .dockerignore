@@ -20,6 +20,14 @@ docker-compose.yml
 .github
 .vscode
 
+# Artefactos de build — se regeneran dentro de la imagen; no deben viajar en
+# el contexto (el de Tauri pesa varios GB).
+**/target
+**/.next
+**/out
+packages/tauri/binaries
+packages/tauri/gen
+
 # Documentación y referencia, no necesarias en la imagen
 docs
 README.md

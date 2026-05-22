@@ -1,5 +1,5 @@
 # =============================================================================
-# solana-auto-exit · docker-compose (local, single user)
+# solana-auto-exit · docker compose (local, single user)
 # =============================================================================
 # Uso normal:
 #   docker compose up --build     # arranca + recompila si hay cambios
@@ -7,10 +7,12 @@
 #   docker compose logs -f        # ver logs en vivo
 #   docker compose down           # parar y limpiar
 #
-# El binding 127.0.0.1:7777:7777 garantiza que el server SOLO es accesible
-# desde la propia máquina (loopback). No se expone a la LAN ni a internet.
-# Para acceso remoto 24/7 vía VPS, ver docs/ARCHITECTURE.md (Tailscale /
-# Cloudflare Tunnel — pendiente de documentar en F3).
+# Levanta dos servicios desde la misma imagen:
+#   - server → API en 127.0.0.1:7777
+#   - web    → interfaz en http://127.0.0.1:3000 (abrir en el navegador)
+#
+# El prefijo "127.0.0.1:" de cada binding garantiza que SOLO son accesibles
+# desde la propia máquina (loopback). No se exponen a la LAN ni a internet.
 # =============================================================================
 
 services:
@@ -34,4 +36,21 @@ services:
       SERVER_PORT: "7777"
       DB_PATH: "/app/data/auto-exit.db"
       WALLET_VAULT_PATH: "/app/data/wallet.vault"
+      NODE_ENV: "production"
+
+  web:
+    # Reutiliza la imagen que construye el servicio `server`.
+    image: solana-auto-exit:latest
+    container_name: solana-auto-exit-web
+    restart: unless-stopped
+    depends_on:
+      - server
+    # `next start` con -H 0.0.0.0 para que el puerto sea accesible desde el
+    # host. El script `start` del paquete fija -H 127.0.0.1, que dentro del
+    # contenedor dejaría la web inalcanzable; por eso se invoca next directo.
+    command: ["pnpm", "--filter", "@solana-auto-exit/web", "exec", "next", "start", "-H", "0.0.0.0", "-p", "3000"]
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
       NODE_ENV: "production"
