@@ -799,3 +799,35 @@ Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **s
 - **`bun --compile` parcheando Orca** (forzar CJS + reescribir la carga del `.wasm` a import estático): rewrite frágil de glue generado por wasm-bindgen, y Meteora seguiría sin poder bundlearse (Muro 3 de Meteora vía `createRequire`).
 - **Bundle con `bun build` sin `--compile` + runtime Bun**: el bundler tiene el mismo bug con Orca y tampoco ve el `createRequire` de Meteora — habría que externalizar medio árbol de deps igualmente. `pnpm deploy` produce ese `node_modules` de forma más limpia y con las versiones exactas del lockfile.
 - **Reescribir el server en Rust**: fuera de alcance (sería F8+), igual que se descartó en ADR-029.
+
+---
+
+## ADR-032 — Auto-update con tauri-plugin-updater (builds unsigned)
+
+**Fecha**: 2026-05-22
+**Estado**: Aceptada
+
+**Contexto**: F4.2 distribuye la app como builds **sin codesign del SO** a un grupo pequeño de amigos técnicos, vía GitHub Releases. Sin auto-update, cada versión nueva exigiría reinstalación manual. Hace falta un mecanismo de actualización que no dependa del codesign de Apple/Microsoft.
+
+**Decisión**:
+
+1. **`tauri-plugin-updater`**. Su esquema de firma (minisign, keypair propia) es **independiente del codesign del SO** — funciona con builds unsigned. El plugin descarga el instalador nuevo, verifica su firma contra la pubkey embebida, y lo aplica.
+2. **Check desde Rust en `setup()`, no desde el frontend**. El frontend es un static export y está en rediseño; un check Rust-side no lo acopla y no requiere `@tauri-apps/plugin-updater` ni tocar la web.
+3. **UX: preguntar, nunca auto-reiniciar**. Al arrancar se comprueba si hay versión nueva; si la hay, un diálogo nativo (`tauri-plugin-dialog`) pregunta antes de instalar. Instalar reinicia la app, y un reinicio detiene los watchers de auto-exit activos — la decisión del momento debe ser del usuario.
+4. **El keypair lo genera y custodia el maintainer**. La clave pública va en `tauri.conf.json` (commiteada — es pública). La privada **nunca pasa por el repo**; se inyecta en el build de release via `TAURI_SIGNING_PRIVATE_KEY` + `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+5. **`createUpdaterArtifacts` NO va en el `tauri.conf.json` commiteado**. Activarlo ahí obligaría a tener la clave de firma en cualquier `tauri build` (lo rompería para contributors). Se activa solo en el build de release con `--config tauri.updater.conf.json`. `plugins.updater` (pubkey + endpoints) sí va commiteado: el app lo necesita para verificar updates en runtime.
+6. **Hosting en GitHub Releases**. El endpoint apunta a `releases/latest/download/latest.json`. Tauri NO autogenera `latest.json` — el proceso completo está en [RELEASING.md](RELEASING.md).
+
+**Consecuencias**:
+- (+) Auto-update real sin pagar el codesign de Apple/Microsoft.
+- (+) El frontend no se toca — el check vive en Rust.
+- (+) Nunca se interrumpe un watcher sin permiso del usuario.
+- (−) `tauri build` normal no produce artefactos de update; el release es un build aparte (`--config`) con las env vars de firma.
+- (−) `latest.json` se escribe a mano (o con script) en cada release — Tauri no lo genera.
+- (−) La seguridad del canal de update depende de la custodia de la clave privada por el maintainer.
+
+**Alternativas consideradas**:
+- **Sin auto-update, reinstalación manual**: descartada — fricción en cada versión.
+- **Check desde el frontend** (`@tauri-apps/plugin-updater`): acopla el updater al frontend en rediseño; el check Rust-side es más limpio.
+- **Auto-instalar en silencio**: descartada — reiniciar sin avisar puede dejar una posición sin su watcher de stop-loss.
+- **`createUpdaterArtifacts: true` permanente en el config**: rompería `tauri build` para cualquiera sin la clave de firma.
