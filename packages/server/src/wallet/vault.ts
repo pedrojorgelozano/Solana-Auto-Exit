@@ -113,7 +113,19 @@ export class WalletVault {
     this.requireValidSecretKey(secretKey);
 
     // Derivamos la address del secret antes de encriptar (sanity + storage).
-    const signer = await createKeyPairSignerFromBytes(secretKey);
+    // Si los 64 bytes no son un keypair coherente (la clave pública no casa
+    // con la privada), `@solana/kit` lanza un SolanaError críptico
+    // (#3704004); lo traducimos a un mensaje accionable para el usuario.
+    let signer: KeyPairSigner;
+    try {
+      signer = await createKeyPairSignerFromBytes(secretKey);
+    } catch {
+      throw new Error(
+        "That private key is not valid — its public and private halves " +
+          "don't match. Re-copy the full key from your wallet and make " +
+          "sure no characters are missing.",
+      );
+    }
     const address = String(signer.address);
 
     const salt = randomBytes(SALT_LENGTH);
@@ -192,9 +204,14 @@ export class WalletVault {
       );
     }
 
-    const signer = await createKeyPairSignerFromBytes(
-      new Uint8Array(decrypted),
-    );
+    let signer: KeyPairSigner;
+    try {
+      signer = await createKeyPairSignerFromBytes(new Uint8Array(decrypted));
+    } catch {
+      throw new Error(
+        "The vault contents are not a valid key — the file may be corrupted.",
+      );
+    }
     const derivedAddr = String(signer.address);
 
     // Sanity: el address derivado debe coincidir con el del archivo.
