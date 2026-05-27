@@ -244,11 +244,11 @@ function Detail({ task, refresh }: { task: TaskData; refresh: () => void }) {
 
         <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
           <DetailsPanel task={task} />
-          <ActivityTimelinePanel
-            taskId={task.id}
-            network={task.network}
-          />
         </aside>
+      </div>
+
+      <div className="mt-4">
+        <ActivityTimelinePanel taskId={task.id} network={task.network} />
       </div>
     </>
   );
@@ -1718,7 +1718,7 @@ function ActivityTimelinePanel({
         </svg>
       }
     >
-      <ol className="relative flex flex-col">
+      <ol className="relative flex max-w-[680px] flex-col">
         <span
           className="pointer-events-none absolute left-[6px] top-2 bottom-3 w-px bg-[var(--color-hairline)]"
           aria-hidden
