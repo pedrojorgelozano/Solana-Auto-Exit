@@ -63,9 +63,19 @@
 - [ ] Persistir `tokenMintA/B` en `protocolConfig` también para Meteora
   cuando F6.2 abra el flujo de tasks. F2.4 lo hizo para Orca; el receipt
   y la heurística del Dashboard asumen estos campos.
+- [ ] Bundlear SVGs reales de los logos de tokens en
+  `packages/web/public/tokens/<symbol>.svg`. Hoy `TokenBadge` renderiza
+  placeholders coloreados (círculo + 1-2 letras del símbolo, color del
+  registry o hash del mint). Para que se vea "como Orca/Meteora" hay que
+  descargar los SVGs oficiales de los 10-20 tokens más usados y servirlos
+  desde local (sin egress externo, alineado con el threat model). Después
+  `TokenBadge` puede priorizar `/tokens/<symbol>.svg` y caer al placeholder
+  solo si no hay archivo. Apuntado al rediseño UI (feature/ui-refined-dark).
 - [ ] Expandir el token registry de `packages/web/src/lib/tokens.ts` con
-  más mints conocidos (devnet Orca pools varios, mainnet USDT, mSOL, JitoSOL,
-  bonk, etc.). Posiblemente cargar de Jupiter token list en background.
+  más mints conocidos (devnet Orca pools varios, otros stables de mainnet,
+  LSTs adicionales, memes populares). Posiblemente cargar de Jupiter token
+  list en background — trade-off con la política "no external assets" del
+  threat model.
 - [ ] Cierre + swap atómico en una sola tx (combinar `closePositionInstructions`
   + `swapInstructions` + `buildAndSendTransaction` de `@orca-so/tx-sender`).
   Elimina el riesgo de slippage entre las dos tx.

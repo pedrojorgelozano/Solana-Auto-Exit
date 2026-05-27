@@ -20,6 +20,7 @@ import {
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
+import { TokenPair } from "@/components/TokenBadge";
 import {
   NETWORK,
   PROTOCOL_LABELS,
@@ -335,12 +336,18 @@ function PositionHubRow({
 
       {/* Position */}
       <div className="col-span-12 md:col-span-3">
-        <div className="t-h3 text-[var(--color-text)]">
-          {symA && symB ? (
+        <div className="flex items-center gap-2.5">
+          {summary.data ? (
             <>
-              {symA}{" "}
-              <span className="text-[var(--color-text-muted)]">/</span>{" "}
-              {symB}
+              <TokenPair
+                mintA={summary.data.tokenA.mint}
+                mintB={summary.data.tokenB.mint}
+              />
+              <span className="t-h3 text-[var(--color-text)]">
+                {tokenSymbol(summary.data.tokenA.mint)}{" "}
+                <span className="text-[var(--color-text-muted)]">/</span>{" "}
+                {tokenSymbol(summary.data.tokenB.mint)}
+              </span>
             </>
           ) : (
             <span className="t-num text-[var(--color-text)]">

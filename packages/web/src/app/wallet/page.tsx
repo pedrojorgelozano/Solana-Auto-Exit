@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { FieldError } from "@/components/ui/Card";
@@ -126,6 +127,7 @@ function UnlockSection({
 }) {
   const { t } = useT();
   const l = t.wallet.locked;
+  const router = useRouter();
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const unlock = trpc.wallet.unlock.useMutation();
@@ -137,6 +139,12 @@ function UnlockSection({
       await unlock.mutateAsync({ passphrase });
       setPassphrase("");
       refresh();
+      // Post-unlock UX: el wallet sigue mostrándose en el sidebar; mandamos
+      // al user al dashboard, que es donde está la lista de posiciones +
+      // auto-exits (el siguiente paso lógico). La página /wallet sigue
+      // siendo navegable para gestionar la cuenta (lock/delete) cuando
+      // haga falta.
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }

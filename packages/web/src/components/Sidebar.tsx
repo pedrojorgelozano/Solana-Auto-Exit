@@ -99,10 +99,13 @@ function Nav() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(href + "/");
 
+  // /positions standalone es un redirect al home (el listado de posiciones
+  // con auto-exit por row vive en el dashboard) — no debe aparecer en el
+  // nav. /positions/[mint] sigue activo para la pantalla de configure pero
+  // se accede desde una row del home, no desde nav.
   const items: Array<{ href: string; label: string; icon: React.ReactNode }> = [
     { href: "/", label: t.sidebar.nav.dashboard, icon: <DashboardIcon /> },
     { href: "/wallet", label: t.sidebar.nav.wallet, icon: <WalletIcon /> },
-    { href: "/positions", label: t.sidebar.nav.positions, icon: <PositionsIcon /> },
     { href: "/tasks", label: t.sidebar.nav.autoExits, icon: <AutoExitIcon /> },
     { href: "/settings", label: t.sidebar.nav.settings, icon: <SettingsIcon /> },
   ];

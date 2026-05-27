@@ -1,8 +1,9 @@
 /**
  * Mini token registry. No queremos depender de Jupiter token list ni Metaplex
- * para una UI local — para los pares que de verdad usa el bot (devnet en F1)
- * basta con hardcodear los conocidos. Cualquier mint que no esté aquí cae
- * al fallback de "address truncado".
+ * para una UI local — para los pares que de verdad usa el bot basta con
+ * hardcodear los conocidos. Cualquier mint que no esté aquí cae al fallback
+ * (truncate del address en `tokenSymbol`, color generado del hash en
+ * `TokenBadge`).
  */
 
 export interface TokenMeta {
@@ -10,15 +11,22 @@ export interface TokenMeta {
   symbol: string;
   name: string;
   decimals: number;
+  /**
+   * Background CSS del placeholder visual (mientras no bundleemos SVGs
+   * reales — apuntado al backlog). Puede ser un color sólido (#RRGGBB) o
+   * un linear-gradient. Si no se especifica, se genera del hash del mint.
+   */
+  color?: string;
 }
 
 const KNOWN: TokenMeta[] = [
-  // SOL nativo (wrapped mint)
+  // SOL nativo (wrapped mint) — gradient oficial Solana brand
   {
     mint: "So11111111111111111111111111111111111111112",
     symbol: "SOL",
     name: "Solana",
     decimals: 9,
+    color: "linear-gradient(135deg, #9945FF 0%, #14F195 100%)",
   },
   // USDC mainnet
   {
@@ -26,6 +34,7 @@ const KNOWN: TokenMeta[] = [
     symbol: "USDC",
     name: "USD Coin",
     decimals: 6,
+    color: "#2775CA",
   },
   // USDT mainnet
   {
@@ -33,13 +42,79 @@ const KNOWN: TokenMeta[] = [
     symbol: "USDT",
     name: "Tether USD",
     decimals: 6,
+    color: "#26A17B",
   },
-  // devUSDC del pool Orca devnet (el que estamos usando para validaciones)
+  // devUSDC del pool Orca devnet
   {
     mint: "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k",
     symbol: "devUSDC",
     name: "Devnet USDC (Orca)",
     decimals: 6,
+    color: "#2775CA",
+  },
+  // JitoSOL — liquid staking token (Jito)
+  {
+    mint: "J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
+    symbol: "JitoSOL",
+    name: "Jito Staked SOL",
+    decimals: 9,
+    color: "#00D18C",
+  },
+  // mSOL — Marinade staked SOL
+  {
+    mint: "mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+    symbol: "mSOL",
+    name: "Marinade Staked SOL",
+    decimals: 9,
+    color: "#3E64B7",
+  },
+  // bSOL — Blaze stake
+  {
+    mint: "bSo13r4TkiE4KumL71LsHTPpL2euBYLFx6h9HP3piy1",
+    symbol: "bSOL",
+    name: "BlazeStake Staked SOL",
+    decimals: 9,
+    color: "#FF8A3C",
+  },
+  // BONK
+  {
+    mint: "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263",
+    symbol: "BONK",
+    name: "Bonk",
+    decimals: 5,
+    color: "#F1B100",
+  },
+  // JUP — Jupiter
+  {
+    mint: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+    symbol: "JUP",
+    name: "Jupiter",
+    decimals: 6,
+    color: "#1F2024",
+  },
+  // ORCA
+  {
+    mint: "orcaEKTdK7LKz57vaAYr9QeNsVEPfiu6QeMU1kektZE",
+    symbol: "ORCA",
+    name: "Orca",
+    decimals: 6,
+    color: "#FFD15C",
+  },
+  // RAY — Raydium
+  {
+    mint: "4k3Dyjzvzp8eMZWUXbBCjEvwSkkk59S5iCNLY3QrkX6R",
+    symbol: "RAY",
+    name: "Raydium",
+    decimals: 6,
+    color: "#3B3FCC",
+  },
+  // WIF — dogwifhat
+  {
+    mint: "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+    symbol: "WIF",
+    name: "dogwifhat",
+    decimals: 6,
+    color: "#E87D6E",
   },
 ];
 
@@ -66,4 +141,24 @@ export function isKnownToken(mint: string): boolean {
 /** Lista solo lectura para selectores. */
 export function allKnownTokens(): readonly TokenMeta[] {
   return KNOWN;
+}
+
+/**
+ * Color de fondo para mints no conocidos. Determinista en el mint — siempre
+ * el mismo color para el mismo token, aunque no esté en el registry. HSL
+ * con saturación y lightness fijas para garantizar contraste con texto
+ * blanco sobre cualquier hue.
+ */
+export function fallbackTokenColor(mint: string): string {
+  let hash = 0;
+  for (let i = 0; i < mint.length; i++) {
+    hash = (hash * 31 + mint.charCodeAt(i)) | 0;
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 55%, 42%)`;
+}
+
+/** Color del badge: el del registry si se conoce, fallback hash-based si no. */
+export function tokenColor(mint: string): string {
+  return BY_MINT.get(mint)?.color ?? fallbackTokenColor(mint);
 }

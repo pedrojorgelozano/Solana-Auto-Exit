@@ -17,8 +17,7 @@ export const fraunces = Newsreader({
   subsets: ["latin"],
   variable: "--font-display",
   axes: ["opsz"],
-  style: ["italic", "normal"],
-  weight: ["300", "400"],
+  style: ["italic"],
   display: "swap",
 });
 
