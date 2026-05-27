@@ -10,11 +10,23 @@
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
 - [ ] **Decidir merge del rediseño UI** — rama `feature/ui-refined-dark`
-  tiene 8 commits del rediseño "refined minimal dark" (paleta dark +
-  sidebar + nuevos componentes); aceptada como [ADR-038](DECISIONS.md)
-  pero **sin merge a `main`** ni push. Al mergear: borrar
-  `packages/web/src/components/GlobalHeader.tsx` (huérfano), publicar
-  `v0.2.0` (cambio visual mayor) y dejar entrada en CHANGELOG.
+  tiene 10 commits del rediseño "refined minimal dark" (paleta dark +
+  sidebar + nuevos componentes + rate-limit hint + docs sync); aceptada
+  como [ADR-038](DECISIONS.md) pero **sin merge a `main`** ni push. Al
+  mergear: borrar `packages/web/src/components/GlobalHeader.tsx`
+  (huérfano), publicar `v0.2.0` (cambio visual mayor) y dejar entrada
+  en CHANGELOG.
+- [ ] **Implementar el detail mockup (`mockups/auto-exit-detail.html`)**
+  — rediseño visual de `/tasks/[id]` con layout 2-col main+aside, hero
+  panel (live price + 3 stats + **price band visual** sobre el rango de
+  liquidez con triggers como flags), trigger cards (TP/SL en grid 2×),
+  position holdings en grid 2×2, close plan estático (4 steps), details
+  sidebar, activity timeline con nodos coloreados. **Sin funcionalidad
+  nueva** — todo se calcula con `summary.range`, `currentPrice`, etc. ya
+  existentes. Pieza estrella: el price band (no existe hoy). Coste
+  estimado 6-7 horas en 7 sub-bloques (G1–G7). Aceptado conceptualmente
+  pero pospuesto al cierre de la sesión del 2026-05-27. Sigue en la
+  misma rama `feature/ui-refined-dark`.
 
 ## Backlog (sin orden)
 
