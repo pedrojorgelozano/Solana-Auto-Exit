@@ -168,11 +168,7 @@ Install via the official guide for your distro — these always work and stay cu
 
 #### 2. Add your user to the `docker` group — **this is the step everyone forgets**
 
-After installing Docker, your regular user **cannot talk to the Docker daemon** until it is in the `docker` group. If you skip this step (or skip the logout below), the **very first** `docker compose up` will fail with:
-
-```
-permission denied while trying to connect to the Docker API at unix:///var/run/docker.sock
-```
+After installing Docker, your regular user **cannot talk to the Docker daemon** until it is in the `docker` group. If you skip this step (or skip the logout below), the **very first** `docker compose up` will fail with the error `permission denied while trying to connect to the Docker API at unix:///var/run/docker.sock`.
 
 Two parts, both required:
 
@@ -357,11 +353,7 @@ Something else on your host is bound to one of those ports. Identify and stop it
 
 ### Docker — "permission denied ... unix:///var/run/docker.sock" (Linux)
 
-Full error:
-
-```
-permission denied while trying to connect to the Docker API at unix:///var/run/docker.sock
-```
+Full error message: `permission denied while trying to connect to the Docker API at unix:///var/run/docker.sock`.
 
 Your user is not in the `docker` group, or it is but you haven't logged out and back in yet. See [Linux — Prerequisites, step 2](#2-add-your-user-to-the-docker-group--this-is-the-step-everyone-forgets) — both adding the user and re-logging in are required.
 
