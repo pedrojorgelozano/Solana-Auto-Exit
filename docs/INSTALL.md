@@ -357,6 +357,56 @@ Full error message: `permission denied while trying to connect to the Docker API
 
 Your user is not in the `docker` group, or it is but you haven't logged out and back in yet. See [Linux — Prerequisites, step 2](#2-add-your-user-to-the-docker-group--this-is-the-step-everyone-forgets) — both adding the user and re-logging in are required.
 
+### Docker build fails with "DNS: transient error" while running `apk add` (Linux)
+
+You'll see this during `docker compose up --build`, inside the `[deps 2/11] RUN apk add ...` step:
+
+> `WARNING: fetching https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/APKINDEX.tar.gz: DNS: transient error (try again later)`
+
+…followed by `ERROR: unable to select packages: g++ / make / python3 (no such package)` and the build fails with exit code 3.
+
+**What it means.** The Docker daemon's build network can't resolve DNS even though your host can. Common on Ubuntu when `systemd-resolved` runs a local stub at `127.0.0.53` that Docker's container network can't reach, or with some VPN / corporate-network setups.
+
+**Diagnose**:
+
+```bash
+# Does your HOST resolve? (it almost certainly does)
+ping -c 3 dl-cdn.alpinelinux.org
+
+# Does Docker's container network resolve?
+docker run --rm alpine sh -c "apk update"
+```
+
+If the `ping` succeeds but the `docker run` fails with DNS errors, you're hitting this case.
+
+**Fix — set explicit DNS servers for the Docker daemon:**
+
+```bash
+sudo tee /etc/docker/daemon.json > /dev/null <<'EOF'
+{
+  "dns": ["1.1.1.1", "8.8.8.8"]
+}
+EOF
+sudo systemctl restart docker
+```
+
+(If `/etc/docker/daemon.json` already exists, merge the `"dns"` key into it instead of overwriting.)
+
+Verify the fix:
+
+```bash
+docker run --rm alpine sh -c "apk update"   # should succeed quickly
+```
+
+Then retry the install:
+
+```bash
+cd ~/Solana-Auto-Exit
+docker compose up -d --build
+```
+
+**If it still fails** the most likely causes are a corporate proxy (set `httpProxy` / `httpsProxy` in `/etc/docker/daemon.json`) or a host firewall blocking outbound DNS from `docker0`/`br-*` interfaces. Out of scope here; check `docker info` and your distro's networking config.
+
 ### Docker — "permission denied" writing to `data/` (Linux)
 
 The container runs as **uid 1000** (the `node` user inside the image — part of the security hardening; see [ADR-037](DECISIONS.md)). The bind mount `./packages/server/data/` on the host therefore needs to be writable by uid 1000.
