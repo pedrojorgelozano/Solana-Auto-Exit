@@ -9,13 +9,12 @@
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
-- [ ] **Rediseño de UI ("refined minimal dark")** — plan completo redactado
-  en [docs/sessions/2026-05-27-plan-redesign-refined-minimal-dark.md](sessions/2026-05-27-plan-redesign-refined-minimal-dark.md)
-  (gitignored). 7 bloques de trabajo (A-G), 6-9 sesiones estimadas. Cambia
-  paleta + fuentes + shell (sidebar) + IA (desaparecen `/wallet` y
-  `/positions`). Quedan 5 decisiones por cerrar antes de empezar (theme
-  toggle, USD oracle, eliminación de URLs, i18n toggle location, "New
-  auto-exit" modal vs página). Mockup fuente en `mockups/refined-minimal-dark.html`.
+- [ ] **Decidir merge del rediseño UI** — rama `feature/ui-refined-dark`
+  tiene 8 commits del rediseño "refined minimal dark" (paleta dark +
+  sidebar + nuevos componentes); aceptada como [ADR-038](DECISIONS.md)
+  pero **sin merge a `main`** ni push. Al mergear: borrar
+  `packages/web/src/components/GlobalHeader.tsx` (huérfano), publicar
+  `v0.2.0` (cambio visual mayor) y dejar entrada en CHANGELOG.
 
 ## Backlog (sin orden)
 

@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+- **Refreshed UI direction — "refined minimal dark"** (in branch, not yet merged to `main`). The whole visual layer has been redone: dark `#0b0d0f` surface with jade accent, Hanken Grotesk sans for body and headings (Newsreader italic for accents), Spline Sans Mono for numbers. The global header has been replaced by a left sidebar with brand + nav + server/wallet beacons + Lock button. Dashboard, ledger and settings have been re-laid out per the new direction. **No functionality added or removed** — every flow you can do today still works the same. See [ADR-038](docs/DECISIONS.md), supersedes [ADR-017](docs/DECISIONS.md).
+
 ## [0.1.1] — 2026-05-27
 
 Maintenance release. The Windows installer picks up two wallet-import UX fixes; the rest are infrastructure improvements (Docker self-hosted stack + hardening + multi-platform install docs) that don't change the installer behavior.
