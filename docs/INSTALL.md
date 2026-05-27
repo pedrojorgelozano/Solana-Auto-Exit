@@ -405,7 +405,44 @@ cd ~/Solana-Auto-Exit
 docker compose up -d --build
 ```
 
-**If it still fails** the most likely causes are a corporate proxy (set `httpProxy` / `httpsProxy` in `/etc/docker/daemon.json`) or a host firewall blocking outbound DNS from `docker0`/`br-*` interfaces. Out of scope here; check `docker info` and your distro's networking config.
+**If `docker run --rm alpine sh -c "apk update"` still fails after the fix above**, your network is blocking outbound DNS to public servers (`8.8.8.8`, `1.1.1.1`, etc.). Common with:
+
+- **ISP / router DNS interception** — some ISPs and home routers (Asuswrt-Merlin, OpenWrt, etc.) block or hijack outbound port 53 to anything other than their own DNS.
+- **Pi-Hole or AdGuard Home** on the network — may not respond to queries from the Docker bridge subnet, or may only respond to queries from MAC-allow-listed devices.
+- **Corporate firewall** — only allows DNS to specific approved upstream servers.
+
+The container is configured with a public DNS but those queries never get out of your network — that's why the host (which uses the router as DNS) resolves fine, but the container (which goes directly to public DNS) doesn't.
+
+**Fix — use the same DNS your host uses upstream.** That IP is guaranteed to be allowed because the host already resolves through it.
+
+Find it (Ubuntu / Debian with systemd-resolved, the default):
+
+```bash
+resolvectl status | grep -E "Current DNS|DNS Servers"
+```
+
+You'll see something like `Current DNS Server: 192.168.1.1` (your router) or `Current DNS Server: 80.58.61.250` (your ISP's DNS). That IP is what you want.
+
+Then replace the DNS list in `daemon.json` with that IP, plus one public DNS as a fallback in case the upstream is offline (`9.9.9.9` Quad9 tends to be permitted when `8.8.8.8` isn't):
+
+```bash
+# Substitute 192.168.1.1 with the IP "resolvectl status" returned.
+sudo tee /etc/docker/daemon.json > /dev/null <<'EOF'
+{
+  "dns": ["192.168.1.1", "9.9.9.9"]
+}
+EOF
+sudo systemctl restart docker
+```
+
+Verify and retry the build:
+
+```bash
+docker run --rm alpine sh -c "apk update"        # should succeed now
+cd ~/Solana-Auto-Exit && docker compose up -d --build
+```
+
+**Still failing?** The next suspects are a corporate proxy (set `httpProxy` / `httpsProxy` in `/etc/docker/daemon.json` — see Docker docs) or a host firewall (iptables / nftables / ufw) blocking outbound traffic from the `docker0` / `br-*` interfaces. Diagnose with `docker info`, `sudo iptables -L -n -v | grep docker`, and check your distro's networking config.
 
 ### Docker — "permission denied" writing to `data/` (Linux)
 
