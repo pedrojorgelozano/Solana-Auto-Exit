@@ -34,7 +34,7 @@ If you do not agree, do not install or use it. The full plain-English disclaimer
 | Mainnet default + UI gate | ✅ Mainnet is default; switching to TEST/REAL is one click with two-step confirmation (ADR-026 + ADR-027) |
 | Light cuaderno UI + EN/ES toggle | ✅ Crema + terracota + Fraunces / Source Serif. Spanish translation toggleable from the header. |
 | Docs in-app (`/docs`) | ✅ Seven editorial articles including the disclaimer |
-| Tauri desktop installer (Win/Mac/Linux) | ✅ `tauri build` produces `.msi` / NSIS `.exe` installers with a Bun-runtime sidecar; opt-in auto-update via GitHub Releases (ADR-031, ADR-032, ADR-033). Build needs Bun + Rust + OS build tools. |
+| Tauri desktop installer | ✅ **Windows** today (`.msi` / NSIS `.exe` installers with a Bun-runtime sidecar; opt-in auto-update via GitHub Releases — ADR-031, ADR-032, ADR-033). macOS `.dmg` and Linux `.AppImage`/`.deb` build from source on the respective OS (Tauri does not cross-compile); native installers for those platforms not yet published. Build needs Bun + Rust + OS build tools. |
 | Automated tests | ✅ 53 baseline (Vitest) covering security guards + task lifecycle. Coverage gaps documented in [`docs/TESTING.md`](docs/TESTING.md) |
 | CI (typecheck + tests + sidecar smoke + gitleaks) | ✅ GitHub Actions on every push/PR to `main` |
 
@@ -65,25 +65,24 @@ Once it's armed, the bot polls the pool price and closes when one of your trigge
 
 ## Quick start (Docker)
 
-For a personal "production" setup that restarts with the machine:
+For a personal "production" setup that restarts with the machine, and the standard path on **macOS and Linux** until native installers ship there — step-by-step guide in [`docs/INSTALL.md`](docs/INSTALL.md).
 
 ```bash
-docker compose up -d --build      # ~2 min first time (native build of better-sqlite3)
+docker compose up -d --build      # ~2–3 min first time (better-sqlite3 native + next build)
 docker compose logs -f            # tail logs
 docker compose down               # stop
 ```
 
-The container:
+`docker compose` brings up **two containers** from a single image:
 
-- Binds **only on `127.0.0.1:7777`** of the host — never on `0.0.0.0`. Verify with `netstat`.
-- Persists SQLite + encrypted vault in `./packages/server/data/` (volume mounted to the host).
-- Restarts automatically (`unless-stopped`) on host reboot or container crash.
+- **`server`** on `127.0.0.1:7777` — the backend (tRPC + SQLite + encrypted vault).
+- **`web`** on `127.0.0.1:3000` — the Next.js UI. Open <http://127.0.0.1:3000> in your browser.
 
-Today the Docker image bundles only the backend. Run `pnpm dev:web` separately, or build the Tauri desktop bundle (next section) which packages both.
+Both bind to `127.0.0.1` only — never on `0.0.0.0`. Verify with `netstat`. SQLite + the encrypted vault persist in `./packages/server/data/` (bind-mounted to the host). Containers restart automatically (`unless-stopped`) on host reboot or container crash. See [ADR-036](docs/DECISIONS.md).
 
 ## Quick start (Tauri desktop)
 
-**Just want to use it?** Download the installer from the [latest release](https://github.com/pedrojorgelozano/Solana-Auto-Exit/releases/latest) — step-by-step instructions (download verification, the SmartScreen warning, first launch) in [`docs/INSTALL.md`](docs/INSTALL.md). The rest of this section is for building from source.
+**Just want to use it?** See [`docs/INSTALL.md`](docs/INSTALL.md) for step-by-step instructions: native installer on Windows, Docker on macOS / Linux / Windows. The rest of this section is for building from source.
 
 Building the desktop installer locally requires three toolchains beyond Node + pnpm:
 
