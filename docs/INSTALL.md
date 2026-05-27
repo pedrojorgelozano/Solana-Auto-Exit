@@ -253,6 +253,31 @@ Back up the vault file if the wallet it holds matters to you — see [SECURITY.m
 
 ---
 
+## Privacy: Docker Desktop telemetry (Windows / macOS only)
+
+Skip this section if you're on Linux with **Docker Engine** (no Desktop) — that path has no telemetry.
+
+**Docker Desktop** (the GUI app you install on Windows and macOS) ships several outbound network channels enabled by default. Auto-Exit itself doesn't send anything, but Docker Desktop as a host does. If your threat model includes "no unnecessary egress from this machine" — typical for someone running a self-hosted DeFi tool — these are worth knowing and turning off.
+
+### What's on by default
+
+| Channel | What it sends | How to disable |
+|---|---|---|
+| **Usage statistics** | Anonymized telemetry of how you use Docker Desktop. | **Settings → General → "Send usage statistics"** — uncheck. |
+| **Update checks** | Contacts Docker's update servers on every launch to see if a new version is out. | **Settings → Software updates** — uncheck "Automatically check for updates" and "Notify me about updates". Update manually when you want by downloading from <https://docs.docker.com/desktop/release-notes/>. |
+| **Docker AI / Ask Gordon** | Any prompt or context you give to the AI assistant is sent to Docker's AI service. | **Settings → Features in development** (location varies by version) — uncheck "Docker AI" / "Ask Gordon". |
+| **Docker Scout** | Scans local images and uploads metadata to Scout for vulnerability reports. Only active when you're signed in to a Docker Hub account. | **Sign out** of Docker Hub (avatar menu, top-right) if you don't use it. Or: **Settings → Docker Scout** — disable. |
+| **Feature flags (Unleash)** | Docker Desktop periodically fetches feature-flag configuration from `unleash.docker.com`. No UI toggle. | Only blockable at the OS firewall (allow outbound only to `registry-1.docker.io` for image pulls; deny everything else from `Docker Desktop.exe` / `com.docker.backend.exe`). Most users live with this. |
+| **Image pulls** | Every `docker compose up --build` (when layers aren't cached) pulls the base image (`node:24-alpine`) from `registry-1.docker.io`. This is necessary for builds. | Can't disable, but it's not telemetry — it's the registry traffic that makes Docker work. Cached after the first pull. |
+
+### Strict path: Docker Engine on Linux
+
+If "absolutely no Docker telemetry" is a hard requirement and you have a Linux machine available, **Docker Engine** (the daemon + CLI, no GUI) on Linux has none of the above — no usage stats, no Unleash, no Scout-by-default, no update checks. The only outbound traffic is registry pulls when you build. Same `docker compose up` workflow as Docker Desktop. See [Linux — Docker](#linux--docker).
+
+On Windows, Docker Engine can run inside a WSL2 distro without Docker Desktop on top — same egress profile as native Linux, more friction to set up. Out of scope for this guide.
+
+---
+
 ## Updating
 
 ### Native installer (Windows)
