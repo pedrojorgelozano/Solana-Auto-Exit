@@ -79,7 +79,7 @@ export default function TaskPage() {
   const { t } = useT();
 
   return (
-    <main className="mx-auto max-w-[1180px] px-8 pb-24 pt-8 fade-in">
+    <main className="mr-auto max-w-[1180px] px-8 pb-24 pt-8 fade-in">
       <Link
         href="/tasks"
         className="
