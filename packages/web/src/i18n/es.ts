@@ -514,25 +514,6 @@ export const es: typeof en = {
       noFees: "—",
     },
 
-    closePlan: {
-      title: "Cuando un trigger se dispara",
-      step1Title: "Cobrar fees y rewards",
-      step1Desc:
-        "Primero se recogen los fees pendientes a la bot wallet.",
-      step2Title: "Retirar toda la liquidez",
-      step2Desc: (proto: string) =>
-        `Se retiran ambos tokens de la posición de ${proto}.`,
-      step3Title: "Cerrar la posición",
-      step3Desc:
-        "Se cierra la cuenta NFT de la posición y se recupera su rent.",
-      step4Title: (sym: string) => `Swappear a ${sym}`,
-      step4Desc: (slippage: string) =>
-        `El output se cambia a tu token de salida en el mismo pool, con ${slippage} de slippage.`,
-      step4Skipped:
-        "El output se queda en los tokens originales — sin swap de salida configurado.",
-      foot: "Cada paso reintenta automáticamente. La transacción confirmada se verifica on-chain — cotizado vs real — y la diferencia se registra en el receipt.",
-    },
-
     detailsPanel: {
       title: "Detalles",
       protocol: "Protocolo",

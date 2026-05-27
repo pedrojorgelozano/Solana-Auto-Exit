@@ -218,7 +218,6 @@ function Detail({ task, refresh }: { task: TaskData; refresh: () => void }) {
           {summary ? (
             <HoldingsPanel summary={summary} />
           ) : null}
-          <ClosePlanPanel task={task} />
           {task.closeResult ? (
             <CloseReceipt
               data={task.closeResult as unknown as CloseResultShape}
@@ -1286,99 +1285,6 @@ function HoldingRow({ value, symbol }: { value: string; symbol: string }) {
         {symbol}
       </span>
     </span>
-  );
-}
-
-// ============================================================================
-// ClosePlanPanel — 4 pasos estáticos
-// ============================================================================
-
-function ClosePlanPanel({ task }: { task: TaskData }) {
-  const { t } = useT();
-  const cp = t.taskDetail.closePlan;
-  const protoLabel =
-    task.protocol === "orca"
-      ? t.taskDetail.head.protocol.orca
-      : task.protocol === "meteora"
-        ? t.taskDetail.head.protocol.meteora
-        : task.protocol;
-  const exitSym = task.exitTokenMint
-    ? tokenSymbol(task.exitTokenMint)
-    : null;
-  const swapSlippage = formatSlippage(task.exitSwapSlippageBps);
-
-  return (
-    <Panel
-      title={cp.title}
-      icon={
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
-          <path d="M13 2 3 14h7l-1 8 10-12h-7z" />
-        </svg>
-      }
-    >
-      <ol className="flex flex-col">
-        <Step n={1} title={cp.step1Title} desc={cp.step1Desc} />
-        <Step n={2} title={cp.step2Title} desc={cp.step2Desc(protoLabel)} />
-        <Step n={3} title={cp.step3Title} desc={cp.step3Desc} />
-        <Step
-          n={4}
-          title={exitSym ? cp.step4Title(exitSym) : cp.step4Title("…")}
-          desc={exitSym ? cp.step4Desc(swapSlippage) : cp.step4Skipped}
-        />
-      </ol>
-      <div className="mt-4 flex items-start gap-[10px] rounded-md border border-[var(--color-hairline)] bg-[var(--color-paper)] px-[14px] py-[13px]">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="mt-[1px] h-[15px] w-[15px] flex-none text-[var(--color-accent)]"
-          aria-hidden
-        >
-          <path d="M9 12l2 2 4-4" />
-          <circle cx="12" cy="12" r="9" />
-        </svg>
-        <p className="text-[12px] leading-relaxed text-[var(--color-text-muted)]">
-          {cp.foot}
-        </p>
-      </div>
-    </Panel>
-  );
-}
-
-function Step({
-  n,
-  title,
-  desc,
-}: {
-  n: number;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <li className="grid grid-cols-[30px_1fr] gap-[13px] border-b border-[var(--color-hairline)] py-[13px] last:border-b-0 last:pb-1">
-      <span
-        className="
-          grid h-[26px] w-[26px] place-items-center rounded-md
-          border border-[var(--color-accent)]/22
-          bg-[var(--color-accent-dim)] t-num text-[12px] font-semibold
-          text-[var(--color-accent)]
-        "
-        aria-hidden
-      >
-        {n}
-      </span>
-      <div>
-        <div className="text-[13.5px] font-semibold text-[var(--color-text)]">
-          {title}
-        </div>
-        <div className="mt-[3px] text-[12.5px] text-[var(--color-text-dim)]">
-          {desc}
-        </div>
-      </div>
-    </li>
   );
 }
 

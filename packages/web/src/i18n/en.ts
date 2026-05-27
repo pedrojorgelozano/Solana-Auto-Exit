@@ -542,24 +542,6 @@ export const en = {
       noFees: "—",
     },
 
-    closePlan: {
-      title: "When a trigger fires",
-      step1Title: "Claim fees & rewards",
-      step1Desc: "Pending fees are collected to the bot wallet first.",
-      step2Title: "Withdraw all liquidity",
-      step2Desc: (proto: string) =>
-        `Both tokens are removed from the ${proto} position.`,
-      step3Title: "Close the position",
-      step3Desc:
-        "The position NFT account is closed and its rent reclaimed.",
-      step4Title: (sym: string) => `Swap proceeds to ${sym}`,
-      step4Desc: (slippage: string) =>
-        `Output is swapped to your exit token in the same pool, within ${slippage} slippage.`,
-      step4Skipped:
-        "Proceeds stay in their original tokens — no exit swap configured.",
-      foot: "Every step runs with automatic retry. The settled transaction is then checked on-chain — quoted versus actual — and the difference recorded in the receipt.",
-    },
-
     detailsPanel: {
       title: "Details",
       protocol: "Protocol",
