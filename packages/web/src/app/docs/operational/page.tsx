@@ -23,6 +23,72 @@ export default function Operational() {
         </p>
       </section>
 
+      <section id="rpc" className="hairline-t pt-10">
+        <h2 className="t-h2">RPC choice</h2>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          The bot reads pool prices and broadcasts transactions through a
+          Solana RPC. The default endpoints — {" "}
+          <code className="t-num text-[var(--color-text)]">api.mainnet-beta.solana.com</code>{" "}
+          and{" "}
+          <code className="t-num text-[var(--color-text)]">api.devnet.solana.com</code>{" "}
+          — are public and rate-limited per IP. Solana Foundation runs them
+          as a courtesy for development; they are <em>not</em> intended for
+          production use. Listing positions on Meteora is especially
+          chatty (the SDK walks every position the wallet owns) and tends
+          to be the first thing that gets rate-limited.
+        </p>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          Symptom you&apos;ll see if it happens:{" "}
+          <em>&quot;One protocol query failed: http error (429): too many requests&quot;</em>{" "}
+          on the positions page. The bot doesn&apos;t crash — it just can&apos;t
+          load that query right now.
+        </p>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          The fix is a private RPC. Several providers have free tiers that
+          cover what a single self-hosted user needs many times over:
+        </p>
+        <ul className="mt-4 space-y-2 t-body text-[var(--color-text-muted)]">
+          <li>
+            <span className="text-[var(--color-text)]">Helius</span> — most
+            popular in the Solana ecosystem. Free tier ~100k requests/day,
+            no card required.{" "}
+            <a
+              href="https://helius.dev/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] underline"
+            >
+              helius.dev
+            </a>
+            . The mainnet URL looks like{" "}
+            <code className="t-num text-[var(--color-text)]">https://mainnet.helius-rpc.com/?api-key=&lt;key&gt;</code>;
+            devnet swaps {"\""}mainnet{"\""} for {"\""}devnet{"\""}.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">QuickNode, Triton One, Ankr</span> —
+            all offer similar free tiers with different feature mixes. Pick
+            one and paste the URL into <em>RPC endpoint</em> in /settings.
+          </li>
+        </ul>
+        <p className="mt-4 t-body text-[var(--color-text-muted)]">
+          <strong className="text-[var(--color-text)]">Privacy caveat.</strong>{" "}
+          A private RPC provider sees which addresses you query and from
+          which IP. That&apos;s a trade — reliability for some metadata. If
+          your threat model rejects this:
+        </p>
+        <ul className="mt-4 space-y-2 t-body text-[var(--color-text-muted)]">
+          <li>
+            Route the bot&apos;s traffic through a VPN you trust. The
+            provider then sees the VPN exit IP, not your real one.
+          </li>
+          <li>
+            Run your own RPC node. Most private — but it&apos;s ~250 GB SSD,
+            a fast connection, and ongoing care. Overkill for a single
+            self-hosted auto-exit.
+          </li>
+        </ul>
+      </section>
+
       <section className="hairline-t pt-10">
         <h2 className="t-h2">Restarts and pauses</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">

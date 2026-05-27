@@ -828,10 +828,23 @@ Confirm both containers are up: `docker ps` should show `solana-auto-exit-server
 
 ## Next steps
 
-Once installed and running, the in-app `/docs` section is the place to start:
+### Before you list positions: configure a private RPC
+
+Auto-Exit defaults to Solana's **public RPC** endpoints (`api.mainnet-beta.solana.com` for real funds, `api.devnet.solana.com` for test mode). These are rate-limited per IP — fine for a smoke test, **not enough for sustained use**. The first thing that breaks under rate limiting is listing positions on Meteora (the SDK walks every position the wallet owns); you'll see `One protocol query failed: http error (429): too many requests` on the positions page.
+
+The fix is a free-tier private RPC. Pick a provider, copy your endpoint URL, and paste it into **/settings → RPC endpoint**.
+
+The most common choice is **Helius** (<https://helius.dev/>) — free tier ~100k requests/day, no card required. Mainnet URL format: `https://mainnet.helius-rpc.com/?api-key=<your-key>` (devnet swaps `mainnet` for `devnet`). Alternatives: **QuickNode**, **Triton One**, **Ankr** — same shape, different terms.
+
+Privacy trade and alternative paths (own node, VPN-routed) are covered in the in-app docs at `/docs/operational#rpc`.
+
+### Then: walk through the in-app docs
+
+Once installed, running, and configured with an RPC, the in-app docs are the place to learn the app:
 
 - `/docs/getting-started` — the three-step walkthrough.
 - `/docs/bot-wallet` — the three honest paths to provide a key and what each one exposes.
+- `/docs/operational` — RPC choice, lock/unlock, restarts, error handling, activity timeline, backups.
 - `/docs/security` — threat model and what the tool protects against (and what it doesn't).
 
 If anything in this install guide is wrong or out of date, please [open an issue](https://github.com/pedrojorgelozano/Solana-Auto-Exit/issues).
