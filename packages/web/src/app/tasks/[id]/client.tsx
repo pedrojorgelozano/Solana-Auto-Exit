@@ -847,6 +847,12 @@ function PriceBand({
             <span className="absolute left-[10px] top-2 text-[9.5px] font-semibold uppercase tracking-[0.13em] text-[var(--color-accent)] opacity-85">
               {h.zoneTag}
             </span>
+            <span className="absolute bottom-[5px] left-[6px] t-num text-[10.5px] font-semibold text-[var(--color-accent)]">
+              {formatPrice(rangeMin, 4)}
+            </span>
+            <span className="absolute bottom-[5px] right-[6px] t-num text-[10.5px] font-semibold text-[var(--color-accent)]">
+              {formatPrice(rangeMax, 4)}
+            </span>
           </div>
           {/* SL mark */}
           {slX !== null ? (
