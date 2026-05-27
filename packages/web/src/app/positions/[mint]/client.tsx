@@ -560,12 +560,12 @@ function ConfigureForm({
 
   const applyTpPreset = (pct: number) => {
     const next = currentPrice * (1 + pct / 100);
-    setTpPrice(next.toFixed(6).replace(/\.?0+$/, ""));
+    setTpPrice(next.toFixed(2).replace(/\.?0+$/, ""));
     setTpEnabled(true);
   };
   const applySlPreset = (pct: number) => {
     const next = currentPrice * (1 - pct / 100);
-    setSlPrice(next.toFixed(6).replace(/\.?0+$/, ""));
+    setSlPrice(next.toFixed(2).replace(/\.?0+$/, ""));
     setSlEnabled(true);
   };
 

@@ -100,7 +100,7 @@ export function formatPrice1To1(
   price: number,
   tokenAMint: string,
   tokenBMint: string,
-  decimals = 6,
+  decimals = 2,
 ): string {
   return `1 ${tokenSymbol(tokenAMint)} = ${formatPrice(price, decimals)} ${tokenSymbol(tokenBMint)}`;
 }
@@ -162,7 +162,7 @@ export function formatTriggerSentence(
   const a = tokenAMint ? tokenSymbol(tokenAMint) : "Token A";
   const b = tokenBMint ? tokenSymbol(tokenBMint) : "Token B";
   const op = direction === "above" ? "≥" : "≤";
-  return `Close when 1 ${a} ${op} ${formatPrice(target, 6)} ${b}`;
+  return `Close when 1 ${a} ${op} ${formatPrice(target)} ${b}`;
 }
 
 /**
