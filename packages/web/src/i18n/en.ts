@@ -226,6 +226,9 @@ export const en = {
       headerAction: "Action",
       loading: "Querying chain for positions of this wallet…",
       oneProtocolFailed: (msg: string) => `One protocol query failed: ${msg}`,
+      rateLimitHintBefore: "Looks like Solana's public RPC is rate-limiting you — ",
+      rateLimitHintLink: "configure a private RPC",
+      rateLimitHintAfter: " (free tier, no leaks, takes a minute).",
     },
 
     emptyHub: {

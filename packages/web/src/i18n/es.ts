@@ -203,6 +203,9 @@ export const es: typeof en = {
       headerAction: "Acción",
       loading: "Consultando la cadena para posiciones de esta wallet…",
       oneProtocolFailed: (msg: string) => `Una query de protocolo falló: ${msg}`,
+      rateLimitHintBefore: "El RPC público de Solana te está limitando las queries — ",
+      rateLimitHintLink: "configura un RPC privado",
+      rateLimitHintAfter: " (free tier, sin fugas, un minuto de setup).",
     },
 
     emptyHub: {

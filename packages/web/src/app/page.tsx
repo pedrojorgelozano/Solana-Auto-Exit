@@ -263,11 +263,40 @@ function PositionsHub({
       </ul>
 
       {anyError ? (
-        <p className="mt-6 t-small text-[var(--color-danger)]">
-          {hubT.oneProtocolFailed(anyError)}
-        </p>
+        <div className="mt-6 space-y-2 t-small">
+          <p className="text-[var(--color-danger)]">
+            {hubT.oneProtocolFailed(anyError)}
+          </p>
+          {isRateLimitError(anyError) ? (
+            <p className="text-[var(--color-text-muted)]">
+              {hubT.rateLimitHintBefore}
+              <Link
+                href="/docs/operational#rpc"
+                className="font-semibold text-[var(--color-accent-bright)] underline decoration-[var(--color-accent-bright)]/40 underline-offset-2 transition-colors hover:decoration-[var(--color-accent-bright)]"
+              >
+                {hubT.rateLimitHintLink}
+              </Link>
+              {hubT.rateLimitHintAfter}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Detecta el rate-limit típico del RPC público de Solana — el SDK de Meteora
+ * lo encuentra al primer load de /positions porque `getAllLbPairPositionsByUser`
+ * hace muchas llamadas. El mensaje varía entre RPCs ("429", "too many requests",
+ * "rate limit exceeded"); matcheamos los tres.
+ */
+function isRateLimitError(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes("429") ||
+    m.includes("too many requests") ||
+    m.includes("rate limit")
   );
 }
 
