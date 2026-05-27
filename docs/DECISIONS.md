@@ -935,3 +935,37 @@ Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **s
 - **Buildear Tauri nativo en cada SO**. Descartada por coste: requeriría runners de CI para macOS y Linux, o acceso a máquinas con cada SO. Es trabajo real sin ROI claro hasta que haya demanda.
 - **Static export servido por el server**. Descartada porque las rutas dinámicas `[mint]`/`[id]` se rompen sin un servidor que las resuelva (motivo de ADR-035). Meter el workaround del query string en Docker contamina el código para un caso que no lo necesita.
 - **Dos imágenes separadas (`server` y `web`)**. Descartada por complejidad innecesaria para un proyecto self-hosted single-user: misma imagen + override de command es más simple y el cache de capas hace que ocupe en disco lo mismo.
+
+## ADR-037 — Docker hardening: seis controles aplicados al stack
+
+**Fecha**: 2026-05-27
+**Estado**: Aceptada
+
+**Contexto**: El stack Docker de [ADR-036](#adr-036) es self-hosted y bind localhost-only, pero una configuración por defecto deja superficie innecesaria: root dentro del contenedor, rootfs writable, todas las capabilities concedidas, sin límites de recursos, sin healthcheck. Un RCE en el server o el web (vía dependencia comprometida, bug del adapter, etc.) escala a root con acceso completo al rootfs del contenedor — desde donde podría tocar binarios para persistir, modificar la imagen, abrir más puertos, agotar memoria/CPU del host.
+
+**Decisión**: Aplicar seis controles estándar al `Dockerfile` y `docker-compose.yml`, sin tocar el código del server ni del web:
+
+1. **Non-root user**. `USER node` (uid 1000, viene preinstalado en `node:24-alpine`) en la stage runtime del `Dockerfile`. `COPY --chown=node:node` en los pasos de runtime para que el `/app` sea writable por el user. El build de la web (`pnpm --filter @solana-auto-exit/web build`) también corre como `node`.
+2. **Read-only root filesystem**. `read_only: true` en el compose. Tmpfs explícitos para los paths que necesitan writes en runtime: `/tmp` (busybox, scripts), `/home/node` (pnpm + npm cache), y `/app/packages/web/.next/cache` (Next.js ISR + fetch cache, regenerable). Sizes acotados (32–64M).
+3. **Drop all Linux capabilities**. `cap_drop: [ALL]`. El server bindea a 7777 (>1024, no necesita `CAP_NET_BIND_SERVICE`) y solo escribe a `/app/data` (volumen, no requiere `CAP_DAC_OVERRIDE`). Sin caps, un proceso comprometido no puede `mount`, `chroot`, modificar atributos extendidos, ni cambiar uid.
+4. **`no-new-privileges:true`** vía `security_opt`. Bloquea escalada via setuid/setgid binaries (aunque ya no hay caps, esto es defensa en profundidad).
+5. **Resource limits** vía `deploy.resources.limits`: 512M memoria / 1.0 CPU para `server`, 768M / 1.0 para `web` (Next.js es más pesado). Un bug que filtre memoria o un ataque DoS no come toda la máquina.
+6. **Healthchecks** vía `wget --spider` HTTP a `/trpc/settings.get` (server, valida también que la DB esté OK) y `/` (web). `interval: 30s`, `retries: 3`, `start_period` 30s/60s. Combinado con `restart: unless-stopped`, Docker reinicia automáticamente si el servicio se queda colgado. `depends_on.server.condition: service_healthy` evita que el web arranque antes de que el server pase su check.
+
+**Consecuencias**:
+
+- (+) Un RCE en el server o el web queda confinado: no es root, no puede modificar el rootfs ni escalar caps. El vault encriptado se persiste con ownership 1000:1000 (no root), también más limpio.
+- (+) Docker reinicia automáticamente si el server muere o se cuelga.
+- (+) DoS contenido por límites de memoria/CPU.
+- (+) El compose es legible: cada control queda inline con un comentario que lo explica.
+- (−) **Linux con host uid != 1000** necesita `chown -R 1000:1000 packages/server/data/` para que el contenedor pueda escribir el vault y la DB. Documentado en [INSTALL.md troubleshooting](INSTALL.md#docker--permission-denied-writing-to-data-linux). Docker Desktop (Win/Mac) lo maneja transparente.
+- (−) Los resource limits cap el rendimiento si el host es muy potente. Los valores elegidos son holgados para single-user — la app no es CPU/memory-bound — y se pueden subir editando el compose.
+- (−) Healthcheck depende de `wget` (busybox-alpine). Si la base image cambia a distroless o similar, habría que reemplazar el healthcheck.
+
+**Alternativas consideradas**:
+
+- **Distroless base image** (`gcr.io/distroless/nodejs`): superficie aún menor pero pierdes la shell para debug y `wget` para el healthcheck (habría que reemplazarlo con un `node -e ...` ad-hoc). Sobredimensionado para single-user.
+- **`seccomp` profile custom**: filtrado por syscall, alto coste de mantener (cada nueva versión de Node/dependencia puede usar nuevos syscalls). El default de Docker ya filtra los syscalls peligrosos típicos (~44 bloqueados).
+- **AppArmor profile**: similar coste y crea dependencia de un LSM específico (no portátil entre distros). Mismo argumento que seccomp custom.
+- **Image scanning en CI** (Trivy / Grype): útil para detectar CVEs en deps de la base image, pero rendimiento decreciente para un proyecto pequeño con pocas deps y base alpine. Queda en backlog.
+- **Pin de base image por digest** (`node:24-alpine@sha256:...`): incrementa reproducibilidad y elimina la ventana "pulled a different image". Si se hace, hay que añadir Renovate/Dependabot para rotar el digest cuando hay parches de seguridad. Trade-off de mantenimiento; no aplicado en esta vuelta.

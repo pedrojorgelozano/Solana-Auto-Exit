@@ -204,7 +204,7 @@ docker compose down             # stop everything cleanly
 
 Your encrypted wallet and SQLite database live in `./packages/server/data/` next to the cloned repo. **Do not delete this folder** unless you intend to lose the wallet and tasks. Back it up if the wallet matters.
 
-If you see permission errors writing to `./packages/server/data/`, check that the folder is owned by your user (the container writes as the user that runs `docker compose`).
+If you see permission errors writing to `./packages/server/data/`, the host directory needs to be writable by **uid 1000** — that's the `node` user the container runs as. Docker Desktop (Windows/Mac) handles this transparently; on bare Linux you may need to `chown` (see [troubleshooting](#docker--permission-denied-writing-to-data-linux)).
 
 ### Running as a system service
 
@@ -299,11 +299,15 @@ Something else on your host is bound to one of those ports. Identify and stop it
 
 ### Docker — "permission denied" writing to `data/` (Linux)
 
-The bind mount `./packages/server/data/` is owned by the host user that ran `docker compose`. If you switched users or the folder is owned by root, `chown` it back to your user:
+The container runs as **uid 1000** (the `node` user inside the image — part of the security hardening; see [ADR-037](DECISIONS.md)). The bind mount `./packages/server/data/` on the host therefore needs to be writable by uid 1000.
+
+If your host user is uid 1000 (the default for the first user on Ubuntu desktop), this just works. If not (multi-user host, root-owned data dir, or a uid mismatch), `chown` the directory:
 
 ```bash
-sudo chown -R $USER:$USER packages/server/data
+sudo chown -R 1000:1000 packages/server/data
 ```
+
+Docker Desktop (Windows/Mac) handles uid mapping transparently, so this is a Linux-only concern.
 
 ### Windows installer — "Windows protected your PC"
 

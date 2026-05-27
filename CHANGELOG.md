@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - **Self-hosted Docker stack** — `docker compose up` now serves both the server (:7777) and the web UI (:3000) from a single image. Both bind to `127.0.0.1`. Open `http://127.0.0.1:3000` in your browser. Targets Linux/Mac users who don't have a native installer yet; also works on Windows. See [ADR-036](docs/DECISIONS.md).
 
+### Security
+- **Docker stack hardened** — six standard controls applied to both containers: non-root user (uid 1000), read-only root filesystem (with tmpfs for `/tmp`, `/home/node` and Next.js cache), all Linux capabilities dropped, `no-new-privileges`, memory/CPU limits, and HTTP healthchecks (web waits for the server to be healthy before starting). On Linux with a non-1000 host user, `./packages/server/data/` needs `chown -R 1000:1000` once; Docker Desktop on Windows/Mac handles it transparently. See [ADR-037](docs/DECISIONS.md).
+
 ### Changed
 - **Wallet import errors are now actionable and non-leaking.** A bad keypair (Solana error #3704004, `PUBLIC_KEY_MUST_MATCH_PRIVATE_KEY`) and non-base58 characters in the input (#8078012) used to surface as cryptic `Solana error #XXXXXXX; decode this error...` messages — and the latter leaked the offending value into the message. Now: the keypair error becomes a clear "the private key bytes do not form a valid keypair"; the base58 error names the offending characters with their Unicode code point and detects homoglyphs (Cyrillic letters that look identical to Latin ones — caused by browser auto-translation overwriting the DOM text).
 
