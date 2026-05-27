@@ -50,72 +50,53 @@ export default function Security() {
       </section>
 
       <section id="hot-wallet-tradeoff" className="hairline-t pt-10">
-        <h2 className="t-h2">The hot-wallet trade-off you must accept</h2>
+        <h2 className="t-h2">Running 24/7 vs. locking when away</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
-          This tool signs autonomously. That requires the key to be{" "}
-          <strong className="text-[var(--color-text)]">
-            decrypted in RAM
-          </strong>{" "}
-          while the bot is operating. There is no Ledger flow, no
-          confirmation pop-up at trigger time — by design, because a
-          watcher that needs your fingerprint at 3am is not a watcher.
+          This tool signs autonomously, so the key needs to be decrypted
+          in RAM while the bot is operating. That is the same model
+          Phantom and Backpack use while you have them unlocked — the
+          difference is that the bot stays unlocked longer because that
+          is what makes it useful at 3am.
         </p>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">
-          That gives you two postures, and they are mutually exclusive:
+          You have two reasonable postures:
         </p>
-        <ul className="mt-4 space-y-4 t-body text-[var(--color-text-muted)]">
+        <ul className="mt-4 space-y-3 t-body text-[var(--color-text-muted)]">
           <li>
             <span className="text-[var(--color-text)]">
-              Wallet unlocked, 24/7 coverage.
+              Unlocked, 24/7 coverage.
             </span>{" "}
-            The promise of &quot;set and forget&quot; works: every trigger
-            fires whether you are watching or not.{" "}
-            <strong className="text-[var(--color-text)]">
-              The cost is real:
-            </strong>{" "}
-            the decrypted key lives in RAM permanently. Anything that can
-            read process memory on this machine (malware, a memory dump, a
-            compromised dependency) can extract it. Anything that can reach{" "}
-            <code className="t-num text-[var(--color-text)]">
-              127.0.0.1:7777
-            </code>{" "}
-            (any process running as your user, anything bound to localhost,
-            anything you accidentally expose to the LAN) can ask the bot to
-            sign.
+            Triggers fire whether you are at the computer or not. The key
+            lives in RAM the whole time the wallet is unlocked. For a
+            compromise to leak the key, something with elevated privileges
+            (malware, a memory dump) would need to run on this machine —
+            in which case Phantom and the rest of your wallets are equally
+            exposed. We bind the API to{" "}
+            <code className="t-num text-[var(--color-text)]">127.0.0.1</code>{" "}
+            so only local processes can talk to the bot.
           </li>
           <li>
             <span className="text-[var(--color-text)]">
-              Lock when you step away.
+              Lock when you are away for a long stretch.
             </span>{" "}
-            The key is zeroed from RAM. The vault file stays encrypted on
-            disk. Best security posture this tool can offer.{" "}
-            <strong className="text-[var(--color-text)]">
-              The cost is also real:
-            </strong>{" "}
-            every active auto-exit pauses. If a trigger condition fires
-            while the wallet is locked, the position{" "}
-            <strong className="text-[var(--color-text)]">
-              will not close
-            </strong>{" "}
-            until you come back and unlock. The watcher resumes from
-            wherever the price is at that moment, not from where it was
-            when you locked.
+            The key is removed from RAM and active auto-exits pause until
+            you unlock again. Useful if you will be off the machine for
+            days and prefer the bot to stop watching during that time. The
+            cost is that any trigger that fires while locked is missed —
+            the watcher resumes from the current price, not from where it
+            was when you locked.
           </li>
         </ul>
         <p className="mt-4 t-body text-[var(--color-text-muted)]">
-          There is no third option that gives you both, not with the
-          current architecture. A hardware-wallet path (Ledger, a local
-          signing service) is on the roadmap — until then, you choose your
-          posture per session.
-        </p>
-        <p className="mt-4 t-body text-[var(--color-text-muted)]">
-          <strong className="text-[var(--color-text)]">
+          <span className="text-[var(--color-text)]">
             Practical guidance:
-          </strong>{" "}
-          treat the bot wallet as a hot operational account — never your
-          cold holdings. Fund it only with what you are actively trading.
-          If the worst case (host compromise while unlocked) materializes,
-          the blast radius is that one account, not your stack.
+          </span>{" "}
+          treat the bot wallet as a hot operational account — only fund it
+          with what you are actively trading, not your cold holdings.
+          That single rule keeps the blast radius bounded if anything ever
+          goes wrong. For most users, leaving the wallet unlocked while
+          the bot operates is a reasonable trade-off, the same as anyone
+          who keeps Phantom open while they browse DeFi.
         </p>
       </section>
 

@@ -817,13 +817,13 @@ export const en = {
       // las consecuencias de lockear, porque el botón rompe el use case
       // 'set and forget' (los watchers se pausan).
       lockEyebrow: "Lock",
-      lockTitle: "Pause everything and clear the key from memory",
+      lockTitle: "Lock the wallet",
       lockExplainP1:
-        "Locking zeroes the decrypted key from the server's RAM. The encrypted file on disk stays put — unlocking requires your passphrase again.",
+        "Removes the decrypted key from memory. The encrypted file stays on disk — unlocking takes your passphrase again.",
       lockExplainP2:
-        "Every active auto-exit will pause while the wallet is locked. If a trigger condition fires during that time, the position will NOT close until you unlock and resume the watcher. Use lock when you're stepping away and accept that trade-off.",
+        "Active auto-exits pause while the wallet is locked and resume when you unlock. Useful if you'll be away for a long stretch and prefer the bot to stop watching.",
       lockExplainTradeoff:
-        "→ Read about the 24/7 trade-off",
+        "→ Security notes",
       lockButton: "Lock wallet",
       locking: "Locking…",
       // Kept for backwards compat — old call sites can be removed later.

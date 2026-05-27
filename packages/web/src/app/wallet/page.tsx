@@ -219,22 +219,17 @@ function UnlockedSection({
         </p>
       </section>
 
-      {/* Lock panel — antes vivía en el sidebar. Lockear pausa todos los
-          auto-exits y rompe el use case 'set and forget', por eso lo
-          reubicamos aquí con explicación clara de las consecuencias. */}
-      <section className="border-l-2 border-[var(--color-warning)] pl-5">
-        <div className="t-eyebrow text-[var(--color-warning)]">
+      {/* Lock panel — antes vivía en el sidebar. Reubicado aquí con copy
+          neutro: lockear es una operación legítima pero rompe el 'set and
+          forget'; queremos que el user entienda esto sin dramatismo. */}
+      <section className="hairline-t pt-8">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
           {u.lockEyebrow}
         </div>
         <h3 className="mt-3 t-h2">{u.lockTitle}</h3>
         <div className="mt-4 max-w-xl space-y-3 t-body text-[var(--color-text-muted)]">
           <p>{u.lockExplainP1}</p>
-          <p>
-            <strong className="text-[var(--color-text)]">
-              {u.lockExplainP2.split(". ")[0]}.
-            </strong>{" "}
-            {u.lockExplainP2.split(". ").slice(1).join(". ")}
-          </p>
+          <p>{u.lockExplainP2}</p>
         </div>
         <div className="mt-6 flex items-baseline justify-between gap-4 flex-wrap">
           <Link

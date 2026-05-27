@@ -776,13 +776,13 @@ export const es: typeof en = {
       body:
         "El keypair está en memoria. Se usará para firmar las transacciones de cierre y swap de los auto-exits armados.",
       lockEyebrow: "Bloquear",
-      lockTitle: "Pausa todo y borra la key de memoria",
+      lockTitle: "Bloquear la wallet",
       lockExplainP1:
-        "Bloquear borra de la RAM del servidor la copia desencriptada de la key. El archivo cifrado del disco se mantiene — desbloquear te pedirá la passphrase de nuevo.",
+        "Saca la key desencriptada de la memoria. El archivo cifrado se queda en disco — desbloquear te pide la passphrase de nuevo.",
       lockExplainP2:
-        "Todos los auto-exits activos quedarán pausados mientras la wallet esté bloqueada. Si un trigger se cumple durante ese tiempo, la posición NO se cerrará hasta que vuelvas a desbloquear y reactivar el watcher. Bloquea solo si te vas y aceptas ese trade-off.",
+        "Los auto-exits activos se pausan mientras esté bloqueada y se reanudan al desbloquear. Útil si vas a estar fuera bastante tiempo y prefieres que el bot deje de vigilar.",
       lockExplainTradeoff:
-        "→ Sobre el trade-off de operar 24/7",
+        "→ Notas de seguridad",
       lockButton: "Bloquear wallet",
       locking: "Bloqueando…",
       lock: "Bloquear",
