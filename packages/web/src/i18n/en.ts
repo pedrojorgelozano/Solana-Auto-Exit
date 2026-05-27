@@ -214,7 +214,9 @@ export const en = {
       descriptionOne: "1 position detected — configure an auto-exit below.",
       descriptionMany: (n: number) =>
         `${n} positions detected in this wallet.`,
-      lockedSuffix: "The vault is locked — unlock to arm any auto-exit.",
+      lockedPrefix: "The vault is locked — ",
+      lockedLink: "unlock",
+      lockedSuffix: " to arm any auto-exit.",
     },
 
     hub: {

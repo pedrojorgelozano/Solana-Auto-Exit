@@ -180,7 +180,9 @@ export const es: typeof en = {
       descriptionOne: "1 posición detectada — configura un auto-exit abajo.",
       descriptionMany: (n: number) =>
         `${n} posiciones detectadas en esta wallet.`,
-      lockedSuffix: "El vault está bloqueado — desbloquea para armar auto-exits.",
+      lockedPrefix: "El vault está bloqueado — ",
+      lockedLink: "desbloquea",
+      lockedSuffix: " para armar auto-exits.",
     },
 
     eyebrow: {

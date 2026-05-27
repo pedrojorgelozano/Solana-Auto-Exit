@@ -172,6 +172,13 @@ function DashboardHeader({
           {description}
           {!unlocked ? (
             <span className="mt-1 block text-[var(--color-warning)]">
+              {d.lockedPrefix}
+              <Link
+                href="/wallet"
+                className="font-semibold text-[var(--color-warning)] underline decoration-[var(--color-warning)]/40 underline-offset-2 transition-colors hover:decoration-[var(--color-warning)]"
+              >
+                {d.lockedLink}
+              </Link>
               {d.lockedSuffix}
             </span>
           ) : null}
