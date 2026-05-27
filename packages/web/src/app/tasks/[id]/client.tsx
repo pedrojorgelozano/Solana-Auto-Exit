@@ -769,11 +769,6 @@ function PriceBand({
   const slX = slPrice !== null ? pct(slPrice) : null;
   const tpX = tpPrice !== null ? pct(tpPrice) : null;
 
-  const ticks = Array.from(
-    { length: 5 },
-    (_, i) => lo + (span * i) / 4,
-  );
-
   const ariaLabel = h.bandAria({
     lo: formatPrice(lo, 2),
     hi: formatPrice(hi, 2),
@@ -925,15 +920,6 @@ function PriceBand({
           ) : null}
         </div>
 
-        {/* Axis */}
-        <div
-          className="flex justify-between text-[12px] text-[var(--color-text-dim)] t-num"
-          aria-hidden
-        >
-          {ticks.map((tk, i) => (
-            <span key={i}>{formatPrice(tk, 2)}</span>
-          ))}
-        </div>
       </div>
     </div>
   );
