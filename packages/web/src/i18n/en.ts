@@ -812,8 +812,21 @@ export const en = {
     unlocked: {
       eyebrow: "Wallet unlocked",
       body:
-        "The keypair is in memory. It will be used to sign close and swap transactions for armed auto-exits. Lock when you're done.",
+        "The keypair is in memory. It will be used to sign close and swap transactions for armed auto-exits.",
+      // Lock panel — visible solo cuando la wallet está unlocked. Explica
+      // las consecuencias de lockear, porque el botón rompe el use case
+      // 'set and forget' (los watchers se pausan).
+      lockEyebrow: "Lock",
+      lockTitle: "Pause everything and clear the key from memory",
+      lockExplainP1:
+        "Locking zeroes the decrypted key from the server's RAM. The encrypted file on disk stays put — unlocking requires your passphrase again.",
+      lockExplainP2:
+        "Every active auto-exit will pause while the wallet is locked. If a trigger condition fires during that time, the position will NOT close until you unlock and resume the watcher. Use lock when you're stepping away and accept that trade-off.",
+      lockExplainTradeoff:
+        "→ Read about the 24/7 trade-off",
+      lockButton: "Lock wallet",
       locking: "Locking…",
+      // Kept for backwards compat — old call sites can be removed later.
       lock: "Lock",
     },
 

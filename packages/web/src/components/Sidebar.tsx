@@ -159,7 +159,6 @@ function SidebarFoot() {
     <div className="mt-auto flex flex-col gap-[2px] pt-4">
       <ServerBeacon />
       <WalletBeacon />
-      <LockButton />
       <div className="mt-3 flex items-center justify-between gap-2 px-1">
         <DocsLink />
         <LangToggle />
@@ -261,55 +260,6 @@ function WalletBeacon() {
         {addr}
       </span>
     </Link>
-  );
-}
-
-function LockButton() {
-  const status = trpc.wallet.status.useQuery(undefined, { refetchInterval: 5_000 });
-  const utils = trpc.useUtils();
-  const lock = trpc.wallet.lock.useMutation({
-    onSuccess: () => {
-      utils.wallet.status.invalidate();
-      utils.tasks.list.invalidate();
-    },
-  });
-  const { t } = useT();
-
-  // Solo activo si hay wallet y está unlocked. En el resto de casos
-  // el sidebar-foot ya tiene un CTA contextual via WalletBeacon.
-  if (!status.data?.hasVault || !status.data.unlocked) {
-    return null;
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => lock.mutate()}
-      disabled={lock.isPending}
-      className="
-        mt-[10px] flex w-full items-center justify-center gap-[7px]
-        rounded-[7px] border border-[var(--color-rule)] bg-transparent
-        px-3 py-[9px] text-[14px] font-medium text-[var(--color-text-muted)]
-        transition-colors hover:border-[var(--color-rule)]
-        hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]
-        disabled:opacity-50 disabled:cursor-not-allowed
-      "
-    >
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="h-[14px] w-[14px]"
-        aria-hidden="true"
-      >
-        <rect x="4" y="10" width="16" height="11" rx="2" />
-        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-      </svg>
-      {lock.isPending ? t.sidebar.locking : t.sidebar.lockWallet}
-    </button>
   );
 }
 
