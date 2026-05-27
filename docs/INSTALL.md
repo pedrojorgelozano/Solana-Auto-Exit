@@ -2,18 +2,20 @@
 
 This guide covers installing Auto-Exit on **Windows**, **macOS**, and **Linux**.
 
-Two delivery formats exist today:
+Three delivery formats exist today:
 
-- **Native desktop installer** — a `.exe`/`.msi` you double-click. **Windows only** at the moment. Cross-compilation isn't a thing for Tauri, so macOS/Linux installers will be published when builds on those operating systems are produced; until then, use Docker.
+- **Native desktop installer** — a `.exe`/`.msi` you double-click. **Windows only** at the moment. Cross-compilation isn't a thing for Tauri, so macOS/Linux installers will be published when builds on those operating systems are produced; until then, use Docker or run from source.
 - **Docker stack** — `docker compose up` runs the same backend and web UI in two containers, accessible from your browser at `http://127.0.0.1:3000`. **Works on Windows, macOS, and Linux.**
+- **Run from source with pnpm** — clone, `pnpm install`, run two commands. **Works on any OS** that has Node + pnpm + a C/C++ toolchain. Useful on hardened hosts where Docker's container network clashes with strict firewall / kill-switch VPN rules, and for development work.
 
 ## At a glance
 
 | OS | Recommended path | Alternative |
 |---|---|---|
-| **Windows** | [Native installer](#windows--native-installer-recommended) | [Docker](#windows--docker) · [Build from source](#build-from-source-any-os) |
-| **macOS** | [Docker](#macos--docker) | [Build from source](#build-from-source-any-os) |
-| **Linux** (Ubuntu/Debian) | [Docker](#linux--docker) | [Build from source](#build-from-source-any-os) |
+| **Windows** | [Native installer](#windows--native-installer-recommended) | [Docker](#windows--docker) · [Run from source](#run-from-source-with-pnpm-any-os) |
+| **macOS** | [Docker](#macos--docker) | [Run from source](#run-from-source-with-pnpm-any-os) · [Build from source](#build-from-source-any-os) |
+| **Linux** (Ubuntu/Debian) | [Docker](#linux--docker) | [Run from source](#run-from-source-with-pnpm-any-os) · [Build from source](#build-from-source-any-os) |
+| **Hardened Linux** (strict firewall / kill-switch VPN) | [Run from source](#run-from-source-with-pnpm-any-os) | [Build from source](#build-from-source-any-os) |
 
 **Verification status:** the native Windows installer is end-to-end verified on every release (download → install → run → close a real position). The Docker setup is end-to-end verified on Windows (Docker Desktop). macOS and Linux Docker installs are not yet smoke-tested by the author — the steps below are identical because Docker abstracts the host OS, but if you hit an issue please [open an issue](https://github.com/pedrojorgelozano/Solana-Auto-Exit/issues) so we can verify the path.
 
@@ -251,6 +253,221 @@ If you want it sooner, you can [build it yourself from source](#build-from-sourc
 
 ---
 
+## Run from source with pnpm (any OS)
+
+Run Auto-Exit directly as Node + pnpm processes — **no Docker, no installer**. Same code as everything else; only the packaging differs.
+
+### When to choose this path
+
+The two main reasons:
+
+#### 1. Your host is hardened (strict firewall + kill-switch VPN)
+
+This is the case that matters most. If your Ubuntu (or any Linux) is configured "no leaks, no exceptions" with `ufw default deny outgoing`, `nftables` with `OUTPUT/FORWARD policy DROP`, a VPN kill-switch that only allows traffic through `wg0`/`tun0`, or similar, then **Docker will not work well for you**.
+
+Why: Docker creates its own subnet (`172.17.0.0/16`, interface `docker0`). Container traffic flows `container → docker0 → FORWARD → default interface → internet`. Your firewall blocks the FORWARD step because `docker0` isn't on the allowlist; your VPN kill-switch drops anything not on the tunnel interface. The host resolves DNS fine (host processes use the VPN), the container does not. Even if you fix DNS with `daemon.json`, **runtime traffic to the Solana RPC will hit the same wall** — the app needs to read pool prices and broadcast transactions, all from inside the container.
+
+Running directly with `pnpm` sidesteps this entirely. The backend and web are processes of **your user**, not separated in a docker subnet. Your existing firewall and VPN rules apply to them like to any other application — no separate network layer to authorize. The result is what you want: the only outbound calls go to the RPC endpoint you configure (your VPN already allows that for your normal browsing), and nothing else.
+
+#### 2. You're developing against Auto-Exit
+
+Hot module reload, faster feedback loops, direct access to logs, easy to attach a debugger.
+
+If your host is "default-trust" (Docker can outbound freely), the Docker path is more convenient — single command, persistent across reboots, container isolation. The `pnpm` path is for hardened hosts and developers.
+
+### Prerequisites
+
+| Tool | Version | How to install |
+|---|---|---|
+| **Node.js** | 22.x or 24.x (LTS) | [nvm](https://github.com/nvm-sh/nvm) on Linux/macOS (`nvm install 24`), or [nodejs.org](https://nodejs.org/) installer on Windows |
+| **pnpm** | 11.x | After Node is installed: `npm install -g pnpm@11` |
+| **Git** | any recent | Ubuntu: `sudo apt install git`. macOS: `brew install git` (or Xcode CLT). Windows: <https://git-scm.com/download/win> |
+| **C/C++ build tools** | system default | **Ubuntu/Debian:** `sudo apt install build-essential python3`. **macOS:** Xcode Command Line Tools (`xcode-select --install`). **Windows:** Visual Studio Build Tools 2022 with "Desktop development with C++". Required for `better-sqlite3`, which compiles natively against your Node version. |
+
+Sanity check (all should print versions, no errors):
+
+```bash
+node --version
+pnpm --version
+git --version
+```
+
+### Install
+
+```bash
+git clone https://github.com/pedrojorgelozano/Solana-Auto-Exit.git
+cd Solana-Auto-Exit
+pnpm install
+```
+
+`pnpm install` takes ~1–3 minutes. It downloads dependencies and compiles `better-sqlite3` natively against your installed Node — that's why the C/C++ toolchain is required.
+
+### Run (two long-running processes)
+
+You need the backend and the web UI running at the same time. Open two terminals (or use `tmux` / `screen` — see "Running 24/7" below).
+
+**Terminal 1 — backend** (listens on `127.0.0.1:7777`):
+
+```bash
+cd Solana-Auto-Exit
+pnpm dev:server
+```
+
+You should see `[server] listening on http://127.0.0.1:7777` and the vault path message.
+
+**Terminal 2 — web UI** (listens on `127.0.0.1:3000`):
+
+```bash
+cd Solana-Auto-Exit
+pnpm dev:web
+```
+
+You should see `✓ Ready in <N> ms`.
+
+Open <http://127.0.0.1:3000> in your browser. The app should look identical to the Docker / desktop builds. From there, the in-app `/docs` walks through wallet setup and your first auto-exit.
+
+**To stop**: `Ctrl+C` in each terminal. The data folder persists.
+
+### Where your data lives (this mode)
+
+Your encrypted wallet and SQLite database live in `./packages/server/data/` next to the cloned repo. **Do not delete this folder** unless you intend to lose the wallet and tasks. Back it up if the wallet matters.
+
+### Running 24/7 (Linux, optional)
+
+`pnpm dev:server` and `pnpm dev:web` are foreground processes — closing the terminal stops them. For a setup that survives reboots and logouts, two options, from simplest to most proper:
+
+#### Option 1 — `tmux` (5 minutes of setup)
+
+`tmux` lets you keep processes alive after you detach the terminal.
+
+```bash
+sudo apt install tmux       # Ubuntu/Debian (skip if you have it)
+tmux new -s auto-exit       # creates a session named "auto-exit"
+```
+
+Inside the tmux session:
+
+```bash
+cd Solana-Auto-Exit
+pnpm dev:server &           # backend in background within tmux
+pnpm dev:web                # web in foreground
+```
+
+Detach without stopping anything: press `Ctrl+B`, then `D`. The processes keep running. Reattach later with `tmux attach -t auto-exit`. Logs from `dev:server` appear in the same pane (it ran with `&`).
+
+Caveat: tmux session dies on reboot. For survive-reboot, use Option 2.
+
+#### Option 2 — `systemd` user unit (proper, restarts on boot)
+
+Two unit files in `~/.config/systemd/user/`. Substitute `<USER>` and adjust paths if your `pnpm` is elsewhere (find with `which pnpm`).
+
+Create `~/.config/systemd/user/auto-exit-server.service`:
+
+```ini
+[Unit]
+Description=Auto-Exit backend
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Solana-Auto-Exit
+ExecStart=/bin/bash -lc 'pnpm dev:server'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Create `~/.config/systemd/user/auto-exit-web.service`:
+
+```ini
+[Unit]
+Description=Auto-Exit web UI
+After=auto-exit-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Solana-Auto-Exit
+ExecStart=/bin/bash -lc 'pnpm dev:web'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+Why `/bin/bash -lc 'pnpm ...'`: systemd doesn't load your user shell PATH, so a bare `pnpm` wouldn't be found. The login shell (`-l`) loads `.bashrc` / `.profile` where pnpm's PATH lives.
+
+Enable and start:
+
+```bash
+systemctl --user daemon-reload
+systemctl --user enable --now auto-exit-server auto-exit-web
+loginctl enable-linger $USER     # keep services running when you log out
+```
+
+Check status and tail logs:
+
+```bash
+systemctl --user status auto-exit-server auto-exit-web
+journalctl --user -u auto-exit-server -f          # live backend logs
+journalctl --user -u auto-exit-web -f             # live web logs
+```
+
+Stop / restart:
+
+```bash
+systemctl --user restart auto-exit-server
+systemctl --user stop auto-exit-server auto-exit-web
+```
+
+### Running 24/7 (macOS, optional)
+
+macOS uses `launchd` instead of `systemd`. Two `.plist` files in `~/Library/LaunchAgents/`. The shape is similar; full guide out of scope here — see `man launchd.plist` and the Apple docs. The `tmux` approach above also works on macOS unchanged.
+
+### Running 24/7 (Windows, optional)
+
+Windows has Task Scheduler (built in) and tools like [NSSM](https://nssm.cc/) for running arbitrary commands as services. Out of scope here; the Tauri native installer is the recommended path on Windows.
+
+### Updating
+
+```bash
+cd Solana-Auto-Exit
+git pull
+pnpm install --frozen-lockfile     # only re-runs if pnpm-lock.yaml changed
+```
+
+Then restart the processes:
+
+- **Foreground terminals:** `Ctrl+C` and re-run `pnpm dev:server` / `pnpm dev:web`.
+- **tmux:** kill the session (`tmux kill-session -t auto-exit`) and start a new one.
+- **systemd:** `systemctl --user restart auto-exit-server auto-exit-web`.
+
+The data folder `./packages/server/data/` survives the update — your wallet and tasks are preserved.
+
+### Uninstalling
+
+If you used systemd, disable the units first:
+
+```bash
+systemctl --user disable --now auto-exit-server auto-exit-web
+rm ~/.config/systemd/user/auto-exit-server.service ~/.config/systemd/user/auto-exit-web.service
+systemctl --user daemon-reload
+loginctl disable-linger $USER       # optional, only if you don't use linger for anything else
+```
+
+Then delete the cloned repo folder. The data folder `./packages/server/data/` is inside it — **back it up first if the wallet matters**.
+
+### Caveats versus Docker
+
+- **No container isolation.** A bug or malicious code in a transitive dependency runs with the privileges of your user. The mitigations Docker gave you (`read_only` rootfs, `cap_drop`, separate uid, capability filtering) don't apply. Your defense is at the OS level — your firewall, file permissions, and the fact that the wallet vault is **encrypted at rest** and only RAM-decrypted while unlocked (see [SECURITY.md](../SECURITY.md) and the wallet-related ADRs in [DECISIONS.md](DECISIONS.md)).
+- **No automatic restart on boot** unless you set up systemd (Option 2 above). The `tmux` approach survives terminal close but not reboot.
+- **`pnpm dev:*` runs in development mode**, which is what the per-package `dev` scripts use today. For self-hosted single-user this is fine. If you specifically want production mode, the scripts exist too — server: `pnpm --filter @solana-auto-exit/server start`. Web: `pnpm --filter @solana-auto-exit/web build` once, then `pnpm --filter @solana-auto-exit/web exec next start -H 127.0.0.1 -p 3000` to serve.
+- **Same audit applies.** Same code, same RPC-only outbound, no telemetry. The network-egress audit ([SECURITY-AUDIT.md](SECURITY-AUDIT.md)) was done on this exact codebase.
+
+---
+
 ## Build from source (any OS)
 
 If you'd rather not wait for native installers on macOS/Linux, or you want to develop against Auto-Exit, you can build the app yourself. The toolchain requirements and step-by-step are in the README under [Quick start (Tauri desktop)](../README.md#quick-start-tauri-desktop).
@@ -271,12 +488,12 @@ The two install formats keep data in different places.
 | Sidecar log (for troubleshooting) | `%APPDATA%\com.autoexit.desktop\sidecar.log` |
 | Application files | `%LOCALAPPDATA%\Auto-Exit\` |
 
-### Docker (any OS)
+### Docker or Run from source (any OS)
 
 | Item | Path |
 |---|---|
-| Encrypted wallet vault + database | `./packages/server/data/` (next to the cloned repo, bind-mounted into the container) |
-| Container logs | `docker compose logs server` / `docker compose logs web` |
+| Encrypted wallet vault + database | `./packages/server/data/` next to the cloned repo. Docker bind-mounts it into the container; `pnpm dev:server` writes to it directly. Same file format either way. |
+| Logs | Docker: `docker compose logs server` / `docker compose logs web`. pnpm: stdout of each `pnpm dev:*` terminal (or `journalctl --user -u auto-exit-server` if running via systemd). |
 
 Back up the vault file if the wallet it holds matters to you — see [SECURITY.md](../SECURITY.md).
 
