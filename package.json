@@ -1,6 +1,6 @@
 {
   "name": "solana-auto-exit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Framework de auto-exit para posiciones de liquidez en protocolos DeFi de Solana.",
   "type": "module",

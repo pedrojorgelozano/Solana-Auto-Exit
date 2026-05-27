@@ -1,6 +1,6 @@
 [package]
 name = "solana-auto-exit-tauri"
-version = "0.1.0"
+version = "0.1.1"
 description = "Tauri shell for solana-auto-exit"
 authors = ["Pedro Lozano"]
 edition = "2021"
