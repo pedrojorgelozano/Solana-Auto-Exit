@@ -609,7 +609,7 @@ function HeroPanel({
               1 {baseSym} =
             </span>
             <span className="text-[44px] font-medium leading-none tracking-[-0.035em] t-num md:text-[54px]">
-              {currentPrice !== null ? formatPrice(currentPrice, 4) : "—"}
+              {currentPrice !== null ? formatPrice(currentPrice) : "—"}
             </span>
             {currentPrice !== null ? (
               <span className="text-[20px] font-medium text-[var(--color-text-muted)]">
@@ -837,7 +837,7 @@ function PriceBand({
               "
               style={{ boxShadow: "0 0 18px rgba(95,214,164,0.18)" }}
             >
-              {formatPrice(currentPrice, 4)}
+              {formatPrice(currentPrice)}
               {quoteSymbol ? (
                 <span className="ml-1 text-[12px] font-medium text-[var(--color-text-muted)]">
                   {quoteSymbol}
@@ -867,10 +867,10 @@ function PriceBand({
               {h.zoneTag}
             </span>
             <span className="absolute bottom-[5px] left-[6px] t-num text-[12px] font-semibold text-[var(--color-accent)]">
-              {formatPrice(rangeMin, 4)}
+              {formatPrice(rangeMin)}
             </span>
             <span className="absolute bottom-[5px] right-[6px] t-num text-[12px] font-semibold text-[var(--color-accent)]">
-              {formatPrice(rangeMax, 4)}
+              {formatPrice(rangeMax)}
             </span>
           </div>
           {/* SL mark */}
@@ -969,7 +969,7 @@ function BandFlag({
         {label}
       </span>
       <span className="t-num text-[14px] font-semibold text-[var(--color-text)]">
-        {formatPrice(price, 4)}
+        {formatPrice(price)}
       </span>
     </div>
   );
@@ -1105,7 +1105,7 @@ function TriggerCard({
       </div>
 
       <div className="t-num text-[28px] font-medium leading-none tracking-[-0.02em] text-[var(--color-text)] md:text-[30px]">
-        {op} {formatPrice(price, 4)}
+        {op} {formatPrice(price)}
       </div>
 
       <div className="mt-4 flex items-baseline justify-between text-[14px] text-[var(--color-text-dim)]">
@@ -1147,8 +1147,8 @@ function TriggerCard({
         <span>
           {bufferMs && bufferMs > 0
             ? isTp
-              ? tc.bufferFootTp(formatPrice(price, 4), formatBuffer(bufferMs, t))
-              : tc.bufferFootSl(formatPrice(price, 4), formatBuffer(bufferMs, t))
+              ? tc.bufferFootTp(formatPrice(price), formatBuffer(bufferMs, t))
+              : tc.bufferFootSl(formatPrice(price), formatBuffer(bufferMs, t))
             : tc.noBufferFoot}
           {remaining ? (
             <>

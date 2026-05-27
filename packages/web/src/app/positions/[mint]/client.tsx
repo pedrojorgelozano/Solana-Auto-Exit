@@ -249,7 +249,7 @@ function ExistingWatcher({
         <Field label={e.fieldTakeProfit}>
           <span className="t-num">
             {task.takeProfitPrice !== null
-              ? `≥ ${formatPrice(task.takeProfitPrice, 6)}`
+              ? `≥ ${formatPrice(task.takeProfitPrice)}`
               : "—"}
           </span>
           <BufferLine
@@ -260,7 +260,7 @@ function ExistingWatcher({
         <Field label={e.fieldStopLoss}>
           <span className="t-num">
             {task.stopLossPrice !== null
-              ? `≤ ${formatPrice(task.stopLossPrice, 6)}`
+              ? `≤ ${formatPrice(task.stopLossPrice)}`
               : "—"}
           </span>
           <BufferLine
@@ -271,7 +271,7 @@ function ExistingWatcher({
         <Field label={e.fieldLastPrice}>
           <span className="t-num">
             {task.runtime.lastPrice !== null
-              ? formatPrice(task.runtime.lastPrice, 6)
+              ? formatPrice(task.runtime.lastPrice)
               : "—"}
           </span>
         </Field>
@@ -361,7 +361,7 @@ function PositionRecap({
         {r.pairWithProtocol(posRef.protocol, symA, symB)}
       </div>
       <h2 className="mt-2 t-h2">
-        1 {symA} = <span className="t-num">{formatPrice(summary.currentPrice, 6)}</span>{" "}
+        1 {symA} = <span className="t-num">{formatPrice(summary.currentPrice)}</span>{" "}
         {symB}
       </h2>
 
@@ -920,7 +920,7 @@ function TriggerInput({
           <div className="mt-4 max-w-sm">
             <Label
               htmlFor={`${kind}-price`}
-              hint={f.currentHint(formatPrice(currentPrice, 6))}
+              hint={f.currentHint(formatPrice(currentPrice))}
             >
               {f.targetPriceLabel(symA, symB)}
             </Label>

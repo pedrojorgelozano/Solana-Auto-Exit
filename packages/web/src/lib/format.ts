@@ -60,15 +60,37 @@ export function truncateAddress(addr: string, head = 4, tail = 4): string {
 }
 
 /**
- * Formatea un número decimal en formato inglés (coma de miles, punto decimal)
- * con un máximo de `decimals` decimales y sin trailing zeros.
- *   1234.5     → "1,234.5"
- *   22.3773    → "22.3773"
- *   1000000.50 → "1,000,000.5"
+ * Formatea un número decimal en formato inglés (coma de miles, punto decimal).
+ * Default 2 decimales — el formato estándar de precios financieros, legible
+ * para todos los perfiles. Si el número es muy pequeño (típico de memes
+ * como BONK, ~0.00001), bumpea automáticamente para no perder precisión.
+ *   22.3773    → "22.38"
+ *   1234.5     → "1,234.50" (con minimum 2 si abs>=1 — sin trailing fold)
+ *   1000000.5  → "1,000,000.50"
+ *   0.0001234  → "0.000123"  (auto-bump a 6 decimales)
+ *   0.00000123 → "0.00000123" (auto-bump a 8 decimales)
+ *
+ * El caller puede forzar más precisión pasando `decimals` explícito.
  */
-export function formatPrice(n: number, decimals = 4): string {
+export function formatPrice(n: number, decimals = 2): string {
   if (!Number.isFinite(n)) return "?";
-  return n.toLocaleString("en-US", { maximumFractionDigits: decimals });
+  const abs = Math.abs(n);
+  let max = decimals;
+  let min = abs >= 1 ? decimals : 0;
+  if (abs > 0 && abs < 0.0001) {
+    max = Math.max(decimals, 8);
+    min = 0;
+  } else if (abs > 0 && abs < 0.01) {
+    max = Math.max(decimals, 6);
+    min = 0;
+  } else if (abs > 0 && abs < 1) {
+    max = Math.max(decimals, 4);
+    min = 0;
+  }
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: min,
+    maximumFractionDigits: max,
+  });
 }
 
 /**
@@ -157,7 +179,7 @@ export function formatRangeStatus(isInRange: boolean, t: Dict = en): string {
 export function formatTriggers(
   takeProfit: number | null,
   stopLoss: number | null,
-  decimals = 4,
+  decimals = 2,
 ): string {
   const parts: string[] = [];
   if (takeProfit !== null) {

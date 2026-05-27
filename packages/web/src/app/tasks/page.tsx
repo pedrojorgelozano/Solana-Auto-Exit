@@ -315,7 +315,7 @@ function Row({ row }: { row: TaskRow }) {
       </td>
       <td className="py-4 pr-4 align-baseline t-num text-[var(--color-text)]">
         {row.runtime.lastPrice !== null
-          ? formatPrice(row.runtime.lastPrice, 4)
+          ? formatPrice(row.runtime.lastPrice)
           : "—"}
       </td>
       <td className="py-4 pr-4 align-baseline text-right">
