@@ -1017,3 +1017,39 @@ Componentes nuevos creados: `Sidebar`, `Panel`, `StatStrip`, `TokenBadge`, `Toke
 - **Pasar oracle USD (Helius / Pyth / Jupiter) para el "Under watch $"** del stat strip: introduce dependencia externa (egress nuevo) que choca con el threat model ("no external assets" del audit). Apuntado al backlog.
 - **Lookup dinámico de tokens via Jupiter Token List** para mostrar logos reales: misma objeción de egress. Solución actual = registry local + placeholders coloreados. Al backlog también: bundlear los SVGs reales en `/public/tokens/` (sin egress nuevo).
 - **Fetch externo de los logos** (CDN de Solana Token List, GitHub raw, etc.): cada logo sería un egress distinto. Descartado.
+
+---
+
+## ADR-039 — Postura hot-wallet 24/7 con Lock fuera del sidebar
+
+**Fecha**: 2026-05-27
+**Estado**: Aceptada
+
+**Contexto**: El producto se vende como "auto-exit que cierra solo cuando se cumpla el trigger, también cuando no estás" (set-and-forget). Esa promesa requiere que la wallet esté unlocked en RAM del server mientras el bot opera. Hasta este sprint, el sidebar tenía un botón "Lock wallet" prominente al pie. Al usarlo, los watchers se pausan y dejan de poder firmar — es decir, el botón empujaba a una acción que **rompe la propuesta de valor del producto**. Además, el copy alrededor del lock (en wallet, en /docs/security) trataba el unlocked-24/7 como un riesgo grave que el user debe asumir, lo cual no se sostiene bajo un razonamiento honesto: el vector real de extracción de la key de RAM exige comprometer el sistema operativo del host, y en ese mismo escenario Phantom / Backpack están igual de expuestos (también guardan la key descifrada en memoria del browser mientras están unlocked, y la mayoría de gente desactiva el auto-lock).
+
+**Decisión**:
+
+1. Aceptar formalmente el modelo **hot-wallet 24/7 unlocked** como postura por defecto y promesa del producto.
+2. Quitar el botón "Lock wallet" del `Sidebar`. Mantener el lock como acción legítima pero accesible solo desde `/wallet → UnlockedSection`, con un panel propio que explica las consecuencias **antes** de pulsar (los auto-exits pausan, los triggers se pierden hasta el siguiente unlock).
+3. Documentar el trade-off honestamente en `/docs/security#hot-wallet-tradeoff` con tono comparativo: el riesgo extra sobre Phantom unlocked es marginal; el vector más común de pérdida de fondos (phishing) no aplica a este modelo porque el bot solo firma close+swap de posiciones específicas según reglas internas.
+4. La **mitigación real** es operacional, no criptográfica: *treat the bot wallet as a hot operational account — fund it only with what you are actively trading, never your cold holdings*. Esa regla acota el blast radius si el peor caso (host comprometido mientras unlocked) ocurre.
+5. No perseguir ahora la opción de integrar Ledger / signing service / delegation de authority. Es un cambio arquitectónico fuerte (semanas) y el ratio coste/beneficio para el perfil de usuarios actuales (operaciones modestas, no high-net-worth, no targets específicos de APT) es malísimo. Queda como **feature aspiracional V2** mencionada solo en conversación, sin entrada formal en TODO ni en DECISIONS — si el producto crece a users gestionando 6-7 cifras, se reabre el debate.
+
+**Consecuencias**:
+
+- (+) La promesa "set and forget" deja de tener un botón en la UI que la contradice. El user no puede usar Lock por inercia y perder triggers sin entender por qué.
+- (+) Copy honesto en /docs/security y en /wallet — el user que quiere entender el modelo lo entiende, sin alarmismo gratuito.
+- (+) Sin overengineering. No se invierten semanas en una solución arquitectónica que pocos users necesitan.
+- (+) La guía operacional explícita ("hot operational, never cold holdings") es accionable y entendible incluso por users no técnicos.
+- (−) Cualquier user que asuma erróneamente que la wallet debe lockearse "por seguridad" como en Phantom puede confundirse — mitigado por el panel explicativo en /wallet, pero queda como riesgo de UX.
+- (−) El modelo sigue exponiendo la key en RAM mientras unlocked. Si un user con cantidades significativas usa el producto, la postura no es la ideal. Mitigado por la guía operacional.
+- (−) Si en el futuro un incidente real de seguridad ocurre, esta ADR es el documento que justifica la decisión — debe sostenerse honestamente.
+
+**Alternativas consideradas**:
+
+- **Mantener el Lock en el sidebar con copy de seguridad fuerte**: empuja a usar Lock por inercia → pierde triggers → mala experiencia. Descartada — el botón es un anti-patrón para nuestro use case.
+- **Auto-lock por inactividad (configurable, default 30 min)** (entry vieja en backlog): incompatible con la promesa 24/7. Solo tiene sentido si los users operan en ráfagas supervisadas. Para nuestro target (set and forget), igualmente contradictorio. Mantenido en backlog pero baja prioridad.
+- **Integrar Ledger / hardware wallet directa**: imposible — Ledger no firma sin pulsación física, contradice la operación autónoma. Descartada por modelo.
+- **Signing service local aislado en proceso separado**: la key sigue en RAM, solo cambia el proceso. Reduce superficie pero no elimina el problema. Esfuerzo medio (1-2 semanas) sin solucionar la categoría de ataque. Descartada para este sprint.
+- **Pre-signed transactions con delegation de authority** (Ledger firma upfront, key del bot solo cierra posiciones específicas via delegation): la solución más prometedora si el producto crece. Aspiracional V2. Descartada por ahora por coste/beneficio para el perfil actual de usuarios.
+- **Limit orders on-chain (Jupiter / Drift / programa custom)**: la key nunca firma en runtime, el chain ejecuta. Solución ideal en seguridad pero requiere o bien soportar solo swaps simples (no close+swap de LP) o escribir un programa Solana custom (4-8 semanas). Descartada por ahora.
