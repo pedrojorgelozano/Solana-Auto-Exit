@@ -2,13 +2,7 @@
 
 ## En curso
 
-- [ ] **Docker self-hosted: server + web** — rama `feature/docker-web`.
-  `docker compose up` levanta server (:7777) + web (:3000) accesible por
-  navegador; da un camino de uso en Linux/Mac sin el empaquetado nativo de
-  Tauri. Verificado a nivel de infra (build, arranque, server + web + CORS);
-  falta el walkthrough completo de UI en navegador y luego merge a `main`.
-  Al mergear: `/documenta` completo (ADR del Docker server+web, CHANGELOG,
-  TESTING).
+(nada activo)
 
 ## Próximo (orden sugerido)
 
@@ -30,6 +24,13 @@
   esperado: parsear `error.data?.zodError` del TRPCClientError y mostrar
   solo el `message` del primer issue (o concatenar los messages). Aplicar
   consistentemente donde haya forms con validación server-side.
+- [ ] Investigar / filtrar `ConnectTimeoutError` a
+  `api.{mainnet-beta,devnet}.solana.com:443` ("Error getting chain ID from
+  genesis hash") que aparece en logs del server al arrancar, incluso con
+  un `rpcUrl` custom configurado. Sospecha: algún SDK (Orca o Meteora)
+  hace un probe inicial contra las URLs públicas por defecto. No afecta a
+  la funcionalidad (todo el flujo de cierre/swap usa el RPC del usuario);
+  ensucia los logs y es ruido confuso para self-hosters detrás de firewall.
 - [ ] Migrar los artículos de `/docs` de TSX hardcoded a markdown single-source.
   Hoy `packages/web/src/app/docs/{slug}/page.tsx` contiene el copy inline;
   cuando el contenido crezca o queramos servir el mismo texto desde el
@@ -142,6 +143,14 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Docker self-hosted server + web verificado + merge a main (2026-05-27)**:
+  walkthrough end-to-end de la UI por navegador en el stack Docker —
+  `/settings`, `/wallet`, `/positions` + configure, `/tasks` + detalle, `/docs`.
+  Tasks de prueba creadas y borradas, `docker compose down` limpio.
+  `feature/docker-web` mergeada a `main` (`92c4678`, no-ff). Formalizado
+  [ADR-036](DECISIONS.md). Dos hallazgos apuntados al backlog: errores zod
+  como JSON crudo en `/settings`, y `ConnectTimeoutError` a URLs públicas
+  de Solana al arrancar el server. Commits `f234b9c`, `92c4678`.
 - **Fixes de mensajes de error de wallet (2026-05-22)**: al importar una
   clave privada, `createKeyPairSignerFromBytes` lanzaba SolanaErrors
   crípticos que `wallet.create` no capturaba (#3704004 keypair incoherente,

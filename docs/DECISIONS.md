@@ -904,3 +904,34 @@ Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **s
 **Alternativas consideradas**:
 - **Custom Tauri protocol handler** que reescriba rutas no encontradas a `index.html`: lo que ADR-030 reservaba como plan B; más código Rust. La query string resuelve el problema sin tocar Rust.
 - **Ruta `/detail` propia** en vez del placeholder `_`: más limpio conceptualmente, pero implica renombrar directorios; se prefirió el cambio mínimo dado que la app estaba en mitad de un release.
+
+## ADR-036 — Docker self-hosted: una imagen, dos servicios (server + web Next.js modo server)
+
+**Fecha**: 2026-05-22 (código mergeado el 2026-05-27)
+**Estado**: Aceptada
+
+**Contexto**: La release v0.1.0 es solo Windows — `tauri build` no hace cross-compile del instalador, así que macOS/Linux exigirían buildear en cada SO (o un CI con runners de cada uno, que no tenemos). El Docker que existía desde F0 levantaba solo el server, asumiendo que el usuario corriera la web por separado en su máquina; esa asunción era frágil (requiere Node/pnpm, conocer los scripts, mantener dos cosas vivas) y no resolvía el caso real "instálame la app en Linux/Mac".
+
+**Decisión**:
+
+1. **Una imagen, dos servicios**. El `Dockerfile` instala dependencias, compila la web Next.js (sin `TAURI_BUILD=1`, por lo que sale en modo server, no static export) y queda con `CMD` apuntando al server. El `docker-compose.yml` levanta dos contenedores desde la misma imagen — uno con el CMD por defecto (`server`, :7777) y otro con un override del command para `next start -H 0.0.0.0 -p 3000` (`web`, :3000).
+2. **Next.js en modo server (no export estático)**. `next start` resuelve las rutas dinámicas `[mint]` / `[id]` en runtime; el workaround del query string que motivó [ADR-035](#adr-035) no hace falta aquí. En Docker las rutas se ven como URLs limpias `/positions/<mint>` / `/tasks/<id>`.
+3. **Ambos puertos bindean a `127.0.0.1`** en el host (`"127.0.0.1:7777:7777"`, `"127.0.0.1:3000:3000"`). Loopback-only, no LAN; alinea con [ADR-016](#adr-016).
+4. **Persistencia por bind volume**. `./packages/server/data:/app/data` mapea el directorio donde viven el vault encriptado y la SQLite. Si el usuario lo borra, vault y DB se pierden irrecuperables.
+5. **`patches/` debe copiarse al stage `deps`**. pnpm necesita la carpeta presente para resolver `patchedDependencies` del workspace (patch de Orca). Bug latente del Docker viejo, descubierto en el primer build.
+
+**Consecuencias**:
+
+- (+) Un solo `docker compose up` da la app entera por navegador en Linux/Mac/Windows-con-Docker. Cubre los SO que la release Windows no.
+- (+) Las URLs son limpias (`next start` resuelve rutas dinámicas); no contamina el código con el workaround de query string que solo necesita el export estático del Tauri.
+- (+) La imagen es la misma para los dos servicios — solo cambia el `command` del compose. Build una vez, sirve dos cosas.
+- (−) `next build` añade ~2-3 min al primer build de la imagen (en builds incrementales con cache de capas, se reusa).
+- (−) Dos puertos en lugar de uno; el usuario tiene que recordar que la URL de la app es `http://127.0.0.1:3000` (el `7777` es solo backend).
+- (−) Coexisten dos formatos de URL para detalle: Tauri usa `_?mint=` / `_?id=` (por ADR-035), Docker usa `[mint]` / `[id]` limpio. El código del web es el mismo (el helper `routes.ts` siempre apunta a query string), pero el modo server resuelve también las dinámicas si las hubiera.
+- (−) Logs ruidosos al arrancar — algún SDK hace un probe a `api.{mainnet-beta,devnet}.solana.com:443` que falla con `ConnectTimeoutError` desde dentro del contenedor. No bloquea, queda en backlog para filtrar.
+
+**Alternativas consideradas**:
+
+- **Buildear Tauri nativo en cada SO**. Descartada por coste: requeriría runners de CI para macOS y Linux, o acceso a máquinas con cada SO. Es trabajo real sin ROI claro hasta que haya demanda.
+- **Static export servido por el server**. Descartada porque las rutas dinámicas `[mint]`/`[id]` se rompen sin un servidor que las resuelva (motivo de ADR-035). Meter el workaround del query string en Docker contamina el código para un caso que no lo necesita.
+- **Dos imágenes separadas (`server` y `web`)**. Descartada por complejidad innecesaria para un proyecto self-hosted single-user: misma imagen + override de command es más simple y el cache de capas hace que ocupe en disco lo mismo.

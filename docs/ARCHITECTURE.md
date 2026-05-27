@@ -16,7 +16,7 @@ Cuatro formas de correr el mismo motor:
 |---|---|---|
 | **CLI** | Validación rápida, una posición, en tu máquina. `.env` como fuente de config. | `pnpm start` |
 | **Server local + Web** | Backend tRPC + UI Next.js en dev. Multi-posición, persistencia, HMR. | `pnpm dev:server` y `pnpm dev:web` |
-| **Docker** | "Producción" personal headless: arranque automático, restart-unless-stopped. Solo backend, conectas con la UI por separado. | `docker compose up -d` |
+| **Docker** | Self-hosted en Linux/Mac/Windows sin instalación nativa. Una imagen, dos servicios — server (:7777) + web (:3000) ambos a `127.0.0.1`; abres `http://127.0.0.1:3000` en el navegador. Ver [ADR-036](DECISIONS.md). | `docker compose up -d` |
 | **Tauri desktop** | Distribución a usuarios finales. Frontend + server empaquetados en un instalador `.msi`/`.exe`/`.dmg`/`.AppImage` con auto-update. | `pnpm tauri:build` (requiere Bun + Rust + OS build tools — ver [ADR-031](DECISIONS.md)) |
 
 Todos los modos bindean por defecto a `127.0.0.1` (ver [ADR-016](DECISIONS.md)).

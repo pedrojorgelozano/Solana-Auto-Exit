@@ -356,6 +356,28 @@ la verificación que F4.2 (punto 23) había dejado explícitamente pendiente:
 
 Pendiente de verificar: el flujo real de un *update* descargado e instalado (requiere una v0.1.x posterior con el opt-in activado).
 
+### 26. Docker self-hosted server + web — walkthrough end-to-end
+
+Verificado el 2026-05-27 sobre `feature/docker-web` antes del merge a `main`. Cierra el sprint Docker iniciado el 22 — la sección #7 cubrió solo el backend; esta valida el stack completo server + web.
+
+- `docker compose up --build -d` levanta dos contenedores desde una imagen: `solana-auto-exit-server` (:7777) y `solana-auto-exit-web` (:3000). Ambos `127.0.0.1` (loopback-only).
+- Health probes desde el host:
+  - `curl http://127.0.0.1:7777/trpc/settings.get` → HTTP 200 (tRPC responde).
+  - `curl http://127.0.0.1:3000/` → HTTP 200 (Next.js sirve la home).
+- Server log inicial: `[server] listening on http://0.0.0.0:7777`, `[server] vault path: /app/data/wallet.vault`. Migraciones aplicadas.
+- Walkthrough manual desde `http://127.0.0.1:3000`:
+  - `/settings`: get / update / reset OK; toggle network devnet↔mainnet persiste + píldora oxblood; toggle EN/ES.
+  - `/wallet`: generate (modal + secret revealable + checkbox); lock / unlock con passphrase mal → mensaje claro; rate-limiter activo al sexto intento; import con homoglifos → mensaje del fix `82aa750` nombra los caracteres no-base58 con su code point.
+  - `/positions` + `/positions/[mint]`: aggregación Orca / Meteora; configure form con TP + SL.
+  - `/tasks` + `/tasks/[id]`: 2 tasks `armed` creadas durante el walkthrough; polling, PoolState, distances, timeline. Borradas vía `curl POST /trpc/tasks.delete` al cerrar.
+  - `/docs`: 7 artículos cargan; las secciones "Lock and unlock" y "Server restarts and the locked state" de `/docs/operational` cubren la mecánica del vault encriptado en disco + clave en RAM para firmar.
+- Cleanup: `docker compose down` libera containers, network y puertos. Datos persisten en `./packages/server/data/` (bind volume) — si el usuario lo borra, vault y DB se pierden irrecuperables.
+
+Hallazgos apuntados al backlog (no bloquean):
+
+- **`/settings` muestra el `ZodError` como JSON crudo**: pegar `oo.mainnet-beta.solana.com` (sin scheme) devuelve `[ { "validation": "url", ... } ]` literal. El catch hace `err.message` directo. Papercut UX común al web (no es de la rama Docker).
+- **Ruido en logs del server al arrancar**: 3 `ConnectTimeoutError` a `api.{mainnet-beta,devnet}.solana.com:443` ("Error getting chain ID from genesis hash"). Sospecha: algún SDK hace un probe a las URLs públicas por defecto, ignorando el `rpcUrl` configurado. No afecta a la funcionalidad.
+
 ---
 
 ## Anexo: validación previa de `EXIT_TOKEN_MINT` desde CLI (pre-server)
