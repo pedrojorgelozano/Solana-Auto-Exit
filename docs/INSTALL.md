@@ -158,25 +158,58 @@ Tested logically against Ubuntu 22.04+ and Debian 12. Other distributions work i
 
 ### Prerequisites
 
-- **Docker Engine** + **Compose plugin**. The official install guide for your distro:
-  - Ubuntu: <https://docs.docker.com/engine/install/ubuntu/>
-  - Debian: <https://docs.docker.com/engine/install/debian/>
-  - Other: <https://docs.docker.com/engine/install/>
+#### 1. Docker Engine + Compose plugin
 
-  After install, add your user to the `docker` group so you don't need `sudo` for every command (the alternative is prefixing every `docker` command below with `sudo`):
+Install via the official guide for your distro — these always work and stay current:
 
-  ```bash
-  sudo usermod -aG docker $USER
-  # log out and back in for the group change to take effect
-  ```
+- Ubuntu: <https://docs.docker.com/engine/install/ubuntu/>
+- Debian: <https://docs.docker.com/engine/install/debian/>
+- Other: <https://docs.docker.com/engine/install/>
 
-- **Git**:
+#### 2. Add your user to the `docker` group — **this is the step everyone forgets**
 
-  ```bash
-  sudo apt update && sudo apt install -y git
-  ```
+After installing Docker, your regular user **cannot talk to the Docker daemon** until it is in the `docker` group. If you skip this step (or skip the logout below), the **very first** `docker compose up` will fail with:
 
-Confirm the tools:
+```
+permission denied while trying to connect to the Docker API at unix:///var/run/docker.sock
+```
+
+Two parts, both required:
+
+**Part A — add the user to the group:**
+
+```bash
+sudo usermod -aG docker $USER
+```
+
+**Part B — apply the group change to your session.** Linux loads group memberships **at login**. Just opening a new terminal is **not** enough; you must do one of these:
+
+| Option | What to do | When the change takes effect |
+|---|---|---|
+| **Full logout** (recommended) | Log out of your desktop session and log back in. Or reboot. | All shells in the new session. |
+| **`newgrp docker`** (faster, scoped) | In your current terminal, run `newgrp docker`. | Only that shell. The change becomes permanent at your next real login anyway. |
+
+**Verify before continuing.** Open a new terminal (post-logout) or use the `newgrp`'d shell and run:
+
+```bash
+id            # the output must include "docker" in the groups list
+docker ps     # must succeed without sudo and without permission errors
+```
+
+If `id` does **not** show `docker`, the group change hasn't taken effect — log out fully and back in. **Do not move on until both commands above work.**
+
+> **Why not just use `sudo docker compose up`?**
+> It works, but every file the container creates in `./packages/server/data/` ends up owned by root on the host. Auto-Exit's container runs as **uid 1000** (security hardening, see [ADR-037](DECISIONS.md)); a root-owned data directory will then trigger permission errors when the container tries to write the wallet vault. Use the `docker` group route — it's the right path on Linux.
+
+#### 3. Git
+
+```bash
+sudo apt update && sudo apt install -y git
+```
+
+#### 4. Sanity check
+
+All three commands should run without `sudo` and without errors:
 
 ```bash
 docker --version
@@ -321,6 +354,16 @@ Then delete the cloned repo folder. Your data folder `./packages/server/data/` i
 ### Docker — "port already in use" on 3000 or 7777
 
 Something else on your host is bound to one of those ports. Identify and stop it, or edit `docker-compose.yml` to map different host ports. The container ports (inside the compose) are fixed; only the host side `127.0.0.1:<HOST>:<CONTAINER>` is yours to change.
+
+### Docker — "permission denied ... unix:///var/run/docker.sock" (Linux)
+
+Full error:
+
+```
+permission denied while trying to connect to the Docker API at unix:///var/run/docker.sock
+```
+
+Your user is not in the `docker` group, or it is but you haven't logged out and back in yet. See [Linux — Prerequisites, step 2](#2-add-your-user-to-the-docker-group--this-is-the-step-everyone-forgets) — both adding the user and re-logging in are required.
 
 ### Docker — "permission denied" writing to `data/` (Linux)
 
