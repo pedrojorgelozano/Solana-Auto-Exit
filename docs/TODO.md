@@ -12,6 +12,15 @@
 
 ## Backlog (sin orden)
 
+- [ ] Render legible de errores de validación zod en el web. Hoy el catch de
+  `/settings` (y posiblemente otros forms con mutations) hace `err.message`
+  directo; cuando el backend devuelve un `ZodError`, el message lleva el
+  array de issues serializado como JSON crudo. Ej: pegar `oo.mainnet-beta.solana.com`
+  sin scheme en el RPC URL devuelve `[ { "validation": "url", "code":
+  "invalid_string", "message": "Invalid url", "path": [ "value" ] } ]`. Fix
+  esperado: parsear `error.data?.zodError` del TRPCClientError y mostrar
+  solo el `message` del primer issue (o concatenar los messages). Aplicar
+  consistentemente donde haya forms con validación server-side.
 - [ ] Migrar los artículos de `/docs` de TSX hardcoded a markdown single-source.
   Hoy `packages/web/src/app/docs/{slug}/page.tsx` contiene el copy inline;
   cuando el contenido crezca o queramos servir el mismo texto desde el
