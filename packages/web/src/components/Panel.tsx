@@ -37,7 +37,7 @@ export function Panel({
             {title}
           </h3>
           {description ? (
-            <p className="mt-0.5 text-[12.5px] text-[var(--color-text-dim)]">
+            <p className="mt-0.5 text-[14px] text-[var(--color-text-dim)]">
               {description}
             </p>
           ) : null}

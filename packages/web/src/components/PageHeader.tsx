@@ -101,7 +101,7 @@ function NetworkPill() {
         className="
           inline-flex items-center gap-2 rounded-full
           border border-[var(--color-danger)] bg-[var(--color-danger-bg)]
-          px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.1em]
+          px-3 py-[5px] text-[13px] font-semibold uppercase tracking-[0.1em]
           text-[var(--color-danger)]
         "
         title={t.header.mainnetLiveTooltip}
@@ -121,7 +121,7 @@ function NetworkPill() {
       className="
         inline-flex items-center gap-2 rounded-full
         border border-[var(--color-warning)] bg-[var(--color-warning-bg)]
-        px-3 py-[5px] text-[11px] font-semibold uppercase tracking-[0.1em]
+        px-3 py-[5px] text-[13px] font-semibold uppercase tracking-[0.1em]
         text-[var(--color-warning)] transition-colors
         hover:bg-[var(--color-warning)] hover:text-[var(--color-bg)]
       "

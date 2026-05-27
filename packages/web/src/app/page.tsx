@@ -395,7 +395,7 @@ function PositionHubRow({
                   summary.data.isInRange ? "In your range" : "Out of range"
                 }
               />
-              <span className="t-num text-xs text-[var(--color-text-muted)]">
+              <span className="t-num text-sm text-[var(--color-text-muted)]">
                 {formatPrice(summary.data.range.min, 2)}
                 <span className="text-[var(--color-text-dim)]">–</span>
                 {formatPrice(summary.data.range.max, 2)}

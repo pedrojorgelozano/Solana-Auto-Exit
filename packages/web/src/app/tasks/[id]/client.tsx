@@ -83,7 +83,7 @@ export default function TaskPage() {
       <Link
         href="/tasks"
         className="
-          inline-flex items-center gap-[7px] text-[12.5px] font-medium
+          inline-flex items-center gap-[7px] text-[14px] font-medium
           text-[var(--color-text-dim)] transition-colors
           hover:text-[var(--color-accent)]
         "
@@ -309,7 +309,7 @@ function DetailHeader({
           </h1>
           <span
             className="
-              rounded-md border px-[9px] py-1 text-[10.5px] font-semibold
+              rounded-md border px-[9px] py-1 text-[12px] font-semibold
               tracking-[0.05em]
             "
             style={{
@@ -323,7 +323,7 @@ function DetailHeader({
           <span
             className={`
               inline-flex items-center gap-2 rounded-full border px-3 py-[5px]
-              text-[12.5px] font-semibold ${tone.bg} ${tone.border} ${tone.text}
+              text-[14px] font-semibold ${tone.bg} ${tone.border} ${tone.text}
             `}
           >
             <span
@@ -337,7 +337,7 @@ function DetailHeader({
           </span>
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-[var(--color-text-dim)]">
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[14px] text-[var(--color-text-dim)]">
           <NetworkPill network={task.network} />
           <Dot />
           <span>
@@ -397,7 +397,7 @@ function NetworkPill({ network }: { network: string }) {
         className="
           inline-flex items-center gap-2 rounded-full
           border border-[var(--color-danger)] bg-[var(--color-danger-bg)]
-          px-[10px] py-1 text-[10.5px] font-semibold uppercase
+          px-[10px] py-1 text-[12px] font-semibold uppercase
           tracking-[0.1em] text-[var(--color-danger)]
         "
       >
@@ -415,7 +415,7 @@ function NetworkPill({ network }: { network: string }) {
       className="
         inline-flex items-center gap-2 rounded-full
         border border-[var(--color-warning)] bg-[var(--color-warning-bg)]
-        px-[10px] py-1 text-[10.5px] font-semibold uppercase
+        px-[10px] py-1 text-[12px] font-semibold uppercase
         tracking-[0.1em] text-[var(--color-warning)] transition-colors
         hover:bg-[var(--color-warning)] hover:text-[var(--color-bg)]
       "
@@ -588,7 +588,7 @@ function HeroPanel({
     >
       <div className="flex flex-wrap items-start justify-between gap-8">
         <div className="flex flex-col gap-2">
-          <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-dim)]">
+          <span className="flex items-center gap-2 text-[13px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-dim)]">
             <span
               className="relative inline-block h-2 w-2 rounded-full bg-[var(--color-accent)] dot-pulse-ring"
               aria-hidden
@@ -598,7 +598,7 @@ function HeroPanel({
           <span className="text-[44px] font-medium leading-none tracking-[-0.035em] t-num md:text-[54px]">
             {currentPrice !== null ? formatPrice(currentPrice, 4) : "—"}
           </span>
-          <span className="text-[12.5px] text-[var(--color-text-dim)]">
+          <span className="text-[14px] text-[var(--color-text-dim)]">
             {updatedAgo && nextPollText ? (
               <>
                 {h.liveMetaPrefix(updatedAgo)}{" "}
@@ -692,7 +692,7 @@ function HeroStat({
     tone === "tp" ? "var(--color-accent)" : "var(--color-warning)";
   return (
     <div className="min-w-[128px] border-l border-[var(--color-hairline)] px-5 py-[13px] first:border-l-0">
-      <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
+      <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
         {label}
       </div>
       <div
@@ -769,7 +769,7 @@ function PriceBand({
   return (
     <div className="mt-7">
       <div
-        className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-[11.5px] text-[var(--color-text-muted)]"
+        className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-[var(--color-text-muted)]"
         aria-hidden
       >
         <span className="inline-flex items-center gap-2">
@@ -813,14 +813,14 @@ function PriceBand({
             <span
               className="
                 whitespace-nowrap rounded-md border border-[var(--color-accent)]
-                bg-[var(--color-bg)] px-[10px] py-1 text-[13px]
+                bg-[var(--color-bg)] px-[10px] py-1 text-[15px]
                 font-semibold text-[var(--color-text)] t-num
               "
               style={{ boxShadow: "0 0 18px rgba(95,214,164,0.18)" }}
             >
               {formatPrice(currentPrice, 4)}
               {quoteSymbol ? (
-                <span className="ml-1 text-[10.5px] font-medium text-[var(--color-text-muted)]">
+                <span className="ml-1 text-[12px] font-medium text-[var(--color-text-muted)]">
                   {quoteSymbol}
                 </span>
               ) : null}
@@ -844,13 +844,13 @@ function PriceBand({
                 "linear-gradient(180deg,rgba(95,214,164,0.16),rgba(95,214,164,0.06))",
             }}
           >
-            <span className="absolute left-[10px] top-2 text-[9.5px] font-semibold uppercase tracking-[0.13em] text-[var(--color-accent)] opacity-85">
+            <span className="absolute left-[10px] top-2 text-[11px] font-semibold uppercase tracking-[0.13em] text-[var(--color-accent)] opacity-85">
               {h.zoneTag}
             </span>
-            <span className="absolute bottom-[5px] left-[6px] t-num text-[10.5px] font-semibold text-[var(--color-accent)]">
+            <span className="absolute bottom-[5px] left-[6px] t-num text-[12px] font-semibold text-[var(--color-accent)]">
               {formatPrice(rangeMin, 4)}
             </span>
-            <span className="absolute bottom-[5px] right-[6px] t-num text-[10.5px] font-semibold text-[var(--color-accent)]">
+            <span className="absolute bottom-[5px] right-[6px] t-num text-[12px] font-semibold text-[var(--color-accent)]">
               {formatPrice(rangeMax, 4)}
             </span>
           </div>
@@ -908,7 +908,7 @@ function PriceBand({
 
         {/* Axis */}
         <div
-          className="flex justify-between text-[10.5px] text-[var(--color-text-dim)] t-num"
+          className="flex justify-between text-[12px] text-[var(--color-text-dim)] t-num"
           aria-hidden
         >
           {ticks.map((tk, i) => (
@@ -944,12 +944,12 @@ function BandFlag({
         aria-hidden
       />
       <span
-        className="text-[9.5px] font-semibold uppercase tracking-[0.1em]"
+        className="text-[11px] font-semibold uppercase tracking-[0.1em]"
         style={{ color }}
       >
         {label}
       </span>
-      <span className="t-num text-[12.5px] font-semibold text-[var(--color-text)]">
+      <span className="t-num text-[14px] font-semibold text-[var(--color-text)]">
         {formatPrice(price, 4)}
       </span>
     </div>
@@ -1067,13 +1067,13 @@ function TriggerCard({
             </svg>
           )}
         </span>
-        <span className="text-[13px] font-semibold text-[var(--color-text)]">
+        <span className="text-[15px] font-semibold text-[var(--color-text)]">
           {label}
         </span>
         <span
           className={`
             ml-auto rounded-md border px-[7px] py-[2px]
-            text-[10px] font-semibold uppercase tracking-[0.08em]
+            text-[12px] font-semibold uppercase tracking-[0.08em]
             ${
               triggered
                 ? "border-[var(--color-warning)] text-[var(--color-warning)]"
@@ -1089,9 +1089,9 @@ function TriggerCard({
         {op} {formatPrice(price, 4)}
       </div>
 
-      <div className="mt-4 flex items-baseline justify-between text-[12px] text-[var(--color-text-dim)]">
+      <div className="mt-4 flex items-baseline justify-between text-[14px] text-[var(--color-text-dim)]">
         <span>{tc.distance}</span>
-        <b className="t-num text-[13px] font-semibold text-[var(--color-text-muted)]">
+        <b className="t-num text-[15px] font-semibold text-[var(--color-text-muted)]">
           {distance && distance.pct !== null
             ? distance.reached
               ? tc.reached
@@ -1111,7 +1111,7 @@ function TriggerCard({
         />
       </div>
 
-      <div className="mt-4 flex items-start gap-2 text-[11.5px] text-[var(--color-text-dim)]">
+      <div className="mt-4 flex items-start gap-2 text-[13px] text-[var(--color-text-dim)]">
         <svg
           viewBox="0 0 24 24"
           fill="none"
@@ -1207,7 +1207,7 @@ function HoldingsPanel({ summary }: { summary: PositionSummary }) {
               <HoldingRow value={fmtUnits(feesAUnits, 4)} symbol={symA} />
               <HoldingRow value={fmtUnits(feesBUnits, 2)} symbol={symB} />
               {feesValueInB > 0 ? (
-                <p className="mt-1 text-[11px] text-[var(--color-text-dim)]">
+                <p className="mt-1 text-[13px] text-[var(--color-text-dim)]">
                   {ho.feesValueNote(
                     `${fmtUnits(feesValueInB, 2)} ${symB}`,
                   )}
@@ -1236,7 +1236,7 @@ function HoldingsPanel({ summary }: { summary: PositionSummary }) {
               {t.taskDetail.heroPanel.outOfRange}
             </span>
           )}
-          <p className="mt-[6px] text-[11px] text-[var(--color-text-dim)]">
+          <p className="mt-[6px] text-[13px] text-[var(--color-text-dim)]">
             {summary.isInRange
               ? ho.rangeWithStatus(
                   formatPrice(summary.range.min, 2),
@@ -1251,11 +1251,11 @@ function HoldingsPanel({ summary }: { summary: PositionSummary }) {
         <HoldingCell label={ho.estimatedValue}>
           <span className="t-num text-[19px] font-semibold text-[var(--color-text)]">
             ≈ {fmtUnits(valueInB, 2)}{" "}
-            <span className="text-[11px] font-semibold text-[var(--color-text-dim)]">
+            <span className="text-[13px] font-semibold text-[var(--color-text-dim)]">
               {symB}
             </span>
           </span>
-          <p className="mt-[5px] text-[11px] text-[var(--color-text-dim)]">
+          <p className="mt-[5px] text-[13px] text-[var(--color-text-dim)]">
             {ho.estimatedValueNote}
           </p>
         </HoldingCell>
@@ -1273,7 +1273,7 @@ function HoldingCell({
 }) {
   return (
     <div className="bg-[var(--color-bg-elevated)] px-4 py-[15px]">
-      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-dim)]">
+      <dt className="text-[12px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-dim)]">
         {label}
       </dt>
       <dd className="mt-2 flex flex-col gap-[3px]">{children}</dd>
@@ -1287,7 +1287,7 @@ function HoldingRow({ value, symbol }: { value: string; symbol: string }) {
       <span className="t-num text-[15px] font-semibold text-[var(--color-text)]">
         {value}
       </span>
-      <span className="text-[10.5px] font-semibold text-[var(--color-text-dim)]">
+      <span className="text-[12px] font-semibold text-[var(--color-text-dim)]">
         {symbol}
       </span>
     </span>
@@ -1397,9 +1397,9 @@ function Fact({
 }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-[var(--color-hairline)] py-[11px] last:border-b-0">
-      <dt className="text-[12.5px] text-[var(--color-text-dim)]">{label}</dt>
+      <dt className="text-[14px] text-[var(--color-text-dim)]">{label}</dt>
       <dd
-        className={`text-[12.5px] font-semibold text-[var(--color-text)] text-right ${
+        className={`text-[14px] font-semibold text-[var(--color-text)] text-right ${
           mono ? "t-num" : ""
         }`}
       >
@@ -1416,7 +1416,7 @@ function ExitTokenChip({ mint }: { mint: string }) {
       className="
         inline-flex items-center gap-[6px] rounded-full
         border border-[var(--color-rule)] px-2 py-[3px]
-        text-[11.5px] font-semibold text-[var(--color-text)]
+        text-[13px] font-semibold text-[var(--color-text)]
       "
     >
       <span
@@ -1790,15 +1790,15 @@ function TimelineRow({
           />
         ) : null}
       </span>
-      <div className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-dim)]">
+      <div className="text-[12px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-dim)]">
         {relative}
       </div>
       <div
-        className={`mt-[3px] text-[13px] font-semibold ${nodeKind === "alert" ? "text-[var(--color-warning)]" : nodeKind === "ok" || nodeKind === "live" || nodeKind === "armed" ? "text-[var(--color-accent)]" : "text-[var(--color-text)]"}`}
+        className={`mt-[3px] text-[15px] font-semibold ${nodeKind === "alert" ? "text-[var(--color-warning)]" : nodeKind === "ok" || nodeKind === "live" || nodeKind === "armed" ? "text-[var(--color-accent)]" : "text-[var(--color-text)]"}`}
       >
         {desc.label}
       </div>
-      <div className="mt-[3px] text-[12px] leading-[1.5] text-[var(--color-text-dim)]">
+      <div className="mt-[3px] text-[14px] leading-[1.5] text-[var(--color-text-dim)]">
         {desc.description}
         {desc.txId ? (
           <span className="ml-2">

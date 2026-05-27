@@ -101,14 +101,14 @@ function Cell({
 }) {
   return (
     <div className="border-l border-[var(--color-hairline)] px-5 py-4 first:border-l-0">
-      <dt className="text-[11.5px] font-medium text-[var(--color-text-dim)]">
+      <dt className="text-[13px] font-medium text-[var(--color-text-dim)]">
         {label}
       </dt>
       <dd className={`mt-2 text-[22px] font-semibold tracking-tight ${valueClass}`}>
         {value}
       </dd>
       {note ? (
-        <span className="mt-1 block text-[12px] font-normal text-[var(--color-text-muted)]">
+        <span className="mt-1 block text-[14px] font-normal text-[var(--color-text-muted)]">
           {note}
         </span>
       ) : null}

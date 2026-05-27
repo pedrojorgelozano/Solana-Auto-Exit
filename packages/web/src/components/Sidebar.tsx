@@ -76,7 +76,7 @@ function Brand() {
         <span className="text-[15px] font-bold tracking-tight text-[var(--color-text)] group-hover:text-[var(--color-accent-bright)] transition-colors">
           Auto-Exit
         </span>
-        <span className="text-[11px] tracking-wide text-[var(--color-text-dim)]">
+        <span className="text-[13px] tracking-wide text-[var(--color-text-dim)]">
           Solana · self-hosted
         </span>
       </span>
@@ -112,7 +112,7 @@ function Nav() {
 
   return (
     <nav className="flex flex-col gap-[3px] pt-1" aria-label={t.sidebar.aria.primary}>
-      <span className="px-[10px] pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
+      <span className="px-[10px] pb-1.5 pt-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--color-text-dim)]">
         {t.sidebar.workspaceLabel}
       </span>
       {items.map((it) => {
@@ -191,10 +191,10 @@ function ServerBeacon() {
         className={`inline-block h-[7px] w-[7px] flex-none rounded-full ${beaconColor} ${tone === "ok" ? "shadow-[0_0_0_3px_var(--color-accent-dim)]" : ""}`}
         aria-hidden="true"
       />
-      <span className="text-[12.5px] text-[var(--color-text-muted)]">
+      <span className="text-[14px] text-[var(--color-text-muted)]">
         {t.sidebar.serverLabel}
       </span>
-      <span className="ml-auto t-num text-[11.5px] text-[var(--color-text-dim)]">
+      <span className="ml-auto t-num text-[13px] text-[var(--color-text-dim)]">
         127.0.0.1:7777
       </span>
     </div>
@@ -210,7 +210,7 @@ function WalletBeacon() {
     return (
       <div className="flex items-center gap-[9px] rounded-[7px] border-t border-[var(--color-hairline)] px-[10px] py-[9px]">
         <span className="inline-block h-[7px] w-[7px] flex-none rounded-full bg-[var(--color-text-muted)]" />
-        <span className="text-[12.5px] text-[var(--color-text-muted)]">
+        <span className="text-[14px] text-[var(--color-text-muted)]">
           {t.sidebar.walletLabel}
         </span>
       </div>
@@ -229,7 +229,7 @@ function WalletBeacon() {
         "
       >
         <span className="inline-block h-[7px] w-[7px] flex-none rounded-full bg-[var(--color-accent)] shadow-[0_0_0_3px_var(--color-accent-dim)]" />
-        <span className="text-[12.5px] text-[var(--color-accent)]">
+        <span className="text-[14px] text-[var(--color-accent)]">
           {t.sidebar.setupWallet}
         </span>
       </button>
@@ -252,11 +252,11 @@ function WalletBeacon() {
       "
     >
       <span className={`inline-block h-[7px] w-[7px] flex-none rounded-full ${beacon}`} />
-      <span className="text-[12.5px] text-[var(--color-text-muted)]">
+      <span className="text-[14px] text-[var(--color-text-muted)]">
         {t.sidebar.walletLabel}
       </span>
       <span
-        className={`ml-auto t-num text-[11.5px] ${status.data.unlocked ? "text-[var(--color-text)]" : "text-[var(--color-text-dim)]"}`}
+        className={`ml-auto t-num text-[13px] ${status.data.unlocked ? "text-[var(--color-text)]" : "text-[var(--color-text-dim)]"}`}
       >
         {addr}
       </span>
@@ -289,7 +289,7 @@ function LockButton() {
       className="
         mt-[10px] flex w-full items-center justify-center gap-[7px]
         rounded-[7px] border border-[var(--color-rule)] bg-transparent
-        px-3 py-[9px] text-[12.5px] font-medium text-[var(--color-text-muted)]
+        px-3 py-[9px] text-[14px] font-medium text-[var(--color-text-muted)]
         transition-colors hover:border-[var(--color-rule)]
         hover:bg-[var(--color-surface-hover)] hover:text-[var(--color-text)]
         disabled:opacity-50 disabled:cursor-not-allowed
@@ -322,7 +322,7 @@ function DocsLink() {
       aria-label={t.sidebar.docs}
       className="
         inline-flex h-9 items-center justify-center gap-2 rounded-full
-        px-3 text-[12px] font-semibold tracking-wider uppercase
+        px-3 text-[14px] font-semibold tracking-wider uppercase
         text-[var(--color-text-muted)] transition-colors
         hover:text-[var(--color-text)]
       "
