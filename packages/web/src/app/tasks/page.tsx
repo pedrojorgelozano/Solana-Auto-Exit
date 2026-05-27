@@ -19,6 +19,7 @@ import {
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
+import { TokenPair } from "@/components/TokenBadge";
 import { useT } from "@/i18n/context";
 
 type TaskRow = inferRouterOutputs<AppRouter>["tasks"]["list"][number];
@@ -217,9 +218,31 @@ function Row({ row }: { row: TaskRow }) {
   );
 
   const pair = formatTaskPair(row.protocolConfig);
+  const cfg = row.protocolConfig as
+    | { tokenMintA?: string; tokenMintB?: string }
+    | null;
+  const mintA = cfg?.tokenMintA;
+  const mintB = cfg?.tokenMintB;
+
+  // dist-bar: width inversamente proporcional a la distancia al trigger
+  // más cercano. Más cerca = barra más llena. 0% = barra vacía (lejos),
+  // 100% = barra llena (en el trigger). Cap a 100% para safety.
+  const nearestPct = (() => {
+    const candidates = [tpDist?.pct, slDist?.pct].filter(
+      (v): v is number => v !== null && v !== undefined,
+    );
+    if (candidates.length === 0) return null;
+    return Math.min(...candidates.map((v) => Math.abs(v)));
+  })();
+  const distBarFill =
+    nearestPct === null
+      ? 0
+      : Math.max(0, Math.min(100, 100 - nearestPct));
+  const distBarReached =
+    (tpDist?.reached ?? false) || (slDist?.reached ?? false);
 
   return (
-    <tr className="group">
+    <tr className="group transition-colors hover:bg-[var(--color-surface-hover)]">
       <td className="py-4 pr-4 align-baseline">
         <div className="flex items-center gap-2">
           <span
@@ -236,43 +259,50 @@ function Row({ row }: { row: TaskRow }) {
         </div>
       </td>
       <td className="py-4 pr-4 align-baseline">
-        <div className="text-[var(--color-text)]">
-          {pair ?? (
-            <span className="t-num">
-              {truncateAddress(row.positionId, 4, 4)}
-            </span>
-          )}
-        </div>
-        <div className="mt-1 flex items-center gap-2">
-          {summary.data ? (
-            <>
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  summary.data.isInRange
-                    ? "bg-[var(--color-positive)]"
-                    : "bg-[var(--color-danger)]"
-                }`}
-                title={
-                  summary.data.isInRange
-                    ? t.format.inRange
-                    : t.format.outOfRange
-                }
-              />
-              <span className="t-num text-xs text-[var(--color-text-muted)]">
-                {formatPrice(summary.data.range.min, 2)}
-                <span className="text-[var(--color-text-dim)]">–</span>
-                {formatPrice(summary.data.range.max, 2)}
-              </span>
-              <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
-              <span className="t-eyebrow text-[var(--color-text-dim)]">
-                {row.protocol}
-              </span>
-            </>
-          ) : (
-            <span className="t-eyebrow text-[var(--color-text-dim)]">
-              {row.protocol}
-            </span>
-          )}
+        <div className="flex items-center gap-2.5">
+          {mintA && mintB ? (
+            <TokenPair mintA={mintA} mintB={mintB} size={20} />
+          ) : null}
+          <div>
+            <div className="text-[var(--color-text)]">
+              {pair ?? (
+                <span className="t-num">
+                  {truncateAddress(row.positionId, 4, 4)}
+                </span>
+              )}
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              {summary.data ? (
+                <>
+                  <span
+                    className={`inline-block h-1.5 w-1.5 rounded-full ${
+                      summary.data.isInRange
+                        ? "bg-[var(--color-positive)]"
+                        : "bg-[var(--color-danger)]"
+                    }`}
+                    title={
+                      summary.data.isInRange
+                        ? t.format.inRange
+                        : t.format.outOfRange
+                    }
+                  />
+                  <span className="t-num text-xs text-[var(--color-text-muted)]">
+                    {formatPrice(summary.data.range.min, 2)}
+                    <span className="text-[var(--color-text-dim)]">–</span>
+                    {formatPrice(summary.data.range.max, 2)}
+                  </span>
+                  <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
+                  <span className="t-eyebrow text-[var(--color-text-dim)]">
+                    {row.protocol}
+                  </span>
+                </>
+              ) : (
+                <span className="t-eyebrow text-[var(--color-text-dim)]">
+                  {row.protocol}
+                </span>
+              )}
+            </div>
+          </div>
         </div>
       </td>
       <td className="py-4 pr-4 align-baseline t-num text-[var(--color-text)]">
@@ -290,32 +320,50 @@ function Row({ row }: { row: TaskRow }) {
       </td>
       <td className="py-4 pr-4 align-baseline text-right">
         {(tpDist && tpDist.pct !== null) || (slDist && slDist.pct !== null) ? (
-          <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 t-num">
-            {tpDist && tpDist.pct !== null ? (
+          <div className="flex flex-col items-end gap-1">
+            {nearestPct !== null ? (
               <span
-                className={
-                  tpDist.reached
-                    ? "text-[var(--color-warning)]"
-                    : "text-[var(--color-text-muted)]"
-                }
+                className="block h-[4px] w-[46px] overflow-hidden rounded-[2px] bg-[var(--color-hairline)]"
+                aria-hidden="true"
               >
-                {tpDist.text} TP
+                <span
+                  className="block h-full rounded-[2px]"
+                  style={{
+                    width: `${distBarFill}%`,
+                    background: distBarReached
+                      ? "var(--color-warning)"
+                      : "var(--color-accent)",
+                  }}
+                />
               </span>
             ) : null}
-            {tpDist?.pct !== null && slDist?.pct !== null ? (
-              <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
-            ) : null}
-            {slDist && slDist.pct !== null ? (
-              <span
-                className={
-                  slDist.reached
-                    ? "text-[var(--color-warning)]"
-                    : "text-[var(--color-text-muted)]"
-                }
-              >
-                {slDist.text} SL
-              </span>
-            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 t-num">
+              {tpDist && tpDist.pct !== null ? (
+                <span
+                  className={
+                    tpDist.reached
+                      ? "text-[var(--color-warning)]"
+                      : "text-[var(--color-text-muted)]"
+                  }
+                >
+                  {tpDist.text} TP
+                </span>
+              ) : null}
+              {tpDist?.pct !== null && slDist?.pct !== null ? (
+                <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
+              ) : null}
+              {slDist && slDist.pct !== null ? (
+                <span
+                  className={
+                    slDist.reached
+                      ? "text-[var(--color-warning)]"
+                      : "text-[var(--color-text-muted)]"
+                  }
+                >
+                  {slDist.text} SL
+                </span>
+              ) : null}
+            </div>
           </div>
         ) : (
           <span className="t-num text-[var(--color-text-dim)]">—</span>
