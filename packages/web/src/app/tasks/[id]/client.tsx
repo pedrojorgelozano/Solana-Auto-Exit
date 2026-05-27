@@ -219,7 +219,7 @@ function Detail({ task, refresh }: { task: TaskData; refresh: () => void }) {
 
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1fr_332px]">
         <div className="flex min-w-0 flex-col gap-4">
-          <TriggerCards task={task} quoteSym={tokenSymbol(mintB)} />
+          <TriggerCards task={task} />
           {summary ? (
             <HoldingsPanel summary={summary} />
           ) : null}
@@ -979,13 +979,7 @@ function BandFlag({
 // TriggerCards — TP/SL en grid 2×
 // ============================================================================
 
-function TriggerCards({
-  task,
-  quoteSym,
-}: {
-  task: TaskData;
-  quoteSym: string;
-}) {
+function TriggerCards({ task }: { task: TaskData }) {
   const tpPrice = task.takeProfitPrice;
   const slPrice = task.stopLossPrice;
   if (tpPrice === null && slPrice === null) return null;
@@ -1002,7 +996,6 @@ function TriggerCards({
         <TriggerCard
           kind="tp"
           price={tpPrice}
-          quoteSym={quoteSym}
           distance={tpDistance}
           triggered={task.triggeredBy === "take_profit"}
           bufferMs={task.takeProfitBufferMs}
@@ -1013,7 +1006,6 @@ function TriggerCards({
         <TriggerCard
           kind="sl"
           price={slPrice}
-          quoteSym={quoteSym}
           distance={slDistance}
           triggered={task.triggeredBy === "stop_loss"}
           bufferMs={task.stopLossBufferMs}
@@ -1027,7 +1019,6 @@ function TriggerCards({
 function TriggerCard({
   kind,
   price,
-  quoteSym,
   distance,
   triggered,
   bufferMs,
@@ -1035,7 +1026,6 @@ function TriggerCard({
 }: {
   kind: "tp" | "sl";
   price: number;
-  quoteSym: string;
   distance: ReturnType<typeof formatDistance> | null;
   triggered: boolean;
   bufferMs: number | null;
@@ -1115,10 +1105,7 @@ function TriggerCard({
       </div>
 
       <div className="t-num text-[28px] font-medium leading-none tracking-[-0.02em] text-[var(--color-text)] md:text-[30px]">
-        {op} {formatPrice(price, 4)}{" "}
-        <span className="text-[15px] font-medium text-[var(--color-text-muted)]">
-          {quoteSym}
-        </span>
+        {op} {formatPrice(price, 4)}
       </div>
 
       <div className="mt-4 flex items-baseline justify-between text-[14px] text-[var(--color-text-dim)]">
@@ -1160,14 +1147,8 @@ function TriggerCard({
         <span>
           {bufferMs && bufferMs > 0
             ? isTp
-              ? tc.bufferFootTp(
-                  `${formatPrice(price, 4)} ${quoteSym}`,
-                  formatBuffer(bufferMs, t),
-                )
-              : tc.bufferFootSl(
-                  `${formatPrice(price, 4)} ${quoteSym}`,
-                  formatBuffer(bufferMs, t),
-                )
+              ? tc.bufferFootTp(formatPrice(price, 4), formatBuffer(bufferMs, t))
+              : tc.bufferFootSl(formatPrice(price, 4), formatBuffer(bufferMs, t))
             : tc.noBufferFoot}
           {remaining ? (
             <>
@@ -1220,8 +1201,7 @@ function HoldingsPanel({ summary }: { summary: PositionSummary }) {
   const fmtUnits = (n: number, maxDecimals = 4) => {
     if (!Number.isFinite(n)) return "—";
     if (n === 0) return "0";
-    if (Math.abs(n) >= 1000) return n.toFixed(2);
-    return Number(n.toFixed(maxDecimals)).toString();
+    return n.toLocaleString("en-US", { maximumFractionDigits: maxDecimals });
   };
 
   return (
@@ -1279,12 +1259,10 @@ function HoldingsPanel({ summary }: { summary: PositionSummary }) {
               ? ho.rangeWithStatus(
                   formatPrice(summary.range.min, 2),
                   formatPrice(summary.range.max, 2),
-                  symB,
                 )
               : ho.rangeWhenOut(
                   formatPrice(summary.range.min, 2),
                   formatPrice(summary.range.max, 2),
-                  symB,
                 )}
           </p>
         </HoldingCell>

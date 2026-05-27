@@ -507,10 +507,10 @@ export const es: typeof en = {
       estimatedValueNote: "liquidez + fees pendientes",
       feesValueNote: (totalInQuote: string) =>
         `≈ ${totalInQuote} — se recogen al cerrar`,
-      rangeWithStatus: (lo: string, hi: string, sym: string) =>
-        `${lo} – ${hi} ${sym} · generando fees`,
-      rangeWhenOut: (lo: string, hi: string, sym: string) =>
-        `${lo} – ${hi} ${sym} · sin generar fees`,
+      rangeWithStatus: (lo: string, hi: string) =>
+        `${lo} – ${hi} · generando fees`,
+      rangeWhenOut: (lo: string, hi: string) =>
+        `${lo} – ${hi} · sin generar fees`,
       noFees: "—",
     },
 

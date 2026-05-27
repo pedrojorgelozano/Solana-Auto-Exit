@@ -522,6 +522,8 @@ export const en = {
         `Closes only after price holds ≥ ${price} for ${duration}`,
       bufferFootSl: (price: string, duration: string) =>
         `Closes only after price holds ≤ ${price} for ${duration}`,
+      // (i18n key intencionalmente igual a la firma vieja — el precio ya
+      // va sin sym; la denominación se ancla en el hero "1 X = Y Z".)
       noBufferFoot: "Closes on the next tick after the trigger.",
     },
 
@@ -535,10 +537,10 @@ export const en = {
       estimatedValueNote: "liquidity + pending fees",
       feesValueNote: (totalInQuote: string) =>
         `≈ ${totalInQuote} — collected on close`,
-      rangeWithStatus: (lo: string, hi: string, sym: string) =>
-        `${lo} – ${hi} ${sym} · earning fees`,
-      rangeWhenOut: (lo: string, hi: string, sym: string) =>
-        `${lo} – ${hi} ${sym} · not earning fees`,
+      rangeWithStatus: (lo: string, hi: string) =>
+        `${lo} – ${hi} · earning fees`,
+      rangeWhenOut: (lo: string, hi: string) =>
+        `${lo} – ${hi} · not earning fees`,
       noFees: "—",
     },
 

@@ -33,7 +33,10 @@ export function formatTokenAmount(
   const fractional = abs % divisor;
   let fracStr = fractional.toString().padStart(decimals, "0").slice(0, maxFrac);
   fracStr = fracStr.replace(/0+$/, "");
-  const result = fracStr ? `${whole}.${fracStr}` : whole.toString();
+  // Coma de miles en la parte entera (formato inglés). BigInt.toLocaleString
+  // funciona desde Node 18+; aquí seguro porque la app es Node 20+.
+  const wholeStr = whole.toLocaleString("en-US");
+  const result = fracStr ? `${wholeStr}.${fracStr}` : wholeStr;
   return negative ? `-${result}` : result;
 }
 
@@ -56,11 +59,16 @@ export function truncateAddress(addr: string, head = 4, tail = 4): string {
   return `${addr.slice(0, head)}…${addr.slice(-tail)}`;
 }
 
-/** Formatea un número decimal con un número fijo de decimales (sin trailing zeros). */
+/**
+ * Formatea un número decimal en formato inglés (coma de miles, punto decimal)
+ * con un máximo de `decimals` decimales y sin trailing zeros.
+ *   1234.5     → "1,234.5"
+ *   22.3773    → "22.3773"
+ *   1000000.50 → "1,000,000.5"
+ */
 export function formatPrice(n: number, decimals = 4): string {
   if (!Number.isFinite(n)) return "?";
-  const s = n.toFixed(decimals);
-  return s.replace(/\.?0+$/, "") || "0";
+  return n.toLocaleString("en-US", { maximumFractionDigits: decimals });
 }
 
 /**
