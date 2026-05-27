@@ -6,6 +6,8 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@solana-auto-exit/server/api";
 
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/PageHeader";
+import { StatStrip } from "@/components/StatStrip";
 import { trpc } from "@/lib/trpc";
 import { positionDetailHref, taskDetailHref } from "@/lib/routes";
 import { useConnectWallet } from "@/lib/connect-wallet";
@@ -110,14 +112,14 @@ function ConnectedHome({
   );
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-32 pt-12 fade-in">
-      <BotWalletEyebrow
-        owner={owner}
+    <main className="mx-auto max-w-6xl px-6 pb-32 pt-12 fade-in md:px-12">
+      <DashboardHeader
         unlocked={unlocked}
         totalPositions={allRefs.length}
-        watchingCount={watchingCount}
-        loadingPositions={isLoadingAll}
+        isLoading={isLoadingAll}
       />
+
+      <StatStrip tasks={tasks.data ?? []} />
 
       <PositionsHub
         refs={allRefs}
@@ -136,69 +138,55 @@ function ConnectedHome({
   );
 }
 
-// ============================================================================
-// Eyebrow — bot wallet address + counters
-// ============================================================================
-
-function BotWalletEyebrow({
-  owner,
+/**
+ * PageHeader del dashboard. La address y los counters de "watching" viven
+ * ahora en otros sitios (sidebar y stat strip respectivamente), así que el
+ * header se queda con eyebrow + título + descripción dinámica con el
+ * número de posiciones detectadas.
+ */
+function DashboardHeader({
   unlocked,
   totalPositions,
-  watchingCount,
-  loadingPositions,
+  isLoading,
 }: {
-  owner: string | null;
   unlocked: boolean;
   totalPositions: number;
-  watchingCount: number;
-  loadingPositions: boolean;
+  isLoading: boolean;
 }) {
   const { t } = useT();
+  const d = t.home.dashboard;
+  const description = isLoading
+    ? d.descriptionLoading
+    : totalPositions === 0
+      ? d.descriptionNone
+      : totalPositions === 1
+        ? d.descriptionOne
+        : d.descriptionMany(totalPositions);
+
   return (
-    <section className="pb-8 hairline-b">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">
-          {t.home.eyebrow.botWallet}
-          {unlocked ? null : (
-            <span className="ml-2 text-[var(--color-warning)]">
-              {t.home.eyebrow.locked}
+    <PageHeader
+      eyebrow={d.eyebrow}
+      title={d.title}
+      description={
+        <>
+          {description}
+          {!unlocked ? (
+            <span className="mt-1 block text-[var(--color-warning)]">
+              {d.lockedSuffix}
             </span>
-          )}
-        </div>
-        <Link
-          href="/docs/bot-wallet"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
-          {t.home.eyebrow.whatIs}
-        </Link>
-      </div>
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-2">
-        <span className="t-num break-all text-[var(--color-text)]">
-          {owner ? truncateAddress(owner, 8, 8) : "—"}
-        </span>
-        <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
-        <span className="t-small text-[var(--color-text-muted)]">
-          {loadingPositions
-            ? t.home.eyebrow.loadingPositions
-            : totalPositions === 1
-              ? t.home.eyebrow.onePosition
-              : t.home.eyebrow.manyPositions(totalPositions)}
-        </span>
-        {watchingCount > 0 ? (
-          <>
-            <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
-            <span className="inline-flex items-center gap-2 t-small text-[var(--color-positive)]">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)] pulse-soft" />
-              {watchingCount === 1
-                ? t.home.eyebrow.oneWatching
-                : t.home.eyebrow.manyWatching(watchingCount)}
-            </span>
-          </>
-        ) : null}
-      </div>
-    </section>
+          ) : null}
+        </>
+      }
+    />
   );
 }
+
+// ============================================================================
+// BotWalletEyebrow — eliminado en el rediseño "refined minimal dark". La
+// info que mostraba (address + counters) ahora vive en el sidebar
+// (WalletBeacon) y en StatStrip. Las strings i18n `home.eyebrow.*` quedan
+// huérfanas a propósito por si revertimos.
+// ============================================================================
 
 // ============================================================================
 // Positions hub — la tabla principal del home

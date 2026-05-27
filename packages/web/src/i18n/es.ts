@@ -74,6 +74,17 @@ export const es: typeof en = {
     docs: "Docs",
   },
 
+  statStrip: {
+    watching: "Vigilando",
+    watchingNote: (n: number) =>
+      n === 1 ? "1 auto-exit en vivo" : `${n} auto-exits en vivo`,
+    nearestTrigger: "Trigger más próximo",
+    nearestNote: "entre todos los auto-exits",
+    nearestNoneNote: "ningún trigger cruzado",
+    lastSync: "Última lectura",
+    lastSyncNote: "lectura más reciente del watcher",
+  },
+
   status: {
     idle: {
       label: "Listo",
@@ -159,6 +170,17 @@ export const es: typeof en = {
       localBody:
         "El servidor solo escucha en localhost. La clave de tu wallet vive cifrada en disco con tu passphrase y solo se descifra en memoria mientras está desbloqueada — nada sobre tu wallet, posiciones o trades sale de esta máquina.",
       disclaimerLink: "→ Uso bajo tu propia responsabilidad · disclaimer",
+    },
+
+    dashboard: {
+      eyebrow: "Resumen",
+      title: "Dashboard",
+      descriptionLoading: "Leyendo posiciones de esta wallet…",
+      descriptionNone: "Aún no hay posiciones LP en esta wallet.",
+      descriptionOne: "1 posición detectada — configura un auto-exit abajo.",
+      descriptionMany: (n: number) =>
+        `${n} posiciones detectadas en esta wallet.`,
+      lockedSuffix: "El vault está bloqueado — desbloquea para armar auto-exits.",
     },
 
     eyebrow: {

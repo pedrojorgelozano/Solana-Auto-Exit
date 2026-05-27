@@ -85,6 +85,20 @@ export const en = {
   },
 
   // ============================================================================
+  // Stat strip — KPIs del dashboard
+  // ============================================================================
+  statStrip: {
+    watching: "Watching",
+    watchingNote: (n: number) =>
+      n === 1 ? "1 auto-exit live" : `${n} auto-exits live`,
+    nearestTrigger: "Nearest trigger",
+    nearestNote: "across all auto-exits",
+    nearestNoneNote: "no triggers crossed yet",
+    lastSync: "Last update",
+    lastSyncNote: "most recent watcher read",
+  },
+
+  // ============================================================================
   // Status labels (statusView)
   // ============================================================================
   status: {
@@ -190,6 +204,17 @@ export const en = {
       oneWatching: "1 auto-exit watching",
       manyWatching: (n: number) => `${n} auto-exits watching`,
       whatIs: "→ What's a bot wallet",
+    },
+
+    dashboard: {
+      eyebrow: "Overview",
+      title: "Dashboard",
+      descriptionLoading: "Reading positions for this wallet…",
+      descriptionNone: "No LP positions detected in this wallet yet.",
+      descriptionOne: "1 position detected — configure an auto-exit below.",
+      descriptionMany: (n: number) =>
+        `${n} positions detected in this wallet.`,
+      lockedSuffix: "The vault is locked — unlock to arm any auto-exit.",
     },
 
     hub: {
