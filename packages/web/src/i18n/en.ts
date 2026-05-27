@@ -60,6 +60,29 @@ export const en = {
   },
 
   // ============================================================================
+  // Sidebar (sustituye al header global del rediseño anterior)
+  // ============================================================================
+  sidebar: {
+    aria: {
+      primary: "Primary",
+    },
+    workspaceLabel: "Workspace",
+    nav: {
+      dashboard: "Dashboard",
+      wallet: "Wallet",
+      positions: "Positions",
+      autoExits: "Auto-exits",
+      settings: "Settings",
+    },
+    serverLabel: "Server",
+    walletLabel: "Wallet",
+    setupWallet: "Set up wallet",
+    lockWallet: "Lock wallet",
+    locking: "Locking…",
+    docs: "Docs",
+  },
+
+  // ============================================================================
   // Status labels (statusView)
   // ============================================================================
   status: {

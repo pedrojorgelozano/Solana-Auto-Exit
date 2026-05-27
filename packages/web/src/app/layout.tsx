@@ -1,7 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { Providers } from "@/lib/providers";
-import { GlobalHeader } from "@/components/GlobalHeader";
+import { Sidebar } from "@/components/Sidebar";
 import { LangProvider } from "@/i18n/context";
 import { fraunces, sourceSerif, jetbrainsMono } from "./fonts";
 
@@ -29,8 +29,10 @@ export default function RootLayout({
             localStorage, sin dependencia del trpc client. */}
         <LangProvider>
           <Providers>
-            <GlobalHeader />
-            {children}
+            <div className="relative z-10 grid min-h-screen md:grid-cols-[252px_1fr]">
+              <Sidebar />
+              <div className="min-w-0">{children}</div>
+            </div>
           </Providers>
         </LangProvider>
       </body>

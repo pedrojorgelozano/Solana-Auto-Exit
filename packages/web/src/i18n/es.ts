@@ -52,6 +52,26 @@ export const es: typeof en = {
     walletUnlocked: "wallet desbloqueada",
   },
 
+  sidebar: {
+    aria: {
+      primary: "Primaria",
+    },
+    workspaceLabel: "Workspace",
+    nav: {
+      dashboard: "Dashboard",
+      wallet: "Wallet",
+      positions: "Posiciones",
+      autoExits: "Auto-exits",
+      settings: "Ajustes",
+    },
+    serverLabel: "Server",
+    walletLabel: "Wallet",
+    setupWallet: "Configurar wallet",
+    lockWallet: "Bloquear wallet",
+    locking: "Bloqueando…",
+    docs: "Docs",
+  },
+
   status: {
     idle: {
       label: "Listo",
