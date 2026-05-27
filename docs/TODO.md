@@ -9,9 +9,13 @@
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
-- [ ] **Revisar los mockups y planificar el rediseño de UI** — hay mockups
-  en `mockups/` (dirección "refined minimal dark"). Revisarlos, decidir el
-  alcance del rediseño y planificarlo.
+- [ ] **Rediseño de UI ("refined minimal dark")** — plan completo redactado
+  en [docs/sessions/2026-05-27-plan-redesign-refined-minimal-dark.md](sessions/2026-05-27-plan-redesign-refined-minimal-dark.md)
+  (gitignored). 7 bloques de trabajo (A-G), 6-9 sesiones estimadas. Cambia
+  paleta + fuentes + shell (sidebar) + IA (desaparecen `/wallet` y
+  `/positions`). Quedan 5 decisiones por cerrar antes de empezar (theme
+  toggle, USD oracle, eliminación de URLs, i18n toggle location, "New
+  auto-exit" modal vs página). Mockup fuente en `mockups/refined-minimal-dark.html`.
 
 ## Backlog (sin orden)
 
