@@ -275,21 +275,149 @@ Hot module reload, faster feedback loops, direct access to logs, easy to attach 
 
 If your host is "default-trust" (Docker can outbound freely), the Docker path is more convenient — single command, persistent across reboots, container isolation. The `pnpm` path is for hardened hosts and developers.
 
-### Prerequisites
+### Prerequisites — install these first
 
-| Tool | Version | How to install |
-|---|---|---|
-| **Node.js** | 22.x or 24.x (LTS) | [nvm](https://github.com/nvm-sh/nvm) on Linux/macOS (`nvm install 24`), or [nodejs.org](https://nodejs.org/) installer on Windows |
-| **pnpm** | 11.x | After Node is installed: `npm install -g pnpm@11` |
-| **Git** | any recent | Ubuntu: `sudo apt install git`. macOS: `brew install git` (or Xcode CLT). Windows: <https://git-scm.com/download/win> |
-| **C/C++ build tools** | system default | **Ubuntu/Debian:** `sudo apt install build-essential python3`. **macOS:** Xcode Command Line Tools (`xcode-select --install`). **Windows:** Visual Studio Build Tools 2022 with "Desktop development with C++". Required for `better-sqlite3`, which compiles natively against your Node version. |
+You need four tools: **Node.js**, **pnpm**, **Git**, and a **C/C++ build toolchain** (needed because `better-sqlite3` compiles natively against your installed Node). Pick your OS below and follow the steps in order. **Verify each step before moving on** — if `node` isn't found, `pnpm` won't be either.
 
-Sanity check (all should print versions, no errors):
+> **Already have Node 22 or 24 and Git?** Skip to step 2 (pnpm) in your OS section. If you only need the toolchain, run the sanity check at the end first.
+
+#### Windows
+
+**1. Install Node.js.** Download the **LTS** installer from <https://nodejs.org/> (any LTS version from 22.x onward works). Default options are fine. The installer bundles `npm` and `corepack`.
+
+Open a **brand new** PowerShell window (so it picks up the updated PATH) and verify:
+
+```powershell
+node --version    # should print v22.x.x or newer
+npm --version
+```
+
+If `node` is not recognized, log out and log back in (or reboot) — the installer adds Node to your PATH at user level, but already-open shells don't see it.
+
+**2. Install pnpm via Corepack** (Corepack ships with Node 16+; no separate download):
+
+```powershell
+corepack enable
+corepack prepare pnpm@latest --activate
+```
+
+Verify in another fresh PowerShell window:
+
+```powershell
+pnpm --version    # should print 10.x or 11.x
+```
+
+If `pnpm` still isn't found:
+- Confirm you opened a **new** terminal after step 1 (not the same one).
+- Check that `%APPDATA%\npm` or `%LOCALAPPDATA%\pnpm` is in your `$env:Path`.
+- As a fallback, the classic install works too: `npm install -g pnpm@11`.
+
+**3. Install Git.** Download from <https://git-scm.com/download/win>, or via `winget`:
+
+```powershell
+winget install --id Git.Git -e
+```
+
+New terminal, then `git --version`.
+
+**4. Install Visual Studio Build Tools 2022.** Download from <https://visualstudio.microsoft.com/visual-cpp-build-tools/>. In the installer, on the "Workloads" tab, **check "Desktop development with C++"** (the default selection on the right is fine). Without this, `pnpm install` will fail when building `better-sqlite3`.
+
+#### Ubuntu / Debian
+
+**1. Install Node.js via nvm.** The Node packaged in `apt` (`apt install nodejs`) is usually too old — use [nvm](https://github.com/nvm-sh/nvm) so you control the version:
 
 ```bash
+# Install nvm
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+
+# Load nvm in your current shell (the installer added this to ~/.bashrc but
+# already-open shells need an explicit reload):
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Install and use the current LTS:
+nvm install --lts
+nvm use --lts
+```
+
+Verify:
+
+```bash
+node --version    # v22.x.x or newer
+npm --version
+```
+
+If you open a new terminal later and `node` isn't found, your shell didn't auto-load nvm. Add the two `export` / `[ -s ]` lines above to your `~/.bashrc` or `~/.zshrc` (the nvm installer normally does this, but some setups skip it).
+
+**2. Install pnpm via Corepack:**
+
+```bash
+corepack enable
+corepack prepare pnpm@latest --activate
+```
+
+Verify: `pnpm --version`.
+
+**3. Install Git and the build toolchain:**
+
+```bash
+sudo apt update
+sudo apt install -y git build-essential python3
+```
+
+`build-essential` brings GCC + make. `python3` is required by `node-gyp` for the native compile of `better-sqlite3`.
+
+#### macOS
+
+**1. Install Node.js via nvm:**
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+
+# macOS default shell is zsh — reload:
+source ~/.zshrc      # or open a new terminal
+
+nvm install --lts
+nvm use --lts
 node --version
+```
+
+Alternative (no version manager): the installer at <https://nodejs.org/> also works on macOS.
+
+**2. Install pnpm via Corepack:**
+
+```bash
+corepack enable
+corepack prepare pnpm@latest --activate
 pnpm --version
+```
+
+**3. Install Xcode Command Line Tools** (provides `git` and the C/C++ toolchain in one shot):
+
+```bash
+xcode-select --install
+```
+
+Follow the GUI prompt. After it finishes:
+
+```bash
 git --version
+cc --version
+```
+
+#### Sanity check (all OS)
+
+These four commands should all print a version with no errors. If any fails, fix that step before moving to the install:
+
+```bash
+node --version    # 22.x or newer
+pnpm --version    # 10.x or 11.x
+git --version
+# C/C++ toolchain check — Linux/macOS:
+echo 'int main(){return 0;}' > /tmp/cctest.c && cc /tmp/cctest.c -o /tmp/cctest && echo "C/C++ OK" && rm /tmp/cctest /tmp/cctest.c
+# On Windows the toolchain check is implicit: if Visual Studio Build Tools 2022
+# is installed with "Desktop development with C++", pnpm install below will
+# pick it up. If not, you'll see an error mentioning MSBuild or node-gyp.
 ```
 
 ### Install
@@ -672,6 +800,17 @@ sudo chown -R 1000:1000 packages/server/data
 ```
 
 Docker Desktop (Windows/Mac) handles uid mapping transparently, so this is a Linux-only concern.
+
+### "pnpm: command not found" or "El término 'pnpm' no se reconoce" (Run from source)
+
+You haven't completed the prerequisites for the [Run from source with pnpm](#run-from-source-with-pnpm-any-os) path. The most common reasons:
+
+- **Node.js isn't installed yet.** `pnpm` is installed via Node's bundled `corepack` or via `npm install -g pnpm`, so without Node there's no path to pnpm. Go through step 1 in the OS section first.
+- **You're in the same terminal where you installed Node.** New PATH entries don't apply to already-open shells. Open a fresh terminal and try again.
+- **You installed Node but skipped `corepack enable` / `corepack prepare pnpm@latest --activate`**. Node ships with corepack but doesn't activate pnpm by default until you ask for it.
+- **On Linux, nvm isn't loaded in your shell.** If you closed and reopened the terminal after the nvm install but `node` itself isn't found either, your shell startup file doesn't source nvm. Re-run the two `export NVM_DIR / [ -s $NVM_DIR/nvm.sh ]` lines from the Ubuntu section, and append them to `~/.bashrc` (or `~/.zshrc`) so future shells load it.
+
+Verify with `node --version && pnpm --version` in a **new** terminal. Both must print before `pnpm install` will work.
 
 ### Windows installer — "Windows protected your PC"
 
