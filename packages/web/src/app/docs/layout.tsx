@@ -7,7 +7,7 @@ export default function DocsLayout({
   children: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-32 pt-12 fade-in">
+    <main className="mr-auto max-w-6xl px-6 pb-32 pt-12 fade-in">
       <Link
         href="/"
         className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"

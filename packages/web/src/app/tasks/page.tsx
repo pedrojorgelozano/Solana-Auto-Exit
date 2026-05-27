@@ -36,7 +36,7 @@ export default function TasksListPage() {
   const counts = useMemo(() => countByFilter(rows), [rows]);
 
   return (
-    <main className="mx-auto max-w-5xl px-6 pb-32 pt-12 fade-in">
+    <main className="mr-auto max-w-5xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow={tl.pageEyebrow}
         title={tl.pageTitle}

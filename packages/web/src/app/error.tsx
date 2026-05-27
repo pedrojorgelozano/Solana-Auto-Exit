@@ -16,7 +16,7 @@ export default function ErrorBoundary({
   }, [error]);
 
   return (
-    <main className="mx-auto flex min-h-[60vh] max-w-3xl flex-col justify-center px-6 py-20">
+    <main className="mr-auto flex min-h-[60vh] max-w-3xl flex-col justify-center px-6 py-20">
       <div className="t-eyebrow text-[var(--color-danger)]">Error</div>
       <h1 className="mt-4 t-display">Something broke.</h1>
       <p className="mt-6 max-w-md t-body text-[var(--color-text-muted)]">

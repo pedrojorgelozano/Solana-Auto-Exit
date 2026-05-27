@@ -48,7 +48,7 @@ export default function Home() {
   });
 
   if (walletStatus.isLoading) {
-    return <main className="mx-auto max-w-6xl px-6 pt-16" />;
+    return <main className="mr-auto max-w-6xl px-6 pt-16" />;
   }
   if (!walletStatus.data?.hasVault) {
     return <FirstRunHome />;
@@ -112,7 +112,7 @@ function ConnectedHome({
   );
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-32 pt-12 fade-in md:px-12">
+    <main className="mr-auto max-w-6xl px-6 pb-32 pt-12 fade-in md:px-12">
       <DashboardHeader
         unlocked={unlocked}
         totalPositions={allRefs.length}
@@ -863,7 +863,7 @@ function FirstRunHome() {
   const { t } = useT();
   const fr = t.home.firstRun;
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32 pt-16 fade-in">
+    <main className="mr-auto max-w-4xl px-6 pb-32 pt-16 fade-in">
       <section className="pb-20">
         <div className="t-eyebrow text-[var(--color-accent-bright)]">
           {fr.eyebrow}

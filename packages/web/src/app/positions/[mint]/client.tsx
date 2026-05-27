@@ -80,7 +80,7 @@ export default function PositionPage() {
   const firstError = orcaList.error ?? meteoraList.error;
 
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
+    <main className="mr-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow={t.configure.pageEyebrow}
         title={t.configure.pageTitle}

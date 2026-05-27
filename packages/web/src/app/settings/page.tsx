@@ -41,7 +41,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="mx-auto max-w-3xl px-6 pb-32 pt-12 fade-in">
+    <main className="mr-auto max-w-3xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow={t.settings.pageEyebrow}
         title={t.settings.pageTitle}
