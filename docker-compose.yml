@@ -13,6 +13,16 @@
 #
 # El prefijo "127.0.0.1:" de cada binding garantiza que SOLO son accesibles
 # desde la propia máquina (loopback). No se exponen a la LAN ni a internet.
+#
+# Hardening aplicado a ambos servicios:
+#   - non-root: el Dockerfile fija `USER node` (uid 1000). Si el bind volume
+#     `./packages/server/data/` tiene un owner distinto en el host, ajustar
+#     con `chown -R 1000:1000 packages/server/data` (ver INSTALL.md).
+#   - read_only: rootfs inmutable; /tmp y /home/node viven en tmpfs.
+#   - cap_drop ALL: ninguna capability de Linux concedida.
+#   - no-new-privileges: setuid/setgid no escala dentro del contenedor.
+#   - límites de RAM/CPU: un bug o ataque no come toda la máquina.
+#   - healthcheck: Docker reinicia el contenedor si el servicio no responde.
 # =============================================================================
 
 services:
@@ -37,6 +47,28 @@ services:
       DB_PATH: "/app/data/auto-exit.db"
       WALLET_VAULT_PATH: "/app/data/wallet.vault"
       NODE_ENV: "production"
+    # --- hardening ----------------------------------------------------------
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,uid=1000,gid=1000
+      - /home/node:size=32M,uid=1000,gid=1000
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+    healthcheck:
+      # `wget` está en busybox de alpine. `--spider` solo comprueba HTTP, no
+      # descarga. settings.get devuelve 200 si el server vivo y la DB OK.
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:7777/trpc/settings.get"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   web:
     # Reutiliza la imagen que construye el servicio `server`.
@@ -44,7 +76,9 @@ services:
     container_name: solana-auto-exit-web
     restart: unless-stopped
     depends_on:
-      - server
+      server:
+        # No arranca el web hasta que el server pase su healthcheck.
+        condition: service_healthy
     # `next start` con -H 0.0.0.0 para que el puerto sea accesible desde el
     # host. El script `start` del paquete fija -H 127.0.0.1, que dentro del
     # contenedor dejaría la web inalcanzable; por eso se invoca next directo.
@@ -54,3 +88,27 @@ services:
     environment:
       NEXT_TELEMETRY_DISABLED: "1"
       NODE_ENV: "production"
+    # --- hardening ----------------------------------------------------------
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M,uid=1000,gid=1000
+      - /home/node:size=32M,uid=1000,gid=1000
+      # Next.js usa .next/cache para ISR + fetch cache; con rootfs read-only
+      # necesita un sitio writable. Tmpfs porque la cache es regenerable.
+      - /app/packages/web/.next/cache:size=64M,uid=1000,gid=1000
+    cap_drop:
+      - ALL
+    security_opt:
+      - "no-new-privileges:true"
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "1.0"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # Next tarda más en estar listo que el server.
+      start_period: 60s

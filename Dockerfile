@@ -42,29 +42,35 @@ RUN pnpm install --frozen-lockfile
 # -----------------------------------------------------------------------------
 # Stage 2: runtime — imagen final con node_modules de deps + código fuente +
 # la web ya compilada (Next.js en modo server, NO static export).
+#
+# Corre como el user `node` (uid 1000) que viene en la imagen base, no root.
+# Combinado con `read_only: true`, `cap_drop: ALL` y `no-new-privileges` en el
+# compose, deja la superficie de ataque en lo razonable para single-user.
 # -----------------------------------------------------------------------------
 FROM node:24-alpine AS runtime
 
-# libstdc++ es el runtime del binding nativo de better-sqlite3.
+# Pasos de root primero — instalar libs + pnpm global.
 RUN apk add --no-cache libstdc++
+RUN npm install -g pnpm@11.1.3
 
 WORKDIR /app
-
-RUN npm install -g pnpm@11.1.3
 
 # Telemetría de Next.js desactivada — aplica al `next build` de abajo y al
 # `next start` en runtime.
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Traemos node_modules ya instalados con los bindings nativos compilados.
-COPY --from=deps /app /app
+# `--chown` deja /app entero owned por el user `node` para poder ejecutar el
+# build y el runtime sin root.
+COPY --from=deps --chown=node:node /app /app
 
 # Copiamos el código fuente. El .dockerignore excluye node_modules, data y
 # artefactos de build, así que las deps de la fase anterior no se pisan.
-COPY . .
+COPY --chown=node:node . .
 
-# Compilamos la web. Sin TAURI_BUILD → Next.js en modo server (no static
-# export); el `next start` del compose la sirve.
+# Build de la web como `node`, no como root. Sin TAURI_BUILD → Next.js en modo
+# server (no static export); el `next start` del compose la sirve.
+USER node
 RUN pnpm --filter @solana-auto-exit/web build
 
 # server → 7777, web → 3000. El host mapea ambos vía docker-compose.
