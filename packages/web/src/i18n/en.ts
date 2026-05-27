@@ -535,10 +535,10 @@ export const en = {
       estimatedValueNote: "liquidity + pending fees",
       feesValueNote: (totalInQuote: string) =>
         `≈ ${totalInQuote} — collected on close`,
-      rangeWithStatus: (lo: string, hi: string) =>
-        `${lo} – ${hi} · earning fees`,
-      rangeWhenOut: (lo: string, hi: string) =>
-        `${lo} – ${hi} · not earning fees`,
+      rangeWithStatus: (lo: string, hi: string, sym: string) =>
+        `${lo} – ${hi} ${sym} · earning fees`,
+      rangeWhenOut: (lo: string, hi: string, sym: string) =>
+        `${lo} – ${hi} ${sym} · not earning fees`,
       noFees: "—",
     },
 

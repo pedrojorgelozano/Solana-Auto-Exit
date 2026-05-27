@@ -210,11 +210,16 @@ function Detail({ task, refresh }: { task: TaskData; refresh: () => void }) {
         </div>
       ) : null}
 
-      <HeroPanel task={task} summary={summary} mintB={mintB} />
+      <HeroPanel
+        task={task}
+        summary={summary}
+        mintA={mintA}
+        mintB={mintB}
+      />
 
       <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1fr_332px]">
         <div className="flex min-w-0 flex-col gap-4">
-          <TriggerCards task={task} />
+          <TriggerCards task={task} quoteSym={tokenSymbol(mintB)} />
           {summary ? (
             <HoldingsPanel summary={summary} />
           ) : null}
@@ -533,12 +538,16 @@ function HeadActions({
 function HeroPanel({
   task,
   summary,
+  mintA,
   mintB,
 }: {
   task: TaskData;
   summary: PositionSummary | null;
+  mintA: string;
   mintB: string;
 }) {
+  const baseSym = tokenSymbol(mintA);
+  const quoteSym = tokenSymbol(mintB);
   const { t } = useT();
   const h = t.taskDetail.heroPanel;
   // Reloj para el "Updated Xs ago · next poll in Ys". 1s refresh.
@@ -595,9 +604,19 @@ function HeroPanel({
             />
             {h.liveLabel}
           </span>
-          <span className="text-[44px] font-medium leading-none tracking-[-0.035em] t-num md:text-[54px]">
-            {currentPrice !== null ? formatPrice(currentPrice, 4) : "—"}
-          </span>
+          <div className="flex items-baseline gap-3">
+            <span className="t-num text-[15px] font-medium text-[var(--color-text-muted)]">
+              1 {baseSym} =
+            </span>
+            <span className="text-[44px] font-medium leading-none tracking-[-0.035em] t-num md:text-[54px]">
+              {currentPrice !== null ? formatPrice(currentPrice, 4) : "—"}
+            </span>
+            {currentPrice !== null ? (
+              <span className="text-[20px] font-medium text-[var(--color-text-muted)]">
+                {quoteSym}
+              </span>
+            ) : null}
+          </div>
           <span className="text-[14px] text-[var(--color-text-dim)]">
             {updatedAgo && nextPollText ? (
               <>
@@ -960,7 +979,13 @@ function BandFlag({
 // TriggerCards — TP/SL en grid 2×
 // ============================================================================
 
-function TriggerCards({ task }: { task: TaskData }) {
+function TriggerCards({
+  task,
+  quoteSym,
+}: {
+  task: TaskData;
+  quoteSym: string;
+}) {
   const tpPrice = task.takeProfitPrice;
   const slPrice = task.stopLossPrice;
   if (tpPrice === null && slPrice === null) return null;
@@ -977,6 +1002,7 @@ function TriggerCards({ task }: { task: TaskData }) {
         <TriggerCard
           kind="tp"
           price={tpPrice}
+          quoteSym={quoteSym}
           distance={tpDistance}
           triggered={task.triggeredBy === "take_profit"}
           bufferMs={task.takeProfitBufferMs}
@@ -987,6 +1013,7 @@ function TriggerCards({ task }: { task: TaskData }) {
         <TriggerCard
           kind="sl"
           price={slPrice}
+          quoteSym={quoteSym}
           distance={slDistance}
           triggered={task.triggeredBy === "stop_loss"}
           bufferMs={task.stopLossBufferMs}
@@ -1000,6 +1027,7 @@ function TriggerCards({ task }: { task: TaskData }) {
 function TriggerCard({
   kind,
   price,
+  quoteSym,
   distance,
   triggered,
   bufferMs,
@@ -1007,6 +1035,7 @@ function TriggerCard({
 }: {
   kind: "tp" | "sl";
   price: number;
+  quoteSym: string;
   distance: ReturnType<typeof formatDistance> | null;
   triggered: boolean;
   bufferMs: number | null;
@@ -1086,7 +1115,10 @@ function TriggerCard({
       </div>
 
       <div className="t-num text-[28px] font-medium leading-none tracking-[-0.02em] text-[var(--color-text)] md:text-[30px]">
-        {op} {formatPrice(price, 4)}
+        {op} {formatPrice(price, 4)}{" "}
+        <span className="text-[15px] font-medium text-[var(--color-text-muted)]">
+          {quoteSym}
+        </span>
       </div>
 
       <div className="mt-4 flex items-baseline justify-between text-[14px] text-[var(--color-text-dim)]">
@@ -1128,8 +1160,14 @@ function TriggerCard({
         <span>
           {bufferMs && bufferMs > 0
             ? isTp
-              ? tc.bufferFootTp(formatPrice(price, 4), formatBuffer(bufferMs, t))
-              : tc.bufferFootSl(formatPrice(price, 4), formatBuffer(bufferMs, t))
+              ? tc.bufferFootTp(
+                  `${formatPrice(price, 4)} ${quoteSym}`,
+                  formatBuffer(bufferMs, t),
+                )
+              : tc.bufferFootSl(
+                  `${formatPrice(price, 4)} ${quoteSym}`,
+                  formatBuffer(bufferMs, t),
+                )
             : tc.noBufferFoot}
           {remaining ? (
             <>
@@ -1241,10 +1279,12 @@ function HoldingsPanel({ summary }: { summary: PositionSummary }) {
               ? ho.rangeWithStatus(
                   formatPrice(summary.range.min, 2),
                   formatPrice(summary.range.max, 2),
+                  symB,
                 )
               : ho.rangeWhenOut(
                   formatPrice(summary.range.min, 2),
                   formatPrice(summary.range.max, 2),
+                  symB,
                 )}
           </p>
         </HoldingCell>
