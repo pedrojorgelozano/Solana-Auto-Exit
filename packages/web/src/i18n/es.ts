@@ -441,6 +441,114 @@ export const es: typeof en = {
       outputMinimum: "Output (mínimo)",
     },
 
+    // ---- Bloque G: detail mockup ----
+    head: {
+      protocol: {
+        orca: "Orca Whirlpools",
+        meteora: "Meteora DLMM",
+      },
+      armedPrefix: "Armado",
+      taskShortPrefix: "auto-exit",
+      pollingPrefix: "cada",
+      openInExplorer: "Abrir la posición en el explorer de Solana",
+    },
+
+    heroPanel: {
+      liveLabel: "Precio del pool · en vivo",
+      liveMetaPrefix: (ago: string) =>
+        `Actualizado ${ago} · próximo poll en`,
+      liveMetaNoTick: "aún sin ticks",
+      toTp: "Hasta take-profit",
+      toSl: "Hasta stop-loss",
+      poolRange: "Rango del pool",
+      inRange: "En rango",
+      outOfRange: "Fuera de rango",
+      bandLegendRange: "Rango de liquidez — generando fees",
+      bandLegendSl: "Stop-loss",
+      bandLegendTp: "Take-profit",
+      bandLegendPrice: "Precio en vivo",
+      bandAria: (args: {
+        lo: string;
+        hi: string;
+        rangeLo: string;
+        rangeHi: string;
+        sl: string | null;
+        tp: string | null;
+        currentPrice: string;
+        inRange: boolean;
+      }) =>
+        `Banda de precio de ${args.lo} a ${args.hi}. El rango de liquidez va de ${args.rangeLo} a ${args.rangeHi}.${
+          args.sl ? ` Trigger de stop-loss en ${args.sl}.` : ""
+        }${args.tp ? ` Trigger de take-profit en ${args.tp}.` : ""} Precio actual del pool: ${args.currentPrice} — ${args.inRange ? "dentro" : "fuera"} del rango.`,
+      zoneTag: "Rango de liquidez",
+    },
+
+    triggerCard: {
+      tp: "Take-profit",
+      sl: "Stop-loss",
+      armedBadge: "Armado",
+      firedBadge: "Disparado",
+      distance: "Distancia al trigger",
+      reached: "trigger cumplido",
+      bufferFootTp: (price: string, duration: string) =>
+        `Cierra solo si el precio se mantiene ≥ ${price} durante ${duration}`,
+      bufferFootSl: (price: string, duration: string) =>
+        `Cierra solo si el precio se mantiene ≤ ${price} durante ${duration}`,
+      noBufferFoot: "Cierra en el siguiente tick tras el trigger.",
+    },
+
+    holdings: {
+      title: "Holdings de la posición",
+      refreshed: "refrescado cada 10s",
+      liquidity: "Liquidez",
+      pendingFees: "Fees pendientes",
+      rangeStatus: "Estado del rango",
+      estimatedValue: "Valor estimado",
+      estimatedValueNote: "liquidez + fees pendientes",
+      feesValueNote: (totalInQuote: string) =>
+        `≈ ${totalInQuote} — se recogen al cerrar`,
+      rangeWithStatus: (lo: string, hi: string) =>
+        `${lo} – ${hi} · generando fees`,
+      rangeWhenOut: (lo: string, hi: string) =>
+        `${lo} – ${hi} · sin generar fees`,
+      noFees: "—",
+    },
+
+    closePlan: {
+      title: "Cuando un trigger se dispara",
+      step1Title: "Cobrar fees y rewards",
+      step1Desc:
+        "Primero se recogen los fees pendientes a la bot wallet.",
+      step2Title: "Retirar toda la liquidez",
+      step2Desc: (proto: string) =>
+        `Se retiran ambos tokens de la posición de ${proto}.`,
+      step3Title: "Cerrar la posición",
+      step3Desc:
+        "Se cierra la cuenta NFT de la posición y se recupera su rent.",
+      step4Title: (sym: string) => `Swappear a ${sym}`,
+      step4Desc: (slippage: string) =>
+        `El output se cambia a tu token de salida en el mismo pool, con ${slippage} de slippage.`,
+      step4Skipped:
+        "El output se queda en los tokens originales — sin swap de salida configurado.",
+      foot: "Cada paso reintenta automáticamente. La transacción confirmada se verifica on-chain — cotizado vs real — y la diferencia se registra en el receipt.",
+    },
+
+    detailsPanel: {
+      title: "Detalles",
+      protocol: "Protocolo",
+      network: "Red",
+      networkMainnet: "Mainnet",
+      networkDevnet: "Devnet",
+      exitToken: "Token de salida",
+      exitTokenNone: "ninguno",
+      timeBuffer: "Time buffer",
+      pollInterval: "Intervalo de poll",
+      closeSlippage: "Slippage de cierre",
+      swapSlippage: "Slippage de swap",
+      positionMint: "Mint de la posición",
+      bufferDash: "—",
+    },
+
     timeline: {
       eyebrow: "Actividad",
       whatsInHere: "→ Qué hay aquí",

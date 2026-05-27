@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@solana-auto-exit/server/api";
 
-import { PageHeader } from "@/components/PageHeader";
+import { Panel } from "@/components/Panel";
+import { TokenPair } from "@/components/TokenBadge";
 import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { trpc } from "@/lib/trpc";
@@ -19,18 +20,18 @@ import {
   formatDistance,
   formatPollInterval,
   formatPrice,
-  formatRangeStatus,
   formatSlippage,
-  formatTaskPair,
   formatTimeAgo,
   formatTokenAmount,
-  formatTriggers,
   truncateAddress,
 } from "@/lib/format";
 import { tokenSymbol, tokenMeta } from "@/lib/tokens";
 import { useT } from "@/i18n/context";
 
 type TaskData = inferRouterOutputs<AppRouter>["tasks"]["get"];
+type PositionSummary = inferRouterOutputs<
+  AppRouter
+>["positions"]["getSummary"];
 
 interface CloseResultShape {
   dryRun: boolean;
@@ -63,6 +64,11 @@ interface ProtocolConfigShape {
 }
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
+const DEVNET_USDC_FALLBACK = "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k";
+
+// ============================================================================
+// Page wrapper
+// ============================================================================
 
 export default function TaskPage() {
   const searchParams = useSearchParams();
@@ -73,51 +79,89 @@ export default function TaskPage() {
   const { t } = useT();
 
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32 pt-12 fade-in">
-      <PageHeader
-        eyebrow={t.taskDetail.pageEyebrow}
-        title={t.taskDetail.pageTitle}
-        back={{ href: "/tasks", label: t.taskDetail.backLabel }}
-      />
+    <main className="mx-auto max-w-[1180px] px-8 pb-24 pt-8 fade-in">
+      <Link
+        href="/tasks"
+        className="
+          inline-flex items-center gap-[7px] text-[12.5px] font-medium
+          text-[var(--color-text-dim)] transition-colors
+          hover:text-[var(--color-accent)]
+        "
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-[14px] w-[14px]"
+          aria-hidden
+        >
+          <path d="M19 12H5M11 6l-6 6 6 6" />
+        </svg>
+        {t.taskDetail.backLabel}
+      </Link>
 
-      {task.isLoading ? (
-        <p className="t-small text-[var(--color-text-muted)]">
-          {t.common.loading}
-        </p>
-      ) : task.error ? (
-        <p className="t-small text-[var(--color-danger)]">{task.error.message}</p>
-      ) : task.data ? (
-        <Dashboard task={task.data} refresh={refresh} />
-      ) : null}
+      <div className="mt-6">
+        {task.isLoading ? (
+          <p className="t-small text-[var(--color-text-muted)]">
+            {t.common.loading}
+          </p>
+        ) : task.error ? (
+          <p className="t-small text-[var(--color-danger)]">
+            {task.error.message}
+          </p>
+        ) : task.data ? (
+          <Detail task={task.data} refresh={refresh} />
+        ) : null}
+      </div>
     </main>
   );
 }
 
 // ============================================================================
-// Dashboard
+// Detail — root del rediseño
 // ============================================================================
 
-function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
-  const { t } = useT();
-  const view = statusView(task.status as BackendStatus);
-  const tone = TONE_CLASSES[view.tone];
-  const statusKey = task.status as BackendStatus;
-  const statusLabel = t.status[statusKey]?.label ?? task.status;
-  const statusDescription = t.status[statusKey]?.description ?? "";
-
+function Detail({ task, refresh }: { task: TaskData; refresh: () => void }) {
   const protocolConfig = task.protocolConfig as ProtocolConfigShape | null;
   const decimalsA = protocolConfig?.decimalsA ?? 9;
   const decimalsB = protocolConfig?.decimalsB ?? 6;
-  // Desde F2.4 persistimos tokenMintA/tokenMintB en protocolConfig al crear el
-  // task. Para tasks anteriores caemos a la heurística previa (SOL en A,
-  // exitTokenMint o devUSDC en B).
+  // Desde F2.4 persistimos tokenMintA/tokenMintB en protocolConfig al crear
+  // el task. Para tasks anteriores caemos al fallback (SOL en A, exitToken
+  // o devUSDC en B).
   const mintA = protocolConfig?.tokenMintA ?? SOL_MINT;
   const mintB =
-    protocolConfig?.tokenMintB ??
-    task.exitTokenMint ??
-    "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k";
+    protocolConfig?.tokenMintB ?? task.exitTokenMint ?? DEVNET_USDC_FALLBACK;
 
-  // History compartido entre los receipts (busca el verified) y el timeline.
+  // Wallet + listOwned + getSummary para el price band y el panel de holdings.
+  // Si no hay summary (vault locked, posición cerrada/transferida), el hero
+  // y el panel adaptan su contenido en vez de romperse.
+  const walletStatus = trpc.wallet.status.useQuery();
+  const owner = walletStatus.data?.address;
+  const listOwned = trpc.positions.listOwned.useQuery(
+    {
+      protocol: task.protocol,
+      network: task.network,
+      rpcUrl: task.rpcUrl,
+      owner: owner ?? "",
+    },
+    { enabled: !!owner },
+  );
+  const ref = listOwned.data?.find((r) => r.id === task.positionId);
+  const summaryQuery = trpc.positions.getSummary.useQuery(
+    {
+      protocol: task.protocol,
+      network: task.network,
+      rpcUrl: task.rpcUrl,
+      ref: ref ?? { protocol: "", id: "", label: "", poolId: "" },
+    },
+    { enabled: !!ref, refetchInterval: 10_000 },
+  );
+  const summary = summaryQuery.data ?? null;
+
+  // History compartido entre receipts (verified deltas) y el timeline.
   // TanStack Query deduplica las dos llamadas con la misma key.
   const history = trpc.tasks.history.useQuery(
     { id: task.id },
@@ -136,166 +180,280 @@ function Dashboard({ task, refresh }: { task: TaskData; refresh: () => void }) {
     swapShape?.txId,
   );
 
-  const tpDistance =
-    task.takeProfitPrice !== null
-      ? formatDistance(task.runtime.lastPrice, task.takeProfitPrice, "above")
-      : null;
-  const slDistance =
-    task.stopLossPrice !== null
-      ? formatDistance(task.runtime.lastPrice, task.stopLossPrice, "below")
-      : null;
-
   return (
-    <div className="space-y-16">
-      {/* === Hero === */}
-      <section>
-        <div className="flex items-center gap-3">
-          <span
-            className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot} ${
-              view.pulsing ? "pulse-soft" : ""
-            }`}
-          />
-          <span className={`t-eyebrow ${tone.text}`}>{statusLabel}</span>
-          {task.dryRun ? (
-            <span className="t-eyebrow text-[var(--color-warning)]">
-              {t.format.simulation}
-            </span>
-          ) : null}
-        </div>
-        <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
-          {statusDescription}
-        </p>
+    <>
+      <DetailHeader
+        task={task}
+        mintA={mintA}
+        mintB={mintB}
+        refresh={refresh}
+      />
 
-        {/* Big number: current price */}
-        <div className="mt-10 grid grid-cols-1 gap-10 md:grid-cols-12">
-          <div className="md:col-span-7">
-            <div className="t-eyebrow text-[var(--color-text-muted)]">
-              {t.taskDetail.hero.currentPrice}
-            </div>
-            <div className="mt-3 t-num-display tabular-nums">
-              {task.runtime.lastPrice !== null
-                ? formatPrice(task.runtime.lastPrice, 6)
-                : "—"}
-            </div>
-            <div className="mt-3 t-small text-[var(--color-text-muted)]">
-              {task.runtime.lastTickAt
-                ? t.taskDetail.hero.lastTick(
-                    new Date(task.runtime.lastTickAt).toLocaleTimeString(),
-                  )
-                : t.taskDetail.hero.noTicks}
-            </div>
-          </div>
-
-          <div className="md:col-span-5 md:border-l md:border-[var(--color-hairline)] md:pl-10 space-y-6">
-            {task.takeProfitPrice !== null ? (
-              <TriggerBlock
-                kind="tp"
-                price={task.takeProfitPrice}
-                distance={tpDistance}
-                triggered={task.triggeredBy === "take_profit"}
-                bufferMs={task.takeProfitBufferMs}
-                firstCrossedAt={task.runtime.tpFirstCrossedAt}
-              />
-            ) : null}
-            {task.stopLossPrice !== null ? (
-              <TriggerBlock
-                kind="sl"
-                price={task.stopLossPrice}
-                distance={slDistance}
-                triggered={task.triggeredBy === "stop_loss"}
-                bufferMs={task.stopLossBufferMs}
-                firstCrossedAt={task.runtime.slFirstCrossedAt}
-              />
-            ) : null}
-          </div>
-        </div>
-
-        <Controls task={task} status={task.status as BackendStatus} refresh={refresh} />
-      </section>
-
-      {/* === Pool state (live) === */}
-      <PoolState task={task} />
-
-      {/* === Trigger details === */}
-      <TriggerDetails task={task} />
-
-      {/* === Error + Recovery panel — solo en status error con mensaje === */}
+      {/* Recuperación de error → ancho completo encima del grid */}
       {task.status === "error" && task.lastError ? (
-        <ErrorRecovery
-          taskId={task.id}
-          positionId={task.positionId}
-          message={task.lastError}
-          slippageBps={task.slippageBps}
-          triggered={task.triggeredAt !== null}
-          refresh={refresh}
-        />
+        <div className="mb-4">
+          <ErrorRecovery
+            taskId={task.id}
+            positionId={task.positionId}
+            message={task.lastError}
+            slippageBps={task.slippageBps}
+            triggered={task.triggeredAt !== null}
+            refresh={refresh}
+          />
+        </div>
       ) : task.lastError ? (
-        <section className="border-l-2 border-[var(--color-danger)] pl-5">
+        <div className="mb-4 border-l-2 border-[var(--color-danger)] pl-5">
           <div className="t-eyebrow text-[var(--color-danger)]">Last error</div>
           <p className="mt-2 break-words t-small text-[var(--color-text)]">
             {task.lastError}
           </p>
-        </section>
+        </div>
       ) : null}
 
-      {/* === Close result === */}
-      {task.closeResult ? (
-        <CloseReceipt
-          data={task.closeResult as unknown as CloseResultShape}
-          decimalsA={decimalsA}
-          decimalsB={decimalsB}
-          mintA={mintA}
-          mintB={mintB}
-          verified={verifiedClose}
-          network={task.network}
-        />
-      ) : null}
+      <HeroPanel task={task} summary={summary} mintB={mintB} />
 
-      {/* === Swap result === */}
-      {task.swapResult ? (
-        <SwapReceipt
-          data={task.swapResult as unknown as SwapResultShape}
-          exitTokenMint={task.exitTokenMint}
-          mintA={mintA}
-          decimalsA={decimalsA}
-          decimalsB={decimalsB}
-          verified={verifiedSwap}
-          network={task.network}
-        />
-      ) : null}
+      <div className="mt-4 grid items-start gap-4 lg:grid-cols-[1fr_332px]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <TriggerCards task={task} />
+          {summary ? (
+            <HoldingsPanel summary={summary} />
+          ) : null}
+          <ClosePlanPanel task={task} />
+          {task.closeResult ? (
+            <CloseReceipt
+              data={task.closeResult as unknown as CloseResultShape}
+              decimalsA={decimalsA}
+              decimalsB={decimalsB}
+              mintA={mintA}
+              mintB={mintB}
+              verified={verifiedClose}
+              network={task.network}
+            />
+          ) : null}
+          {task.swapResult ? (
+            <SwapReceipt
+              data={task.swapResult as unknown as SwapResultShape}
+              exitTokenMint={task.exitTokenMint}
+              mintA={mintA}
+              decimalsA={decimalsA}
+              decimalsB={decimalsB}
+              verified={verifiedSwap}
+              network={task.network}
+            />
+          ) : null}
+        </div>
 
-      {/* === Activity timeline === */}
-      <ActivityTimeline taskId={task.id} network={task.network} />
-    </div>
+        <aside className="flex flex-col gap-4 lg:sticky lg:top-6">
+          <DetailsPanel task={task} />
+          <ActivityTimelinePanel
+            taskId={task.id}
+            network={task.network}
+          />
+        </aside>
+      </div>
+    </>
   );
 }
 
 // ============================================================================
-// Controls
+// DetailHeader — title row + meta + actions
 // ============================================================================
 
-function Controls({
+function DetailHeader({
   task,
-  status,
+  mintA,
+  mintB,
   refresh,
 }: {
   task: TaskData;
-  status: BackendStatus;
+  mintA: string;
+  mintB: string;
   refresh: () => void;
+}) {
+  const { t } = useT();
+  const view = statusView(task.status as BackendStatus);
+  const tone = TONE_CLASSES[view.tone];
+  const statusLabel =
+    t.status[task.status as BackendStatus]?.label ?? task.status;
+  const protoLabel =
+    task.protocol === "orca"
+      ? t.taskDetail.head.protocol.orca
+      : task.protocol === "meteora"
+        ? t.taskDetail.head.protocol.meteora
+        : task.protocol;
+  const symA = tokenSymbol(mintA);
+  const symB = tokenSymbol(mintB);
+  const armedRelative = formatTimeAgo(
+    new Date(task.createdAt).getTime(),
+    t,
+  );
+  const idShort = task.id.slice(-4);
+  const pollLabel = formatPollInterval(task.pollMs);
+
+  // El "explorer" enlaza a la cuenta de la position NFT (no a una tx). Solscan
+  // acepta accounts. Si no hay positionMint, omitimos el link.
+  const protocolConfig = task.protocolConfig as ProtocolConfigShape | null;
+  const positionMint = protocolConfig?.positionMint;
+  const explorerHref = positionMint
+    ? `https://solscan.io/account/${positionMint}${
+        task.network === "mainnet" ? "" : "?cluster=devnet"
+      }`
+    : null;
+
+  return (
+    <header className="mb-6 flex flex-col gap-5 border-b border-[var(--color-hairline)] pb-6 lg:flex-row lg:items-start lg:justify-between lg:gap-7">
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-3">
+          <TokenPair mintA={mintA} mintB={mintB} size={26} />
+          <h1 className="text-[28px] font-bold leading-none tracking-[-0.025em] md:text-[32px]">
+            {symA} / {symB}
+          </h1>
+          <span
+            className="
+              rounded-md border px-[9px] py-1 text-[10.5px] font-semibold
+              tracking-[0.05em]
+            "
+            style={{
+              color: "#7fc7d6",
+              borderColor: "rgba(127,199,214,0.34)",
+              background: "rgba(127,199,214,0.08)",
+            }}
+          >
+            {protoLabel}
+          </span>
+          <span
+            className={`
+              inline-flex items-center gap-2 rounded-full border px-3 py-[5px]
+              text-[12.5px] font-semibold ${tone.bg} ${tone.border} ${tone.text}
+            `}
+          >
+            <span
+              className={`
+                inline-block h-2 w-2 rounded-full ${tone.dot}
+                ${view.pulsing ? "dot-pulse-ring" : ""}
+              `}
+              aria-hidden
+            />
+            {statusLabel}
+          </span>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] text-[var(--color-text-dim)]">
+          <NetworkPill network={task.network} />
+          <Dot />
+          <span>
+            {t.taskDetail.head.armedPrefix}{" "}
+            <span className="t-num text-[var(--color-text-muted)]">
+              {armedRelative}
+            </span>
+          </span>
+          <Dot />
+          <span>
+            {t.taskDetail.head.taskShortPrefix}{" "}
+            <span className="t-num text-[var(--color-text-muted)]">
+              #{idShort}
+            </span>
+          </span>
+          <Dot />
+          <span>
+            {t.taskDetail.head.pollingPrefix}{" "}
+            <span className="t-num text-[var(--color-text-muted)]">
+              {pollLabel}
+            </span>
+          </span>
+          {task.dryRun ? (
+            <>
+              <Dot />
+              <span className="text-[var(--color-warning)]">
+                {t.format.simulation}
+              </span>
+            </>
+          ) : null}
+        </div>
+      </div>
+
+      <HeadActions
+        task={task}
+        refresh={refresh}
+        explorerHref={explorerHref}
+      />
+    </header>
+  );
+}
+
+function Dot() {
+  return (
+    <span
+      className="inline-block h-[3px] w-[3px] rounded-full bg-[var(--color-text-dim)]"
+      aria-hidden
+    />
+  );
+}
+
+function NetworkPill({ network }: { network: string }) {
+  const { t } = useT();
+  if (network === "mainnet") {
+    return (
+      <span
+        className="
+          inline-flex items-center gap-2 rounded-full
+          border border-[var(--color-danger)] bg-[var(--color-danger-bg)]
+          px-[10px] py-1 text-[10.5px] font-semibold uppercase
+          tracking-[0.1em] text-[var(--color-danger)]
+        "
+      >
+        <span
+          className="inline-block h-[6px] w-[6px] rounded-full bg-[var(--color-danger)]"
+          aria-hidden
+        />
+        {t.header.mainnetLive}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href="/settings"
+      className="
+        inline-flex items-center gap-2 rounded-full
+        border border-[var(--color-warning)] bg-[var(--color-warning-bg)]
+        px-[10px] py-1 text-[10.5px] font-semibold uppercase
+        tracking-[0.1em] text-[var(--color-warning)] transition-colors
+        hover:bg-[var(--color-warning)] hover:text-[var(--color-bg)]
+      "
+    >
+      <span
+        className="inline-block h-[6px] w-[6px] rounded-full bg-[var(--color-warning)]"
+        aria-hidden
+      />
+      {t.header.testMode}
+    </Link>
+  );
+}
+
+// ============================================================================
+// HeadActions — Pause/Resume + Delete + Explorer link
+// ============================================================================
+
+function HeadActions({
+  task,
+  refresh,
+  explorerHref,
+}: {
+  task: TaskData;
+  refresh: () => void;
+  explorerHref: string | null;
 }) {
   const { t } = useT();
   const c = t.taskDetail.controls;
   const start = trpc.tasks.start.useMutation({ onSuccess: refresh });
   const pause = trpc.tasks.pause.useMutation({ onSuccess: refresh });
-  const stop = trpc.tasks.stop.useMutation({ onSuccess: refresh });
   const del = trpc.tasks.delete.useMutation({ onSuccess: refresh });
 
-  const busy =
-    start.isPending || pause.isPending || stop.isPending || del.isPending;
+  const status = task.status as BackendStatus;
+  const busy = start.isPending || pause.isPending || del.isPending;
   const err =
     start.error?.message ??
     pause.error?.message ??
-    stop.error?.message ??
     del.error?.message ??
     null;
 
@@ -305,7 +463,7 @@ function Controls({
     status === "paused" || status === "idle" || status === "error";
 
   return (
-    <div className="mt-10 flex flex-wrap items-center justify-end gap-2 hairline-t pt-6">
+    <div className="flex flex-none flex-wrap items-center gap-2">
       {canStart ? (
         <Button onClick={() => start.mutate({ id: task.id })} disabled={busy}>
           {status === "error" ? c.restart : c.resume}
@@ -320,20 +478,6 @@ function Controls({
           {c.pause}
         </Button>
       ) : null}
-      {/* F6.3: Stop oculto en UI. El estado `stopped` se mantiene en el
-          backend (enum, tRPC mutation, manager) para que tasks históricas
-          renderizen bien. Para re-exponer, descomenta el bloque siguiente:
-
-      {status !== "done" && status !== "stopped" ? (
-        <Button
-          variant="secondary"
-          onClick={() => stop.mutate({ id: task.id })}
-          disabled={busy}
-        >
-          Stop
-        </Button>
-      ) : null}
-      */}
       <Button
         variant="danger"
         size="sm"
@@ -346,6 +490,34 @@ function Controls({
       >
         {c.delete}
       </Button>
+      {explorerHref ? (
+        <a
+          href={explorerHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={t.taskDetail.head.openInExplorer}
+          className="
+            inline-flex h-[34px] w-[34px] items-center justify-center
+            rounded-md border border-[var(--color-rule)]
+            text-[var(--color-text)] transition-colors
+            hover:bg-[var(--color-surface-hover)]
+            hover:border-[var(--color-text-dim)]
+          "
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[15px] w-[15px]"
+            aria-hidden
+          >
+            <path d="M14 4h6v6M20 4l-9 9M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" />
+          </svg>
+        </a>
+      ) : null}
       {err ? (
         <div className="basis-full">
           <FieldError>{err}</FieldError>
@@ -356,193 +528,471 @@ function Controls({
 }
 
 // ============================================================================
-// Pool state — range, in/out, holdings, fees pending. Read-only en vivo desde
-// el RPC. Se renderiza si la bot wallet aún posee la posición; si la NFT ya
-// se cerró o se transfirió, listOwned no la encuentra y la sección desaparece.
+// HeroPanel — live price + 3 stats + price band
 // ============================================================================
 
-function PoolState({ task }: { task: TaskData }) {
+function HeroPanel({
+  task,
+  summary,
+  mintB,
+}: {
+  task: TaskData;
+  summary: PositionSummary | null;
+  mintB: string;
+}) {
   const { t } = useT();
-  const p = t.taskDetail.pool;
-  const walletStatus = trpc.wallet.status.useQuery();
-  const owner = walletStatus.data?.address;
+  const h = t.taskDetail.heroPanel;
+  // Reloj para el "Updated Xs ago · next poll in Ys". 1s refresh.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const i = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(i);
+  }, []);
 
-  // listOwned (igual que /positions y home) para resolver el `ref` completo
-  // con su poolId — necesario para getSummary. Sin owner no podemos pedirlo.
-  const list = trpc.positions.listOwned.useQuery(
-    {
-      protocol: task.protocol,
-      network: task.network,
-      rpcUrl: task.rpcUrl,
-      owner: owner ?? "",
-    },
-    { enabled: !!owner },
-  );
+  // Prioridad para precio: snapshot live del task (siempre disponible si el
+  // watcher ha hecho al menos un tick). Si nunca ha tickeado, usa el del
+  // summary como fallback (también es el spot price del pool).
+  const currentPrice =
+    task.runtime.lastPrice ?? summary?.currentPrice ?? null;
+  const tpPrice = task.takeProfitPrice;
+  const slPrice = task.stopLossPrice;
 
-  const ref = list.data?.find((r) => r.id === task.positionId);
+  const tpDistance =
+    tpPrice !== null
+      ? formatDistance(currentPrice, tpPrice, "above")
+      : null;
+  const slDistance =
+    slPrice !== null
+      ? formatDistance(currentPrice, slPrice, "below")
+      : null;
 
-  const summary = trpc.positions.getSummary.useQuery(
-    {
-      protocol: task.protocol,
-      network: task.network,
-      rpcUrl: task.rpcUrl,
-      ref: ref ?? { protocol: "", id: "", label: "", poolId: "" },
-    },
-    { enabled: !!ref, refetchInterval: 10_000 },
-  );
-
-  // Si no hay owner, la wallet no se ha cargado todavía → escondemos sin
-  // pintar nada. Si listOwned o getSummary fallan, mismo enfoque: no aporta
-  // valor mostrar errores aquí; el resto de la página sigue funcionando.
-  if (!owner || !ref || !summary.data) return null;
-
-  const s = summary.data;
-  const symA = tokenSymbol(s.tokenA.mint);
-  const symB = tokenSymbol(s.tokenB.mint);
+  const lastTickAt = task.runtime.lastTickAt;
+  const nowMs = Date.now();
+  const updatedAgo =
+    lastTickAt !== null ? formatTimeAgo(lastTickAt, t) : null;
+  const nextPollMs =
+    lastTickAt !== null ? lastTickAt + task.pollMs - nowMs : null;
+  const nextPollText =
+    nextPollMs !== null && nextPollMs > 0
+      ? `${Math.ceil(nextPollMs / 1000)}s`
+      : nextPollMs !== null
+        ? "now"
+        : null;
 
   return (
-    <section className="hairline-t pt-8">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">{p.eyebrow}</div>
-      <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
-        {/* Range con bg tintado para que el estado in/out salte a la vista. */}
-        <div
-          className={`rounded-lg border-l-2 px-4 py-3 ${
-            s.isInRange
-              ? "bg-[var(--color-positive-bg)] border-[var(--color-positive)]"
-              : "bg-[var(--color-danger-bg)] border-[var(--color-danger)]"
-          }`}
-        >
-          <div className="t-eyebrow text-[var(--color-text-muted)]">{p.range}</div>
-          <div className="mt-2 text-[var(--color-text)]">
-            <span className="t-num">
-              {formatPrice(s.range.min, 2)} – {formatPrice(s.range.max, 2)}
-            </span>
-            <div
-              className={`mt-1 t-eyebrow ${
-                s.isInRange
-                  ? "text-[var(--color-positive)]"
-                  : "text-[var(--color-danger)]"
-              }`}
-            >
-              {formatRangeStatus(s.isInRange, t)}
-            </div>
-          </div>
+    <section
+      className="
+        rounded-[11px] border border-[var(--color-hairline)]
+        bg-[var(--color-bg-elevated)] px-7 pb-8 pt-6
+      "
+      aria-label="Live price and trigger band"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-8">
+        <div className="flex flex-col gap-2">
+          <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--color-text-dim)]">
+            <span
+              className="relative inline-block h-2 w-2 rounded-full bg-[var(--color-accent)] dot-pulse-ring"
+              aria-hidden
+            />
+            {h.liveLabel}
+          </span>
+          <span className="text-[44px] font-medium leading-none tracking-[-0.035em] t-num md:text-[54px]">
+            {currentPrice !== null ? formatPrice(currentPrice, 4) : "—"}
+          </span>
+          <span className="text-[12.5px] text-[var(--color-text-dim)]">
+            {updatedAgo && nextPollText ? (
+              <>
+                {h.liveMetaPrefix(updatedAgo)}{" "}
+                <b className="font-semibold text-[var(--color-accent)]">
+                  {nextPollText}
+                </b>
+              </>
+            ) : (
+              h.liveMetaNoTick
+            )}
+          </span>
         </div>
-        <Field label={p.holdings(symA)}>
-          <span className="t-num">
-            {formatTokenAmount(s.liquidity.tokenA, s.tokenA.decimals, 6)}
-          </span>
-        </Field>
-        <Field label={p.holdings(symB)}>
-          <span className="t-num">
-            {formatTokenAmount(s.liquidity.tokenB, s.tokenB.decimals, 6)}
-          </span>
-        </Field>
-        <Field label={p.feesPending}>
-          {s.feesPending ? (
-            <div className="t-num text-[var(--color-text-muted)]">
-              <div>
-                {formatTokenAmount(
-                  s.feesPending.tokenA,
-                  s.tokenA.decimals,
-                  6,
-                )}{" "}
-                {symA}
-              </div>
-              <div>
-                {formatTokenAmount(
-                  s.feesPending.tokenB,
-                  s.tokenB.decimals,
-                  6,
-                )}{" "}
-                {symB}
-              </div>
-            </div>
-          ) : (
-            <span className="t-num text-[var(--color-text-muted)]">—</span>
-          )}
-        </Field>
+
+        <div className="flex overflow-hidden rounded-md border border-[var(--color-hairline)] bg-[var(--color-paper)]">
+          <HeroStat
+            label={h.toTp}
+            value={
+              tpDistance && tpDistance.pct !== null
+                ? `${Math.abs(tpDistance.pct).toFixed(1)}%`
+                : "—"
+            }
+            tone="tp"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-[14px] w-[14px]">
+                <path d="M6 18 18 6M9 6h9v9" />
+              </svg>
+            }
+          />
+          <HeroStat
+            label={h.toSl}
+            value={
+              slDistance && slDistance.pct !== null
+                ? `${Math.abs(slDistance.pct).toFixed(1)}%`
+                : "—"
+            }
+            tone="sl"
+            icon={
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-[14px] w-[14px]">
+                <path d="M6 6 18 18M9 18h9V9" />
+              </svg>
+            }
+          />
+          {summary ? (
+            <HeroStat
+              label={h.poolRange}
+              value={summary.isInRange ? h.inRange : h.outOfRange}
+              tone={summary.isInRange ? "tp" : "sl"}
+              icon={
+                summary.isInRange ? (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-[14px] w-[14px]">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden className="h-[14px] w-[14px]">
+                    <path d="M6 6 18 18M6 18 18 6" />
+                  </svg>
+                )
+              }
+            />
+          ) : null}
+        </div>
       </div>
+
+      {summary && currentPrice !== null ? (
+        <PriceBand
+          currentPrice={currentPrice}
+          rangeMin={summary.range.min}
+          rangeMax={summary.range.max}
+          tpPrice={tpPrice}
+          slPrice={slPrice}
+          isInRange={summary.isInRange}
+          quoteSymbol={tokenSymbol(mintB)}
+        />
+      ) : null}
     </section>
   );
 }
 
-// ============================================================================
-// Trigger details strip
-// ============================================================================
-
-function TriggerDetails({ task }: { task: TaskData }) {
-  const { t } = useT();
-  const cfg = t.taskDetail.config;
-  const hasBuffer =
-    (task.takeProfitBufferMs && task.takeProfitBufferMs > 0) ||
-    (task.stopLossBufferMs && task.stopLossBufferMs > 0);
-  const pair = formatTaskPair(task.protocolConfig);
+function HeroStat({
+  label,
+  value,
+  tone,
+  icon,
+}: {
+  label: string;
+  value: string;
+  tone: "tp" | "sl";
+  icon: React.ReactNode;
+}) {
+  const color =
+    tone === "tp" ? "var(--color-accent)" : "var(--color-warning)";
   return (
-    <section className="hairline-t pt-8">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">{cfg.eyebrow}</div>
-      <div className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
-        <Field label={cfg.position}>
-          {pair ? (
-            <>
-              <span className="text-[var(--color-text)]">{pair}</span>
-              <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
-                {task.protocol}
-              </span>
-            </>
-          ) : (
-            <span className="t-num text-[var(--color-text)]">
-              {truncateAddress(task.positionId, 6, 6)}
-            </span>
-          )}
-        </Field>
-        <Field label={cfg.triggers}>
-          {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
-        </Field>
-        <Field label={cfg.pollInterval}>{formatPollInterval(task.pollMs)}</Field>
-        <Field label={cfg.closeSlippage}>{formatSlippage(task.slippageBps)}</Field>
-        {hasBuffer ? (
-          <Field label={cfg.timeBuffer}>
-            <span className="t-num">
-              {task.takeProfitPrice !== null
-                ? `TP ${formatBuffer(task.takeProfitBufferMs, t)}`
-                : null}
-              {task.takeProfitPrice !== null && task.stopLossPrice !== null
-                ? " · "
-                : null}
-              {task.stopLossPrice !== null
-                ? `SL ${formatBuffer(task.stopLossBufferMs, t)}`
-                : null}
-            </span>
-          </Field>
-        ) : null}
-        {task.exitTokenMint ? (
-          <>
-            <Field label={cfg.exitToken}>{tokenSymbol(task.exitTokenMint)}</Field>
-            <Field label={cfg.exitSlippage}>
-              {formatSlippage(task.exitSwapSlippageBps)}
-            </Field>
-          </>
-        ) : null}
+    <div className="min-w-[128px] border-l border-[var(--color-hairline)] px-5 py-[13px] first:border-l-0">
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
+        {label}
       </div>
-    </section>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <div className="t-eyebrow text-[var(--color-text-muted)]">{label}</div>
-      <div className="mt-2 t-body text-[var(--color-text)]">{children}</div>
+      <div
+        className="mt-[6px] flex items-center gap-[6px] text-[18px] font-semibold"
+        style={{ color }}
+      >
+        {icon}
+        {value}
+      </div>
     </div>
   );
 }
 
 // ============================================================================
-// TriggerBlock — uno por trigger (TP/SL) en el hero del dashboard
+// PriceBand — visualización del rango de liquidez con triggers + precio
 // ============================================================================
 
-function TriggerBlock({
+function PriceBand({
+  currentPrice,
+  rangeMin,
+  rangeMax,
+  tpPrice,
+  slPrice,
+  isInRange,
+  quoteSymbol,
+}: {
+  currentPrice: number;
+  rangeMin: number;
+  rangeMax: number;
+  tpPrice: number | null;
+  slPrice: number | null;
+  isInRange: boolean;
+  quoteSymbol: string;
+}) {
+  const { t } = useT();
+  const h = t.taskDetail.heroPanel;
+
+  // Domain: incluye rango + triggers + precio actual, con 5% de padding a
+  // cada lado para que ningún marcador quede en el borde exacto.
+  const values: number[] = [rangeMin, rangeMax, currentPrice];
+  if (tpPrice !== null) values.push(tpPrice);
+  if (slPrice !== null) values.push(slPrice);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const pad = Math.max((maxV - minV) * 0.05, maxV * 0.005);
+  const lo = Math.max(0, minV - pad);
+  const hi = maxV + pad;
+  const span = hi - lo;
+  const pct = (v: number) =>
+    Math.max(0, Math.min(100, ((v - lo) / span) * 100));
+
+  const priceX = pct(currentPrice);
+  const rangeLoX = pct(rangeMin);
+  const rangeHiX = pct(rangeMax);
+  const slX = slPrice !== null ? pct(slPrice) : null;
+  const tpX = tpPrice !== null ? pct(tpPrice) : null;
+
+  const ticks = Array.from(
+    { length: 5 },
+    (_, i) => lo + (span * i) / 4,
+  );
+
+  const ariaLabel = h.bandAria({
+    lo: formatPrice(lo, 2),
+    hi: formatPrice(hi, 2),
+    rangeLo: formatPrice(rangeMin, 2),
+    rangeHi: formatPrice(rangeMax, 2),
+    sl: slPrice !== null ? formatPrice(slPrice, 2) : null,
+    tp: tpPrice !== null ? formatPrice(tpPrice, 2) : null,
+    currentPrice: formatPrice(currentPrice, 2),
+    inRange: isInRange,
+  });
+
+  return (
+    <div className="mt-7">
+      <div
+        className="mb-4 flex flex-wrap gap-x-5 gap-y-2 text-[11.5px] text-[var(--color-text-muted)]"
+        aria-hidden
+      >
+        <span className="inline-flex items-center gap-2">
+          <span
+            className="inline-block h-[9px] w-4 rounded-[2px] border border-dashed border-[var(--color-rule)]"
+            style={{ background: "var(--color-accent-dim)" }}
+            aria-hidden
+          />
+          {h.bandLegendRange}
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span
+            className="inline-block h-[13px] w-[2px] rounded-[1px] bg-[var(--color-warning)]"
+            aria-hidden
+          />
+          {h.bandLegendSl}
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span
+            className="inline-block h-[13px] w-[2px] rounded-[1px] bg-[var(--color-accent)]"
+            aria-hidden
+          />
+          {h.bandLegendTp}
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <span
+            className="inline-block h-[13px] w-[2px] rounded-[1px] bg-[var(--color-text)]"
+            aria-hidden
+          />
+          {h.bandLegendPrice}
+        </span>
+      </div>
+
+      <div className="relative" role="img" aria-label={ariaLabel}>
+        {/* Top: price pill + stem */}
+        <div className="relative h-[38px]">
+          <div
+            className="absolute bottom-0 flex flex-col items-center"
+            style={{ left: `${priceX}%`, transform: "translateX(-50%)" }}
+          >
+            <span
+              className="
+                whitespace-nowrap rounded-md border border-[var(--color-accent)]
+                bg-[var(--color-bg)] px-[10px] py-1 text-[13px]
+                font-semibold text-[var(--color-text)] t-num
+              "
+              style={{ boxShadow: "0 0 18px rgba(95,214,164,0.18)" }}
+            >
+              {formatPrice(currentPrice, 4)}
+              {quoteSymbol ? (
+                <span className="ml-1 text-[10.5px] font-medium text-[var(--color-text-muted)]">
+                  {quoteSymbol}
+                </span>
+              ) : null}
+            </span>
+            <span
+              className="h-2 w-[2px] bg-[var(--color-accent)]"
+              aria-hidden
+            />
+          </div>
+        </div>
+
+        {/* Scale */}
+        <div className="relative h-[62px] overflow-hidden rounded-lg border border-[var(--color-hairline)] bg-[var(--color-paper)]">
+          {/* Liquidity range zone */}
+          <div
+            className="absolute top-0 bottom-0 border-l border-r border-dashed border-[var(--color-rule)]"
+            style={{
+              left: `${rangeLoX}%`,
+              width: `${Math.max(0, rangeHiX - rangeLoX)}%`,
+              background:
+                "linear-gradient(180deg,rgba(95,214,164,0.16),rgba(95,214,164,0.06))",
+            }}
+          >
+            <span className="absolute left-[10px] top-2 text-[9.5px] font-semibold uppercase tracking-[0.13em] text-[var(--color-accent)] opacity-85">
+              {h.zoneTag}
+            </span>
+          </div>
+          {/* SL mark */}
+          {slX !== null ? (
+            <div
+              className="absolute top-0 bottom-0 z-[2] w-[2px] bg-[var(--color-warning)]"
+              style={{ left: `${slX}%` }}
+              aria-hidden
+            />
+          ) : null}
+          {/* TP mark */}
+          {tpX !== null ? (
+            <div
+              className="absolute top-0 bottom-0 z-[2] w-[2px] bg-[var(--color-accent)]"
+              style={{ left: `${tpX}%` }}
+              aria-hidden
+            />
+          ) : null}
+          {/* Price node */}
+          <div
+            className="absolute top-0 bottom-0 z-[3] w-[2px] bg-[var(--color-text)]"
+            style={{
+              left: `${priceX}%`,
+              boxShadow: "0 0 14px rgba(237,238,240,0.45)",
+            }}
+            aria-hidden
+          >
+            <span
+              className="absolute left-1/2 top-1/2 h-[13px] w-[13px] -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[var(--color-paper)] bg-[var(--color-text)]"
+              style={{ boxShadow: "0 0 0 1.5px var(--color-accent)" }}
+            />
+          </div>
+        </div>
+
+        {/* Bottom: flags */}
+        <div className="relative mt-2 h-[50px]">
+          {slX !== null && slPrice !== null ? (
+            <BandFlag
+              x={slX}
+              kind="sl"
+              price={slPrice}
+              label={h.bandLegendSl}
+            />
+          ) : null}
+          {tpX !== null && tpPrice !== null ? (
+            <BandFlag
+              x={tpX}
+              kind="tp"
+              price={tpPrice}
+              label={h.bandLegendTp}
+            />
+          ) : null}
+        </div>
+
+        {/* Axis */}
+        <div
+          className="flex justify-between text-[10.5px] text-[var(--color-text-dim)] t-num"
+          aria-hidden
+        >
+          {ticks.map((tk, i) => (
+            <span key={i}>{formatPrice(tk, 2)}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BandFlag({
+  x,
+  kind,
+  price,
+  label,
+}: {
+  x: number;
+  kind: "tp" | "sl";
+  price: number;
+  label: string;
+}) {
+  const isTp = kind === "tp";
+  const color = isTp ? "var(--color-accent)" : "var(--color-warning)";
+  return (
+    <div
+      className="absolute top-0 flex flex-col items-center gap-[3px]"
+      style={{ left: `${x}%`, transform: "translateX(-50%)" }}
+    >
+      <span
+        className="mb-[1px] block h-[7px] w-[7px] rotate-45 rounded-[1px]"
+        style={{ background: color }}
+        aria-hidden
+      />
+      <span
+        className="text-[9.5px] font-semibold uppercase tracking-[0.1em]"
+        style={{ color }}
+      >
+        {label}
+      </span>
+      <span className="t-num text-[12.5px] font-semibold text-[var(--color-text)]">
+        {formatPrice(price, 4)}
+      </span>
+    </div>
+  );
+}
+
+// ============================================================================
+// TriggerCards — TP/SL en grid 2×
+// ============================================================================
+
+function TriggerCards({ task }: { task: TaskData }) {
+  const tpPrice = task.takeProfitPrice;
+  const slPrice = task.stopLossPrice;
+  if (tpPrice === null && slPrice === null) return null;
+
+  const lastPrice = task.runtime.lastPrice;
+  const tpDistance =
+    tpPrice !== null ? formatDistance(lastPrice, tpPrice, "above") : null;
+  const slDistance =
+    slPrice !== null ? formatDistance(lastPrice, slPrice, "below") : null;
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2">
+      {tpPrice !== null ? (
+        <TriggerCard
+          kind="tp"
+          price={tpPrice}
+          distance={tpDistance}
+          triggered={task.triggeredBy === "take_profit"}
+          bufferMs={task.takeProfitBufferMs}
+          firstCrossedAt={task.runtime.tpFirstCrossedAt}
+        />
+      ) : null}
+      {slPrice !== null ? (
+        <TriggerCard
+          kind="sl"
+          price={slPrice}
+          distance={slDistance}
+          triggered={task.triggeredBy === "stop_loss"}
+          bufferMs={task.stopLossBufferMs}
+          firstCrossedAt={task.runtime.slFirstCrossedAt}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function TriggerCard({
   kind,
   price,
   distance,
@@ -558,62 +1008,522 @@ function TriggerBlock({
   firstCrossedAt: number | null;
 }) {
   const { t } = useT();
-  const tb = t.taskDetail.triggerBlock;
-  const label = kind === "tp" ? tb.tp : tb.sl;
-  const op = kind === "tp" ? "≥" : "≤";
+  const tc = t.taskDetail.triggerCard;
+  const isTp = kind === "tp";
+  const stripe = isTp ? "var(--color-accent)" : "var(--color-warning)";
+  const op = isTp ? "≥" : "≤";
+  const label = isTp ? tc.tp : tc.sl;
+  const iconBg = isTp ? "var(--color-accent-dim)" : "var(--color-warning-bg)";
+  const iconColor = isTp ? "var(--color-accent)" : "var(--color-warning)";
+  const distPct = distance?.pct ?? null;
+  // Barra: 100% cuando el trigger está cumplido o muy cerca; baja al 0%
+  // cuando el precio está al 50% de distancia o más.
+  const barWidth =
+    distPct === null
+      ? 0
+      : distance?.reached
+        ? 100
+        : Math.max(0, Math.min(100, 100 - Math.abs(distPct) * 2));
+
   const remaining = formatBufferRemaining(
     firstCrossedAt,
     bufferMs,
     Date.now(),
     t,
   );
+
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        <span className="t-eyebrow text-[var(--color-text-muted)]">{label}</span>
-        {triggered ? (
-          <span className="t-eyebrow text-[var(--color-warning)]">
-            {tb.firedThisOne}
-          </span>
-        ) : null}
-      </div>
-      <div className="mt-1 t-num text-xl text-[var(--color-text)]">
-        {op} {formatPrice(price, 6)}
-      </div>
-      {distance && distance.pct !== null ? (
-        <div
-          className={`mt-1 t-eyebrow ${
-            distance.reached
-              ? "text-[var(--color-warning)]"
-              : "text-[var(--color-text-muted)]"
-          }`}
+    <article
+      className="
+        relative overflow-hidden rounded-[11px]
+        border border-[var(--color-hairline)]
+        bg-[var(--color-bg-elevated)] p-5
+      "
+    >
+      <span
+        className="absolute left-0 top-0 bottom-0 w-[3px]"
+        style={{ background: stripe }}
+        aria-hidden
+      />
+
+      <div className="mb-3 flex items-center gap-[9px]">
+        <span
+          className="grid h-6 w-6 place-items-center rounded-md"
+          style={{ color: iconColor, background: iconBg }}
+          aria-hidden
         >
-          {distance.text}
-          {distance.reached ? tb.triggerMet : tb.awayFromCurrent}
-        </div>
-      ) : null}
-      {bufferMs && bufferMs > 0 ? (
-        <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
-          {tb.bufferLabel(formatBuffer(bufferMs, t))}
+          {isTp ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+              <path d="M6 18 18 6M9 6h9v9" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+              <path d="M6 6 18 18M9 18h9V9" />
+            </svg>
+          )}
+        </span>
+        <span className="text-[13px] font-semibold text-[var(--color-text)]">
+          {label}
+        </span>
+        <span
+          className={`
+            ml-auto rounded-md border px-[7px] py-[2px]
+            text-[10px] font-semibold uppercase tracking-[0.08em]
+            ${
+              triggered
+                ? "border-[var(--color-warning)] text-[var(--color-warning)]"
+                : "border-[var(--color-rule)] text-[var(--color-text-dim)]"
+            }
+          `}
+        >
+          {triggered ? tc.firedBadge : tc.armedBadge}
+        </span>
+      </div>
+
+      <div className="t-num text-[28px] font-medium leading-none tracking-[-0.02em] text-[var(--color-text)] md:text-[30px]">
+        {op} {formatPrice(price, 4)}
+      </div>
+
+      <div className="mt-4 flex items-baseline justify-between text-[12px] text-[var(--color-text-dim)]">
+        <span>{tc.distance}</span>
+        <b className="t-num text-[13px] font-semibold text-[var(--color-text-muted)]">
+          {distance && distance.pct !== null
+            ? distance.reached
+              ? tc.reached
+              : `${Math.abs(distance.pct).toFixed(1)}%`
+            : "—"}
+        </b>
+      </div>
+      <div className="mt-2 h-[5px] overflow-hidden rounded-[3px] bg-[var(--color-hairline)]">
+        <span
+          className="block h-full rounded-[3px]"
+          style={{
+            width: `${barWidth}%`,
+            background: isTp
+              ? "linear-gradient(90deg,var(--color-accent-deep),var(--color-accent))"
+              : "linear-gradient(90deg,#6d5527,var(--color-warning))",
+          }}
+        />
+      </div>
+
+      <div className="mt-4 flex items-start gap-2 text-[11.5px] text-[var(--color-text-dim)]">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-[13px] w-[13px] flex-none opacity-80"
+          aria-hidden
+        >
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 3" />
+        </svg>
+        <span>
+          {bufferMs && bufferMs > 0
+            ? isTp
+              ? tc.bufferFootTp(formatPrice(price, 4), formatBuffer(bufferMs, t))
+              : tc.bufferFootSl(formatPrice(price, 4), formatBuffer(bufferMs, t))
+            : tc.noBufferFoot}
           {remaining ? (
-            <span
-              className={`ml-2 ${
-                remaining === t.format.bufferMet
-                  ? "text-[var(--color-warning)]"
-                  : "text-[var(--color-accent-bright)]"
-              }`}
-            >
-              · {remaining}
-            </span>
+            <>
+              {" · "}
+              <span
+                className={
+                  remaining === t.format.bufferMet
+                    ? "text-[var(--color-warning)]"
+                    : "text-[var(--color-accent-bright)]"
+                }
+              >
+                {remaining}
+              </span>
+            </>
           ) : null}
-        </div>
-      ) : null}
-    </div>
+        </span>
+      </div>
+    </article>
   );
 }
 
 // ============================================================================
-// Receipts — close + swap como "recibo editorial"
+// HoldingsPanel — 2×2 con liquidez, fees, range status, estimated value
+// ============================================================================
+
+function HoldingsPanel({ summary }: { summary: PositionSummary }) {
+  const { t } = useT();
+  const ho = t.taskDetail.holdings;
+  const symA = tokenSymbol(summary.tokenA.mint);
+  const symB = tokenSymbol(summary.tokenB.mint);
+  const decA = summary.tokenA.decimals;
+  const decB = summary.tokenB.decimals;
+  const price = summary.currentPrice;
+
+  // Estimated value en términos del quote (token B). Suma de liquidez +
+  // pending fees. No depende de oracle externo — solo del spot del pool.
+  const tokenAUnits = (raw: string) => Number(raw) / 10 ** decA;
+  const tokenBUnits = (raw: string) => Number(raw) / 10 ** decB;
+  const liqAUnits = tokenAUnits(summary.liquidity.tokenA);
+  const liqBUnits = tokenBUnits(summary.liquidity.tokenB);
+  const feesAUnits = summary.feesPending
+    ? tokenAUnits(summary.feesPending.tokenA)
+    : 0;
+  const feesBUnits = summary.feesPending
+    ? tokenBUnits(summary.feesPending.tokenB)
+    : 0;
+  const valueInB = liqAUnits * price + liqBUnits + feesAUnits * price + feesBUnits;
+  const feesValueInB = feesAUnits * price + feesBUnits;
+
+  const fmtUnits = (n: number, maxDecimals = 4) => {
+    if (!Number.isFinite(n)) return "—";
+    if (n === 0) return "0";
+    if (Math.abs(n) >= 1000) return n.toFixed(2);
+    return Number(n.toFixed(maxDecimals)).toString();
+  };
+
+  return (
+    <Panel
+      title={ho.title}
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+          <path d="M3 7h18M3 12h18M3 17h18" />
+        </svg>
+      }
+      description={ho.refreshed}
+    >
+      <dl className="grid gap-px overflow-hidden rounded-md border border-[var(--color-hairline)] bg-[var(--color-hairline)] sm:grid-cols-2">
+        <HoldingCell label={ho.liquidity}>
+          <HoldingRow value={fmtUnits(liqAUnits, 4)} symbol={symA} />
+          <HoldingRow value={fmtUnits(liqBUnits, 2)} symbol={symB} />
+        </HoldingCell>
+        <HoldingCell label={ho.pendingFees}>
+          {summary.feesPending ? (
+            <>
+              <HoldingRow value={fmtUnits(feesAUnits, 4)} symbol={symA} />
+              <HoldingRow value={fmtUnits(feesBUnits, 2)} symbol={symB} />
+              {feesValueInB > 0 ? (
+                <p className="mt-1 text-[11px] text-[var(--color-text-dim)]">
+                  {ho.feesValueNote(
+                    `${fmtUnits(feesValueInB, 2)} ${symB}`,
+                  )}
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <span className="t-num text-[var(--color-text-dim)]">
+              {ho.noFees}
+            </span>
+          )}
+        </HoldingCell>
+        <HoldingCell label={ho.rangeStatus}>
+          {summary.isInRange ? (
+            <span className="inline-flex items-center gap-[6px] text-[14px] font-semibold text-[var(--color-accent)]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              {t.taskDetail.heroPanel.inRange}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-[6px] text-[14px] font-semibold text-[var(--color-warning)]">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]" aria-hidden>
+                <path d="M6 6 18 18M6 18 18 6" />
+              </svg>
+              {t.taskDetail.heroPanel.outOfRange}
+            </span>
+          )}
+          <p className="mt-[6px] text-[11px] text-[var(--color-text-dim)]">
+            {summary.isInRange
+              ? ho.rangeWithStatus(
+                  formatPrice(summary.range.min, 2),
+                  formatPrice(summary.range.max, 2),
+                )
+              : ho.rangeWhenOut(
+                  formatPrice(summary.range.min, 2),
+                  formatPrice(summary.range.max, 2),
+                )}
+          </p>
+        </HoldingCell>
+        <HoldingCell label={ho.estimatedValue}>
+          <span className="t-num text-[19px] font-semibold text-[var(--color-text)]">
+            ≈ {fmtUnits(valueInB, 2)}{" "}
+            <span className="text-[11px] font-semibold text-[var(--color-text-dim)]">
+              {symB}
+            </span>
+          </span>
+          <p className="mt-[5px] text-[11px] text-[var(--color-text-dim)]">
+            {ho.estimatedValueNote}
+          </p>
+        </HoldingCell>
+      </dl>
+    </Panel>
+  );
+}
+
+function HoldingCell({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-[var(--color-bg-elevated)] px-4 py-[15px]">
+      <dt className="text-[10.5px] font-semibold uppercase tracking-[0.1em] text-[var(--color-text-dim)]">
+        {label}
+      </dt>
+      <dd className="mt-2 flex flex-col gap-[3px]">{children}</dd>
+    </div>
+  );
+}
+
+function HoldingRow({ value, symbol }: { value: string; symbol: string }) {
+  return (
+    <span className="flex items-center gap-[7px]">
+      <span className="t-num text-[15px] font-semibold text-[var(--color-text)]">
+        {value}
+      </span>
+      <span className="text-[10.5px] font-semibold text-[var(--color-text-dim)]">
+        {symbol}
+      </span>
+    </span>
+  );
+}
+
+// ============================================================================
+// ClosePlanPanel — 4 pasos estáticos
+// ============================================================================
+
+function ClosePlanPanel({ task }: { task: TaskData }) {
+  const { t } = useT();
+  const cp = t.taskDetail.closePlan;
+  const protoLabel =
+    task.protocol === "orca"
+      ? t.taskDetail.head.protocol.orca
+      : task.protocol === "meteora"
+        ? t.taskDetail.head.protocol.meteora
+        : task.protocol;
+  const exitSym = task.exitTokenMint
+    ? tokenSymbol(task.exitTokenMint)
+    : null;
+  const swapSlippage = formatSlippage(task.exitSwapSlippageBps);
+
+  return (
+    <Panel
+      title={cp.title}
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+          <path d="M13 2 3 14h7l-1 8 10-12h-7z" />
+        </svg>
+      }
+    >
+      <ol className="flex flex-col">
+        <Step n={1} title={cp.step1Title} desc={cp.step1Desc} />
+        <Step n={2} title={cp.step2Title} desc={cp.step2Desc(protoLabel)} />
+        <Step n={3} title={cp.step3Title} desc={cp.step3Desc} />
+        <Step
+          n={4}
+          title={exitSym ? cp.step4Title(exitSym) : cp.step4Title("…")}
+          desc={exitSym ? cp.step4Desc(swapSlippage) : cp.step4Skipped}
+        />
+      </ol>
+      <div className="mt-4 flex items-start gap-[10px] rounded-md border border-[var(--color-hairline)] bg-[var(--color-paper)] px-[14px] py-[13px]">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="mt-[1px] h-[15px] w-[15px] flex-none text-[var(--color-accent)]"
+          aria-hidden
+        >
+          <path d="M9 12l2 2 4-4" />
+          <circle cx="12" cy="12" r="9" />
+        </svg>
+        <p className="text-[12px] leading-relaxed text-[var(--color-text-muted)]">
+          {cp.foot}
+        </p>
+      </div>
+    </Panel>
+  );
+}
+
+function Step({
+  n,
+  title,
+  desc,
+}: {
+  n: number;
+  title: string;
+  desc: string;
+}) {
+  return (
+    <li className="grid grid-cols-[30px_1fr] gap-[13px] border-b border-[var(--color-hairline)] py-[13px] last:border-b-0 last:pb-1">
+      <span
+        className="
+          grid h-[26px] w-[26px] place-items-center rounded-md
+          border border-[var(--color-accent)]/22
+          bg-[var(--color-accent-dim)] t-num text-[12px] font-semibold
+          text-[var(--color-accent)]
+        "
+        aria-hidden
+      >
+        {n}
+      </span>
+      <div>
+        <div className="text-[13.5px] font-semibold text-[var(--color-text)]">
+          {title}
+        </div>
+        <div className="mt-[3px] text-[12.5px] text-[var(--color-text-dim)]">
+          {desc}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+// ============================================================================
+// DetailsPanel — facts del task
+// ============================================================================
+
+function DetailsPanel({ task }: { task: TaskData }) {
+  const { t } = useT();
+  const d = t.taskDetail.detailsPanel;
+  const protoLabel =
+    task.protocol === "orca"
+      ? t.taskDetail.head.protocol.orca
+      : task.protocol === "meteora"
+        ? t.taskDetail.head.protocol.meteora
+        : task.protocol;
+  const protocolConfig = task.protocolConfig as ProtocolConfigShape | null;
+  const positionMint = protocolConfig?.positionMint ?? task.positionId;
+  const hasBuffer =
+    (task.takeProfitBufferMs && task.takeProfitBufferMs > 0) ||
+    (task.stopLossBufferMs && task.stopLossBufferMs > 0);
+
+  return (
+    <Panel
+      title={d.title}
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 11v5M12 8h.01" />
+        </svg>
+      }
+    >
+      <dl className="flex flex-col">
+        <Fact label={d.protocol}>{protoLabel}</Fact>
+        <Fact label={d.network}>
+          <span
+            className={
+              task.network === "mainnet"
+                ? "text-[var(--color-danger)]"
+                : "text-[var(--color-text)]"
+            }
+          >
+            {task.network === "mainnet" ? d.networkMainnet : d.networkDevnet}
+          </span>
+        </Fact>
+        {task.exitTokenMint ? (
+          <Fact label={d.exitToken}>
+            <ExitTokenChip mint={task.exitTokenMint} />
+          </Fact>
+        ) : (
+          <Fact label={d.exitToken}>
+            <span className="text-[var(--color-text-dim)]">
+              {d.exitTokenNone}
+            </span>
+          </Fact>
+        )}
+        {hasBuffer ? (
+          <Fact label={d.timeBuffer} mono>
+            {task.takeProfitBufferMs && task.takeProfitBufferMs > 0
+              ? `TP ${formatBuffer(task.takeProfitBufferMs, t)}`
+              : null}
+            {task.takeProfitBufferMs &&
+            task.takeProfitBufferMs > 0 &&
+            task.stopLossBufferMs &&
+            task.stopLossBufferMs > 0
+              ? " · "
+              : null}
+            {task.stopLossBufferMs && task.stopLossBufferMs > 0
+              ? `SL ${formatBuffer(task.stopLossBufferMs, t)}`
+              : null}
+          </Fact>
+        ) : (
+          <Fact label={d.timeBuffer} mono>
+            {d.bufferDash}
+          </Fact>
+        )}
+        <Fact label={d.pollInterval} mono>
+          {formatPollInterval(task.pollMs)}
+        </Fact>
+        <Fact label={d.closeSlippage} mono>
+          {formatSlippage(task.slippageBps)}
+        </Fact>
+        {task.exitTokenMint ? (
+          <Fact label={d.swapSlippage} mono>
+            {formatSlippage(task.exitSwapSlippageBps)}
+          </Fact>
+        ) : null}
+        <Fact label={d.positionMint} mono>
+          {truncateAddress(positionMint, 4, 4)}
+        </Fact>
+      </dl>
+    </Panel>
+  );
+}
+
+function Fact({
+  label,
+  children,
+  mono = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-[var(--color-hairline)] py-[11px] last:border-b-0">
+      <dt className="text-[12.5px] text-[var(--color-text-dim)]">{label}</dt>
+      <dd
+        className={`text-[12.5px] font-semibold text-[var(--color-text)] text-right ${
+          mono ? "t-num" : ""
+        }`}
+      >
+        {children}
+      </dd>
+    </div>
+  );
+}
+
+function ExitTokenChip({ mint }: { mint: string }) {
+  const sym = tokenSymbol(mint);
+  return (
+    <span
+      className="
+        inline-flex items-center gap-[6px] rounded-full
+        border border-[var(--color-rule)] px-2 py-[3px]
+        text-[11.5px] font-semibold text-[var(--color-text)]
+      "
+    >
+      <span
+        className="
+          grid h-[14px] w-[14px] place-items-center rounded-full
+          bg-[var(--color-accent-dim)] text-[8px] font-bold
+          text-[var(--color-accent)]
+        "
+        aria-hidden
+      >
+        {sym.slice(0, 1)}
+      </span>
+      {sym}
+    </span>
+  );
+}
+
+// ============================================================================
+// CloseReceipt + SwapReceipt — refactor a Panel
 // ============================================================================
 
 function CloseReceipt({
@@ -635,25 +1545,23 @@ function CloseReceipt({
 }) {
   const { t } = useT();
   const r = t.taskDetail.receipt;
-  // Para "Received": delta neto on-chain de cada mint. SOL nativo va por
-  // solDelta; SPL por tokenDeltas[mint].
   const actualARaw = verified ? rawDeltaForMint(verified, mintA) : null;
   const actualBRaw = verified ? rawDeltaForMint(verified, mintB) : null;
 
   return (
-    <section className="hairline-t pt-8">
-      <div className="flex items-baseline justify-between">
-        <div>
-          <div className="t-eyebrow text-[var(--color-positive)]">
-            {r.closedHeader}
-            {data.dryRun ? r.closedSimulated : ""}
-          </div>
-          <h3 className="mt-2 t-h2">{r.recoveredTitle}</h3>
-        </div>
+    <Panel
+      title={r.recoveredTitle}
+      description={`${r.closedHeader}${data.dryRun ? r.closedSimulated : ""}`}
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+          <path d="M20 6 9 17l-5-5" />
+        </svg>
+      }
+    >
+      <div className="mb-3 flex justify-end">
         {data.txId ? <SolscanLink sig={data.txId} network={network} /> : null}
       </div>
-
-      <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-4">
         <Receipt label={r.receivedLabel(tokenSymbol(mintA))}>
           {formatAmountWithSymbol(data.estimatedTokenA, mintA, decimalsA, 6)}
           <ActualLine
@@ -681,17 +1589,17 @@ function CloseReceipt({
           {formatAmountWithSymbol(data.feesTokenB, mintB, decimalsB, 6)}
         </Receipt>
       </dl>
-
       {verified && mintA === SOL_MINT ? (
-        <p className="mt-6 t-small text-[var(--color-text-dim)]">
+        <p className="mt-5 t-small text-[var(--color-text-dim)]">
           {r.solDeltaNote}
         </p>
       ) : null}
-
       {data.notes ? (
-        <p className="mt-6 t-small text-[var(--color-text-muted)]">{data.notes}</p>
+        <p className="mt-5 t-small text-[var(--color-text-muted)]">
+          {data.notes}
+        </p>
       ) : null}
-    </section>
+    </Panel>
   );
 }
 
@@ -716,116 +1624,108 @@ function SwapReceipt({
   const sw = t.taskDetail.swap;
   if (data.skipped) {
     return (
-      <section className="hairline-t pt-8">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">
-          {sw.skippedTitle}
-        </div>
-        <p className="mt-2 t-small text-[var(--color-text-muted)]">
+      <Panel
+        title={sw.skippedTitle}
+        icon={
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+            <path d="M5 12h14" />
+          </svg>
+        }
+      >
+        <p className="t-small text-[var(--color-text-muted)]">
           {data.notes ?? sw.skippedFallback}
         </p>
-      </section>
+      </Panel>
     );
   }
 
   const fromSym = data.fromMint ? tokenSymbol(data.fromMint) : "?";
   const toSym = exitTokenMint ? tokenSymbol(exitTokenMint) : "?";
-  // Comparamos fromMint con los mints reales del pool (persistidos desde F2.4
-  // en protocolConfig; fallback heurístico en Dashboard si el task es viejo).
   const isFromA = data.fromMint === mintA;
   const fromDecimals = isFromA ? decimalsA : decimalsB;
   const toDecimals = isFromA ? decimalsB : decimalsA;
 
+  let actualInputRaw: string | null = null;
+  let actualOutputRaw: string | null = null;
+  if (verified && data.fromMint) {
+    if (data.fromMint === SOL_MINT) {
+      const fee = BigInt(verified.fee);
+      const sol = BigInt(verified.solDelta);
+      actualInputRaw = (-sol - fee).toString();
+    } else {
+      const tokenDelta = BigInt(verified.tokenDeltas[data.fromMint] ?? "0");
+      actualInputRaw = (-tokenDelta).toString();
+    }
+  }
+  if (verified && exitTokenMint) {
+    actualOutputRaw = rawDeltaForMint(verified, exitTokenMint);
+  }
+
   return (
-    <section className="hairline-t pt-8">
-      <div className="flex items-baseline justify-between">
-        <div>
-          <div className="t-eyebrow text-[var(--color-positive)]">
-            {sw.header}
-            {data.dryRun ? sw.simulated : ""}
-          </div>
-          <h3 className="mt-2 t-h2">
-            {fromSym} <span className="text-[var(--color-text-muted)]">→</span>{" "}
-            {toSym}
-          </h3>
-        </div>
+    <Panel
+      title={`${fromSym} → ${toSym}`}
+      description={`${sw.header}${data.dryRun ? sw.simulated : ""}`}
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+          <path d="M3 12h14M13 6l6 6-6 6" />
+        </svg>
+      }
+    >
+      <div className="mb-3 flex justify-end">
         {data.txId ? <SolscanLink sig={data.txId} network={network} /> : null}
       </div>
-
-      {(() => {
-        // Cómputo de "actual" para input y output del swap. Para SOL como
-        // input, aislamos el swap input restando la tx fee del solDelta.
-        let actualInputRaw: string | null = null;
-        let actualOutputRaw: string | null = null;
-        if (verified && data.fromMint) {
-          if (data.fromMint === SOL_MINT) {
-            const fee = BigInt(verified.fee);
-            const sol = BigInt(verified.solDelta);
-            // solDelta es negativo cuando gastas SOL. -sol - fee = input puro.
-            actualInputRaw = (-sol - fee).toString();
-          } else {
-            const tokenDelta = BigInt(
-              verified.tokenDeltas[data.fromMint] ?? "0",
-            );
-            actualInputRaw = (-tokenDelta).toString();
-          }
-        }
-        if (verified && exitTokenMint) {
-          actualOutputRaw = rawDeltaForMint(verified, exitTokenMint);
-        }
-        return (
-          <dl className="mt-6 grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3">
-            <Receipt label={sw.input}>
-              {data.inputAmount
-                ? formatAmountWithSymbol(
-                    data.inputAmount,
-                    data.fromMint ?? "",
-                    fromDecimals,
-                    6,
-                  )
-                : "—"}
-              <ActualLine
-                rawActual={actualInputRaw}
-                rawQuoted={data.inputAmount}
-                decimals={fromDecimals}
-                mint={data.fromMint ?? ""}
-                showDiff
-              />
-            </Receipt>
-            <Receipt label={sw.outputEstimated}>
-              {data.estimatedOutput
-                ? formatAmountWithSymbol(
-                    data.estimatedOutput,
-                    exitTokenMint ?? "",
-                    toDecimals,
-                    6,
-                  )
-                : "—"}
-              <ActualLine
-                rawActual={actualOutputRaw}
-                rawQuoted={data.estimatedOutput}
-                decimals={toDecimals}
-                mint={exitTokenMint ?? ""}
-                showDiff
-              />
-            </Receipt>
-            <Receipt label={sw.outputMinimum}>
-              {data.minimumOutput
-                ? formatAmountWithSymbol(
-                    data.minimumOutput,
-                    exitTokenMint ?? "",
-                    toDecimals,
-                    6,
-                  )
-                : "—"}
-            </Receipt>
-          </dl>
-        );
-      })()}
-
+      <dl className="grid grid-cols-2 gap-x-8 gap-y-6 md:grid-cols-3">
+        <Receipt label={sw.input}>
+          {data.inputAmount
+            ? formatAmountWithSymbol(
+                data.inputAmount,
+                data.fromMint ?? "",
+                fromDecimals,
+                6,
+              )
+            : "—"}
+          <ActualLine
+            rawActual={actualInputRaw}
+            rawQuoted={data.inputAmount}
+            decimals={fromDecimals}
+            mint={data.fromMint ?? ""}
+            showDiff
+          />
+        </Receipt>
+        <Receipt label={sw.outputEstimated}>
+          {data.estimatedOutput
+            ? formatAmountWithSymbol(
+                data.estimatedOutput,
+                exitTokenMint ?? "",
+                toDecimals,
+                6,
+              )
+            : "—"}
+          <ActualLine
+            rawActual={actualOutputRaw}
+            rawQuoted={data.estimatedOutput}
+            decimals={toDecimals}
+            mint={exitTokenMint ?? ""}
+            showDiff
+          />
+        </Receipt>
+        <Receipt label={sw.outputMinimum}>
+          {data.minimumOutput
+            ? formatAmountWithSymbol(
+                data.minimumOutput,
+                exitTokenMint ?? "",
+                toDecimals,
+                6,
+              )
+            : "—"}
+        </Receipt>
+      </dl>
       {data.notes ? (
-        <p className="mt-6 t-small text-[var(--color-text-muted)]">{data.notes}</p>
+        <p className="mt-5 t-small text-[var(--color-text-muted)]">
+          {data.notes}
+        </p>
       ) : null}
-    </section>
+    </Panel>
   );
 }
 
@@ -857,11 +1757,165 @@ function SolscanLink({ sig, network }: { sig: string; network: string }) {
     </Link>
   );
 }
-// Nota: "tx" + signature truncada se mantiene en ambos idiomas — abreviatura
-// universal en blockchain. No requiere traducción.
 
 // ============================================================================
-// Verified deltas — payload del evento `verified` que emitimos en el backend
+// ActivityTimelinePanel — refactor con nodos coloreados
+// ============================================================================
+
+type HistoryEvent = inferRouterOutputs<AppRouter>["tasks"]["history"][number];
+
+function ActivityTimelinePanel({
+  taskId,
+  network,
+}: {
+  taskId: string;
+  network: string;
+}) {
+  const { t } = useT();
+  const tl = t.taskDetail.timeline;
+  const history = trpc.tasks.history.useQuery(
+    { id: taskId },
+    { refetchInterval: 5_000 },
+  );
+
+  if (history.isLoading) {
+    return (
+      <Panel
+        title={tl.eyebrow}
+        icon={
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 3" />
+          </svg>
+        }
+      >
+        <p className="t-small text-[var(--color-text-dim)]">
+          {t.common.loading}
+        </p>
+      </Panel>
+    );
+  }
+
+  const events = history.data ?? [];
+  if (events.length === 0) {
+    return null;
+  }
+
+  return (
+    <Panel
+      title={tl.eyebrow}
+      description={tl.events(events.length)}
+      icon={
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[14px] w-[14px]">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3 3" />
+        </svg>
+      }
+    >
+      <ol className="relative flex flex-col">
+        <span
+          className="pointer-events-none absolute left-[6px] top-2 bottom-3 w-px bg-[var(--color-hairline)]"
+          aria-hidden
+        />
+        {events.map((ev, i) => (
+          <TimelineRow
+            key={ev.id}
+            ev={ev}
+            network={network}
+            isFirst={i === 0}
+          />
+        ))}
+      </ol>
+    </Panel>
+  );
+}
+
+function TimelineRow({
+  ev,
+  network,
+  isFirst,
+}: {
+  ev: HistoryEvent;
+  network: string;
+  isFirst: boolean;
+}) {
+  const { t } = useT();
+  const desc = describeEvent(ev, t);
+  const timestamp =
+    typeof ev.timestamp === "string"
+      ? new Date(ev.timestamp).getTime()
+      : new Date(ev.timestamp as unknown as string | number).getTime();
+  const relative = isFirst ? t.format.justNow : formatTimeAgo(timestamp, t);
+
+  // Estilo del nodo según semántica del evento
+  const nodeKind: "live" | "alert" | "armed" | "ok" | "muted" =
+    isFirst && ev.event === "started"
+      ? "live"
+      : ev.event === "triggered" ||
+          ev.event === "buffer_armed" ||
+          ev.event === "paused" ||
+          ev.event === "error"
+        ? "alert"
+        : ev.event === "started" || ev.event === "resumed"
+          ? "armed"
+          : ev.event === "closed" || ev.event === "swapped" || ev.event === "verified"
+            ? "ok"
+            : "muted";
+
+  return (
+    <li className="relative pl-7 pr-1 pb-5 last:pb-1">
+      <span
+        className={
+          "absolute left-0 top-1 grid h-[13px] w-[13px] place-items-center rounded-full " +
+          nodeStyle(nodeKind)
+        }
+        aria-hidden
+      >
+        {nodeKind === "live" ? (
+          <span
+            className="absolute -inset-[5px] rounded-full border border-[var(--color-accent)] dot-pulse-ring"
+            aria-hidden
+          />
+        ) : null}
+      </span>
+      <div className="text-[10.5px] font-semibold uppercase tracking-[0.09em] text-[var(--color-text-dim)]">
+        {relative}
+      </div>
+      <div
+        className={`mt-[3px] text-[13px] font-semibold ${nodeKind === "alert" ? "text-[var(--color-warning)]" : nodeKind === "ok" || nodeKind === "live" || nodeKind === "armed" ? "text-[var(--color-accent)]" : "text-[var(--color-text)]"}`}
+      >
+        {desc.label}
+      </div>
+      <div className="mt-[3px] text-[12px] leading-[1.5] text-[var(--color-text-dim)]">
+        {desc.description}
+        {desc.txId ? (
+          <span className="ml-2">
+            <SolscanLink sig={desc.txId} network={network} />
+          </span>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function nodeStyle(kind: "live" | "alert" | "armed" | "ok" | "muted"): string {
+  switch (kind) {
+    case "live":
+      return "bg-[var(--color-accent)] border-2 border-[var(--color-accent)]";
+    case "alert":
+      return "bg-[var(--color-warning)] border-2 border-[var(--color-warning)]";
+    case "armed":
+      return "bg-[var(--color-bg)] border-2 border-[var(--color-accent)]";
+    case "ok":
+      return "bg-[var(--color-accent)] border-2 border-[var(--color-accent-deep)]";
+    case "muted":
+    default:
+      return "bg-[var(--color-bg)] border-2 border-[var(--color-rule)]";
+  }
+}
+
+// ============================================================================
+// Verified deltas + ActualLine — sin cambios funcionales
 // ============================================================================
 
 interface VerifiedDeltas {
@@ -891,17 +1945,11 @@ function findVerifiedDeltas(
   return null;
 }
 
-/** Para un mint dado, devuelve el delta raw (string bigint). SOL nativo → solDelta. */
 function rawDeltaForMint(verified: VerifiedDeltas, mint: string): string {
   if (mint === SOL_MINT) return verified.solDelta;
   return verified.tokenDeltas[mint] ?? "0";
 }
 
-/**
- * Línea pequeña debajo de cada cell de un receipt con el delta real on-chain.
- * Opcionalmente computa el diff % vs el quoted. Para SOL no mostramos diff
- * porque incluye tx fees y rent recovery — sería visualmente alarmante.
- */
 function ActualLine({
   rawActual,
   rawQuoted,
@@ -950,7 +1998,6 @@ function computeDiffPct(
     if (quoted === 0n) return null;
     const diff = actual - quoted;
     const absQ = quoted < 0n ? -quoted : quoted;
-    // bps * 100 = pct con 2 decimales
     const tenThou = (diff * 10_000n) / absQ;
     const value = Number(tenThou) / 100;
     if (!Number.isFinite(value)) return null;
@@ -962,8 +2009,7 @@ function computeDiffPct(
 }
 
 // ============================================================================
-// Error recovery panel — diagnostica el error y guía la salida (delete +
-// recrea con más slippage, o restart si parece transitorio). Ver docs/auto-exit.
+// ErrorRecovery — sin cambios funcionales (solo cambia su sitio en el grid)
 // ============================================================================
 
 function isSlippageError(msg: string): boolean {
@@ -972,7 +2018,6 @@ function isSlippageError(msg: string): boolean {
     m.includes("slippage") ||
     m.includes("tolerance") ||
     m.includes("price impact") ||
-    // Orca whirlpool slippage error code (anchor):
     m.includes("0x1782")
   );
 }
@@ -1020,7 +2065,6 @@ function ErrorRecovery({
       <p className="mt-3 t-body text-[var(--color-text)] break-words">
         {message}
       </p>
-
       {slippage ? (
         <div className="mt-6 t-body text-[var(--color-text-muted)] space-y-3 max-w-2xl">
           <p>{e.slippageExplain(slippagePctStr)}</p>
@@ -1068,7 +2112,6 @@ function ErrorRecovery({
           </p>
         </div>
       )}
-
       {confirming ? (
         <div className="mt-8 flex flex-wrap items-center justify-end gap-3 hairline-t pt-6">
           <span className="t-small text-[var(--color-danger)] mr-auto">
@@ -1114,95 +2157,8 @@ function ErrorRecovery({
 }
 
 // ============================================================================
-// Activity timeline — eventos del task ordenados de más reciente a más antiguo
+// describeEvent — sin cambios funcionales
 // ============================================================================
-
-type HistoryEvent = inferRouterOutputs<AppRouter>["tasks"]["history"][number];
-
-function ActivityTimeline({
-  taskId,
-  network,
-}: {
-  taskId: string;
-  network: string;
-}) {
-  const { t } = useT();
-  const tl = t.taskDetail.timeline;
-  const history = trpc.tasks.history.useQuery(
-    { id: taskId },
-    { refetchInterval: 5_000 },
-  );
-
-  if (history.isLoading) {
-    return (
-      <section className="hairline-t pt-8">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">
-          {tl.eyebrow}
-        </div>
-        <p className="mt-4 t-small text-[var(--color-text-dim)]">
-          {t.common.loading}
-        </p>
-      </section>
-    );
-  }
-
-  const events = history.data ?? [];
-  if (events.length === 0) return null;
-
-  return (
-    <section className="hairline-t pt-8">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="flex items-baseline gap-3">
-          <div className="t-eyebrow text-[var(--color-text-muted)]">
-            {tl.eyebrow}
-          </div>
-          <Link
-            href="/docs/operational#timeline"
-            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-          >
-            {tl.whatsInHere}
-          </Link>
-        </div>
-        <span className="t-eyebrow text-[var(--color-text-dim)]">
-          {tl.events(events.length)}
-        </span>
-      </div>
-      <ol className="mt-6 divide-y divide-[var(--color-hairline)]">
-        {events.map((ev) => (
-          <EventRow key={ev.id} ev={ev} network={network} />
-        ))}
-      </ol>
-    </section>
-  );
-}
-
-function EventRow({ ev, network }: { ev: HistoryEvent; network: string }) {
-  const { t } = useT();
-  const desc = describeEvent(ev, t);
-  const timestamp =
-    typeof ev.timestamp === "string"
-      ? new Date(ev.timestamp).getTime()
-      : new Date(ev.timestamp as unknown as string | number).getTime();
-
-  return (
-    <li className="grid grid-cols-12 items-baseline gap-4 py-4">
-      <div className="col-span-4 md:col-span-2 t-num text-[var(--color-text-muted)]">
-        {formatTimeAgo(timestamp, t)}
-      </div>
-      <div className="col-span-8 md:col-span-2">
-        <span className={`t-eyebrow ${desc.tone}`}>{desc.label}</span>
-      </div>
-      <div className="col-span-12 md:col-span-8 t-small text-[var(--color-text-muted)]">
-        {desc.description}
-        {desc.txId ? (
-          <span className="ml-3">
-            <SolscanLink sig={desc.txId} network={network} />
-          </span>
-        ) : null}
-      </div>
-    </li>
-  );
-}
 
 function describeEvent(
   ev: HistoryEvent,

@@ -470,6 +470,112 @@ export const en = {
       outputMinimum: "Output (minimum)",
     },
 
+    // ---- Bloque G: detail mockup ----
+    head: {
+      protocol: {
+        orca: "Orca Whirlpools",
+        meteora: "Meteora DLMM",
+      },
+      armedPrefix: "Armed",
+      taskShortPrefix: "auto-exit",
+      pollingPrefix: "polling every",
+      openInExplorer: "Open position on Solana explorer",
+    },
+
+    heroPanel: {
+      liveLabel: "Pool price · live",
+      liveMetaPrefix: (ago: string) => `Updated ${ago} · next poll in`,
+      liveMetaNoTick: "no ticks yet",
+      toTp: "To take-profit",
+      toSl: "To stop-loss",
+      poolRange: "Pool range",
+      inRange: "In range",
+      outOfRange: "Out of range",
+      bandLegendRange: "Liquidity range — earning fees",
+      bandLegendSl: "Stop-loss",
+      bandLegendTp: "Take-profit",
+      bandLegendPrice: "Live price",
+      bandAria: (args: {
+        lo: string;
+        hi: string;
+        rangeLo: string;
+        rangeHi: string;
+        sl: string | null;
+        tp: string | null;
+        currentPrice: string;
+        inRange: boolean;
+      }) =>
+        `Price band from ${args.lo} to ${args.hi}. The liquidity range spans ${args.rangeLo} to ${args.rangeHi}.${
+          args.sl ? ` Stop-loss trigger at ${args.sl}.` : ""
+        }${args.tp ? ` Take-profit trigger at ${args.tp}.` : ""} Current pool price is ${args.currentPrice} — ${args.inRange ? "inside" : "outside"} the range.`,
+      zoneTag: "Liquidity range",
+    },
+
+    triggerCard: {
+      tp: "Take-profit",
+      sl: "Stop-loss",
+      armedBadge: "Armed",
+      firedBadge: "Fired",
+      distance: "Distance to trigger",
+      reached: "trigger met",
+      bufferFootTp: (price: string, duration: string) =>
+        `Closes only after price holds ≥ ${price} for ${duration}`,
+      bufferFootSl: (price: string, duration: string) =>
+        `Closes only after price holds ≤ ${price} for ${duration}`,
+      noBufferFoot: "Closes on the next tick after the trigger.",
+    },
+
+    holdings: {
+      title: "Position holdings",
+      refreshed: "refreshed every 10s",
+      liquidity: "Liquidity",
+      pendingFees: "Pending fees",
+      rangeStatus: "Range status",
+      estimatedValue: "Estimated value",
+      estimatedValueNote: "liquidity + pending fees",
+      feesValueNote: (totalInQuote: string) =>
+        `≈ ${totalInQuote} — collected on close`,
+      rangeWithStatus: (lo: string, hi: string) =>
+        `${lo} – ${hi} · earning fees`,
+      rangeWhenOut: (lo: string, hi: string) =>
+        `${lo} – ${hi} · not earning fees`,
+      noFees: "—",
+    },
+
+    closePlan: {
+      title: "When a trigger fires",
+      step1Title: "Claim fees & rewards",
+      step1Desc: "Pending fees are collected to the bot wallet first.",
+      step2Title: "Withdraw all liquidity",
+      step2Desc: (proto: string) =>
+        `Both tokens are removed from the ${proto} position.`,
+      step3Title: "Close the position",
+      step3Desc:
+        "The position NFT account is closed and its rent reclaimed.",
+      step4Title: (sym: string) => `Swap proceeds to ${sym}`,
+      step4Desc: (slippage: string) =>
+        `Output is swapped to your exit token in the same pool, within ${slippage} slippage.`,
+      step4Skipped:
+        "Proceeds stay in their original tokens — no exit swap configured.",
+      foot: "Every step runs with automatic retry. The settled transaction is then checked on-chain — quoted versus actual — and the difference recorded in the receipt.",
+    },
+
+    detailsPanel: {
+      title: "Details",
+      protocol: "Protocol",
+      network: "Network",
+      networkMainnet: "Mainnet",
+      networkDevnet: "Devnet",
+      exitToken: "Exit token",
+      exitTokenNone: "none",
+      timeBuffer: "Time buffer",
+      pollInterval: "Poll interval",
+      closeSlippage: "Close slippage",
+      swapSlippage: "Swap slippage",
+      positionMint: "Position mint",
+      bufferDash: "—",
+    },
+
     timeline: {
       eyebrow: "Activity",
       whatsInHere: "→ What's in here",
