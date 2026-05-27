@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
+import { Panel } from "@/components/Panel";
 import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
@@ -192,15 +193,14 @@ function SettingsForm({
   };
 
   return (
-    <div className="space-y-14">
+    <div className="space-y-6">
       {/* Network & RPC */}
-      <section>
-        <div className="t-eyebrow text-[var(--color-text-muted)]">
-          {s.networkSection.eyebrow}
-        </div>
-        <h2 className="mt-3 t-h2">{s.networkSection.title}</h2>
-
-        <div className="mt-8 space-y-6">
+      <Panel
+        icon={<NetworkIcon />}
+        title={s.networkSection.eyebrow}
+        description={s.networkSection.title}
+      >
+        <div className="space-y-6 pt-4">
           <NetworkPanel
             network={initial.network}
             gateAllowed={initial.mainnetGateAllowed}
@@ -242,16 +242,15 @@ function SettingsForm({
             </div>
           </div>
         </div>
-      </section>
+      </Panel>
 
       {/* Defaults */}
-      <section className="hairline-t pt-10">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">
-          {s.defaultsSection.eyebrow}
-        </div>
-        <h2 className="mt-3 t-h2">{s.defaultsSection.title}</h2>
-
-        <div className="mt-8 space-y-8">
+      <Panel
+        icon={<DefaultsIcon />}
+        title={s.defaultsSection.eyebrow}
+        description={s.defaultsSection.title}
+      >
+        <div className="space-y-8 pt-4">
           <div>
             <Label>{s.slippage.label}</Label>
             <Segmented
@@ -367,17 +366,17 @@ function SettingsForm({
           </div>
         </div>
 
-        <p className="mt-8 t-small text-[var(--color-text-dim)]">
+        <p className="mt-6 t-small text-[var(--color-text-dim)]">
           {s.perTaskNote}
         </p>
-      </section>
+      </Panel>
 
       <UpdaterPanel enabled={initial.updaterAutoCheck} refresh={refresh} />
 
       {error ? <FieldError>{error}</FieldError> : null}
 
       {/* Actions */}
-      <section className="hairline-t flex flex-wrap items-baseline justify-between gap-4 pt-6">
+      <section className="flex flex-wrap items-baseline justify-between gap-4 px-1 pt-2">
         <div className="t-small text-[var(--color-text-muted)]">
           {savedAt ? (
             <span className="text-[var(--color-positive)]">
@@ -437,10 +436,8 @@ function UpdaterPanel({
   };
 
   return (
-    <section className="hairline-t pt-10">
-      <div className="t-eyebrow text-[var(--color-text-muted)]">{s.eyebrow}</div>
-      <h2 className="mt-3 t-h2">{s.title}</h2>
-      <div className="mt-8">
+    <Panel icon={<UpdaterIcon />} title={s.eyebrow} description={s.title}>
+      <div className="pt-4">
         <Label>{s.label}</Label>
         <Segmented
           value={enabled ? "on" : "off"}
@@ -455,7 +452,36 @@ function UpdaterPanel({
         </p>
         {error ? <FieldError>{error}</FieldError> : null}
       </div>
-    </section>
+    </Panel>
+  );
+}
+
+// ============================================================================
+// Icons — feather-style 15x15 base (matched to .panel-ic 30px container)
+// ============================================================================
+
+function NetworkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px]" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+    </svg>
+  );
+}
+
+function DefaultsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px]" aria-hidden="true">
+      <path d="M13 2 3 14h7l-1 8 10-12h-7z" />
+    </svg>
+  );
+}
+
+function UpdaterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px]" aria-hidden="true">
+      <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />
+    </svg>
   );
 }
 
