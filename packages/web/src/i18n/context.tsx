@@ -25,19 +25,18 @@ const STORAGE_KEY = "auto-exit:lang";
 const LangContext = createContext<LangContextValue | null>(null);
 
 /**
- * Detecta el idioma inicial:
+ * Detecta el idioma preferido del cliente:
  *  1. Lo que tenga el usuario en localStorage (preferencia explícita).
  *  2. Si no, navigator.language. Si empieza por "es" → español.
  *  3. Fallback: inglés.
  *
- * Esta función corre solo en cliente — el SSR cae al default y el primer
- * render del cliente puede hidratar con otro idioma (hidration mismatch).
- * Para evitar el flash, leemos localStorage de forma síncrona en
- * useState's initializer y dejamos que el primer render ya use el
- * idioma correcto.
+ * Solo se llama desde useEffect (cliente). El primer render del Provider
+ * usa "en" (coherente con el SSR) y un useEffect post-hydrate sustituye
+ * por la preferencia real. Esto evita hydration mismatch al precio de
+ * un flash ~16ms cuando el preferido es "es" — preferible al error
+ * porque la hidratación fallida invalida TODO el árbol React.
  */
-function detectInitial(): Lang {
-  if (typeof window === "undefined") return "en";
+function detectPreferred(): Lang {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "en" || stored === "es") return stored;
@@ -49,7 +48,14 @@ function detectInitial(): Lang {
 }
 
 export function LangProvider({ children }: { children: React.ReactNode }) {
-  const [lang, setLangState] = useState<Lang>(detectInitial);
+  // Initial state coincide con SSR. La preferencia real se aplica en el
+  // useEffect de abajo tras hydrate.
+  const [lang, setLangState] = useState<Lang>("en");
+
+  useEffect(() => {
+    const preferred = detectPreferred();
+    if (preferred !== "en") setLangState(preferred);
+  }, []);
 
   const setLang = useCallback((next: Lang) => {
     setLangState(next);
