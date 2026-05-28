@@ -9,23 +9,15 @@
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
-- [ ] **Decidir merge del rediseño UI** — rama `feature/ui-refined-dark`
-  acumula **30 commits** del rediseño "refined minimal dark" completo
-  (paleta dark + sidebar + nuevos componentes + rate-limit hint +
-  detail mockup G + anclar al sidebar + escala tipográfica + 2
-  decimales + lock fuera del sidebar + dashboard hub rewrite con cards
-  + TriggerBand + StatusPill + BufferCountdown + DashboardAlerts con
-  bulk-resume + retira StatStrip). Aceptada como
-  [ADR-038](DECISIONS.md) y reforzada por [ADR-039](DECISIONS.md), pero
-  **sin merge a `main`** ni push. Al mergear:
-  - Borrar `packages/web/src/components/GlobalHeader.tsx` (huérfano,
-    sin importadores tras Bloque B).
-  - Limpiar strings i18n huérfanas: `sidebar.lockWallet`,
-    `sidebar.locking` (tras quitar `LockButton`), `home.eyebrow.*`
-    (tras quitar `BotWalletEyebrow`). EN y ES.
-  - Publicar `v0.2.0` (cambio visual mayor — semver minor).
-  - Entry detallado en CHANGELOG (la sección `[Unreleased]` ya lleva
-    los puntos principales).
+- [ ] **Publicar release `v0.2.0`** — el rediseño UI está mergeado a
+  `main` y pusheado. Cambio visual mayor (paleta dark + sidebar +
+  hub visual + alerts contextuales + bulk-resume + /tasks como
+  histórico + wallet polish + etc.) → semver minor bump. Seguir
+  [docs/RELEASING.md](RELEASING.md) para el proceso (keypair de
+  firma, `pnpm tauri:release`, artefactos `.exe`/`.msi`/`latest.json`/
+  `SHA256SUMS.txt`, crear GitHub Release). La sección `[Unreleased]`
+  del CHANGELOG ya tiene todas las entries para arrastrar al
+  `## [0.2.0]`.
 
 ## Backlog (sin orden)
 
@@ -185,6 +177,35 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Rediseño UI mergeado a main (2026-05-28)**: tras 38 commits acumulados
+  en `feature/ui-refined-dark`, merge `--no-ff` a `main`. Última sesión
+  añadió 7 commits funcionales sobre el rediseño anterior:
+  - `9822a8c` /tasks reconvertido a histórico puro (filtros COMPLETED/
+    ERRORS, default COMPLETED, `?filter=errors` deep-link desde callout
+    de errores). `HistoryLedger` compartido entre /tasks y bloque
+    "Histórico de transacciones" del dashboard. Wallet polish:
+    `AddressDisplay` con copy + truncar + Solscan, title sin jerga.
+    Sidebar nav reordenado, link al histórico dedup en el hub, back
+    dinámico en /tasks/[id], `Simulado` fuera de la pill, barrido
+    task→auto-exit en copy.
+  - `14e6c53` fix runtime: hydration mismatch en LangProvider (initial
+    state `en` + useEffect post-hydrate aplica preferencia real) y
+    modal layout invisible (backdrop z-40 + panel translate(-50%,-50%)
+    z-50).
+  - `b272b8d` `scripts/seed-history.ts` para probar el histórico con
+    datos plausibles (6 tasks done/stopped/error con timestamps
+    escalonados, mainnet+devnet, con/sin swap, dry-run).
+  - `efd20f6` fix server: `wallet.delete` wipea tasks de la DB (bug
+    encontrado: wallet nueva heredaba tasks de la anterior). Helper
+    `--wipe-all` en seed script.
+  - `b5af30f` quitada CTA `AUTO-EXIT →` redundante en filas sin
+    watcher (doble flecha + tres affordances apilados).
+  - `0e4005a` cleanup pre-merge: borrado `GlobalHeader.tsx` huérfano +
+    8 strings i18n unused (`sidebar.lockWallet/locking`,
+    `home.eyebrow.{botWallet,locked,onePosition,manyPositions,
+    loadingPositions,oneWatching,manyWatching}`).
+  - Docs sync (este commit) + merge a main + push.
+  Release `v0.2.0` queda pendiente (sigue [RELEASING.md](RELEASING.md)).
 - **Dashboard hub rewrite + alerts inteligentes (2026-05-28)**: 3 commits
   funcionales sobre `feature/ui-refined-dark`. Sidebar brand mark de
   monograma `A` en mono (el icono anterior era logout universal). Token
