@@ -50,6 +50,25 @@
   "__TAURI_INTERNALS__" in window` (o equivalente de Tauri 2.x). Si
   no es Tauri, no renderizar la sección del updater o reemplazarla
   por una nota "actualización manual — ver INSTALL.md".
+- [ ] Paginación del `/tasks` (Histórico). Hoy `trpc.tasks.list` carga
+  TODAS las filas y el HistoryLedger las renderiza todas a la vez.
+  Para usuarios casuales (1 task/mes) no es problema; para un power
+  user con varios cientos de tasks históricas tras meses de uso el
+  render se vuelve lento y el scroll infinito. Añadir paginación
+  server-side (LIMIT/OFFSET o cursor-based) en `tasks.list` con
+  default 100 + UI tipo "load more" o paginador. Trigger razonable:
+  cuando un usuario tipo "power" empiece a notar lentitud, o
+  preventivamente cuando `historicalRows.length > 100`.
+- [ ] Health check del tamaño del archivo SQLite. Si supera N MB
+  (sugerido 50 MB como threshold inicial — uso normal son <2 MB/año),
+  mostrar callout amber en el dashboard: "Tu DB pesa X MB — esto es
+  inusual para uso normal y puede indicar un bug. [Exportar histórico
+  y limpiar]". Es defensa contra un bug futuro que llene la DB sin
+  querer (e.g. un `appendHistory` en el polling loop). Añadir endpoint
+  `meta.dbSize` que devuelva `statSync(DB_PATH).size`, comparar contra
+  threshold en `DashboardAlerts`. Bonus: exportar histórico a CSV
+  desde `/settings` antes de wipear (`scripts/seed-history.ts
+  --wipe-all` es el wipe pero hoy no hay export).
 - [ ] Render legible de errores de validación zod en el web. Hoy el catch de
   `/settings` (y posiblemente otros forms con mutations) hace `err.message`
   directo; cuando el backend devuelve un `ZodError`, el message lleva el
