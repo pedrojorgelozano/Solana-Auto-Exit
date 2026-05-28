@@ -184,6 +184,18 @@ export const walletRouter = router({
           message: body.error.message ?? "RPC error",
         });
       }
-      return { lamports: body.result?.value ?? 0 };
+      // No usar `?? 0` aquí — si el body no tiene la shape esperada
+      // (rate-limit HTML, JSON corrupto, response weird del RPC),
+      // devolver 0 silenciosamente enmascara el bug y dispara callouts
+      // de "low balance" falsos. Tirar throw para que el frontend pueda
+      // distinguir "el RPC no respondió" de "la wallet tiene 0 SOL".
+      if (typeof body.result?.value !== "number") {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "RPC response missing `result.value` — el RPC puede estar rate-limited, mal configurado o caído.",
+        });
+      }
+      return { lamports: body.result.value };
     }),
 });

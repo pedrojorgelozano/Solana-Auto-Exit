@@ -206,7 +206,11 @@ export const en = {
             ? "If your wallet has SOL on mainnet, switch network in /settings."
             : ""
         }`.trim(),
-      lowBalanceCta: "Top up",
+      lowBalanceCta: "Open wallet",
+      balanceErrorEyebrow: "Couldn't check balance",
+      balanceErrorBody:
+        "The configured RPC didn't respond correctly. It may be rate-limited, misconfigured or down.",
+      balanceErrorCta: "Open settings",
       errorsEyebrow: (n: number) =>
         n === 1 ? "1 auto-exit errored" : `${n} auto-exits errored`,
       errorsBody:

@@ -182,7 +182,11 @@ export const es: typeof en = {
             ? "Si tu wallet tiene SOL en mainnet, cambia la red en /settings."
             : ""
         }`.trim(),
-      lowBalanceCta: "Recargar",
+      lowBalanceCta: "Ver wallet",
+      balanceErrorEyebrow: "No se pudo verificar el balance",
+      balanceErrorBody:
+        "El RPC configurado no respondió correctamente. Puede estar rate-limited, mal configurado o caído.",
+      balanceErrorCta: "Ver ajustes",
       errorsEyebrow: (n: number) =>
         n === 1 ? "1 auto-exit en error" : `${n} auto-exits en error`,
       errorsBody:

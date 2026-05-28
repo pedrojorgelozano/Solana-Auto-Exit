@@ -63,6 +63,11 @@ export function DashboardAlerts({
   const lowBalance =
     balance.data !== undefined &&
     balance.data.lamports < LOW_BALANCE_LAMPORTS;
+  // El balance falla típicamente cuando el RPC público de Solana
+  // rate-limita o el rpcUrl está mal. No queremos disparar "low
+  // balance" como falso positivo en ese caso — mejor un callout
+  // explícito que diga "no se pudo verificar".
+  const balanceQueryFailed = !!owner && unlocked && balance.isError;
   const balanceSolStr = balance.data
     ? formatTokenAmount(String(balance.data.lamports), 9, 4)
     : "?";
@@ -78,7 +83,13 @@ export function DashboardAlerts({
   );
   const showResumeCallout = unlocked && systemPaused.length > 0;
 
-  if (!lowBalance && errorCount === 0 && !showResumeCallout) return null;
+  if (
+    !lowBalance &&
+    !balanceQueryFailed &&
+    errorCount === 0 &&
+    !showResumeCallout
+  )
+    return null;
 
   const handleResumeAll = async () => {
     await Promise.allSettled(
@@ -106,6 +117,15 @@ export function DashboardAlerts({
           ctaLabel={a.errorsCta}
           ctaHref="/tasks?filter=errors"
           icon={<ErrorIcon />}
+        />
+      ) : null}
+      {balanceQueryFailed ? (
+        <AlertCallout
+          eyebrow={a.balanceErrorEyebrow}
+          body={a.balanceErrorBody}
+          ctaLabel={a.balanceErrorCta}
+          ctaHref="/settings"
+          icon={<LowBalanceIcon />}
         />
       ) : null}
       {lowBalance ? (
