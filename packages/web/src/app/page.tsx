@@ -6,20 +6,18 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@solana-auto-exit/server/api";
 
 import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/PageHeader";
 import { trpc } from "@/lib/trpc";
 import { positionDetailHref, taskDetailHref } from "@/lib/routes";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { useT } from "@/i18n/context";
-import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
-import {
-  formatDistance,
-  formatPrice,
-  formatTaskPair,
-  formatTimeAgo,
-  formatTriggers,
-  truncateAddress,
-} from "@/lib/format";
+import { type BackendStatus } from "@/lib/status";
+import { formatNearestDistance, formatPrice } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
+import { TriggerBand } from "@/components/TriggerBand";
+import { BufferCountdown } from "@/components/BufferCountdown";
+import { DashboardAlerts } from "@/components/DashboardAlerts";
+import { HistoryLedger } from "@/components/HistoryLedger";
 import {
   NETWORK,
   PROTOCOL_LABELS,
@@ -45,7 +43,7 @@ export default function Home() {
   });
 
   if (walletStatus.isLoading) {
-    return <main className="mx-auto max-w-6xl px-6 pt-16" />;
+    return <main className="mr-auto max-w-6xl px-6 pt-16" />;
   }
   if (!walletStatus.data?.hasVault) {
     return <FirstRunHome />;
@@ -109,14 +107,15 @@ function ConnectedHome({
   );
 
   return (
-    <main className="mx-auto max-w-6xl px-6 pb-32 pt-12 fade-in">
-      <BotWalletEyebrow
-        owner={owner}
-        unlocked={unlocked}
+    <main className="mr-auto max-w-6xl px-6 pb-32 pt-12 fade-in md:px-12">
+      <DashboardHeader
         totalPositions={allRefs.length}
-        watchingCount={watchingCount}
-        loadingPositions={isLoadingAll}
+        isLoading={isLoadingAll}
       />
+
+      {!unlocked ? <LockedCallout /> : null}
+
+      <DashboardAlerts owner={owner} unlocked={unlocked} />
 
       <PositionsHub
         refs={allRefs}
@@ -135,69 +134,121 @@ function ConnectedHome({
   );
 }
 
-// ============================================================================
-// Eyebrow — bot wallet address + counters
-// ============================================================================
-
-function BotWalletEyebrow({
-  owner,
-  unlocked,
+/**
+ * PageHeader del dashboard. La address y los counters de "watching" viven
+ * ahora en otros sitios (sidebar y stat strip respectivamente), así que el
+ * header se queda con eyebrow + título + descripción dinámica con el
+ * número de posiciones detectadas.
+ */
+function DashboardHeader({
   totalPositions,
-  watchingCount,
-  loadingPositions,
+  isLoading,
 }: {
-  owner: string | null;
-  unlocked: boolean;
   totalPositions: number;
-  watchingCount: number;
-  loadingPositions: boolean;
+  isLoading: boolean;
 }) {
   const { t } = useT();
+  const d = t.home.dashboard;
+  const description = isLoading
+    ? d.descriptionLoading
+    : totalPositions === 0
+      ? d.descriptionNone
+      : totalPositions === 1
+        ? d.descriptionOne
+        : d.descriptionMany(totalPositions);
+
   return (
-    <section className="pb-8 hairline-b">
-      <div className="flex items-baseline justify-between gap-3">
-        <div className="t-eyebrow text-[var(--color-text-muted)]">
-          {t.home.eyebrow.botWallet}
-          {unlocked ? null : (
-            <span className="ml-2 text-[var(--color-warning)]">
-              {t.home.eyebrow.locked}
-            </span>
-          )}
-        </div>
-        <Link
-          href="/docs/bot-wallet"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
-          {t.home.eyebrow.whatIs}
-        </Link>
-      </div>
-      <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-2">
-        <span className="t-num break-all text-[var(--color-text)]">
-          {owner ? truncateAddress(owner, 8, 8) : "—"}
-        </span>
-        <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
-        <span className="t-small text-[var(--color-text-muted)]">
-          {loadingPositions
-            ? t.home.eyebrow.loadingPositions
-            : totalPositions === 1
-              ? t.home.eyebrow.onePosition
-              : t.home.eyebrow.manyPositions(totalPositions)}
-        </span>
-        {watchingCount > 0 ? (
-          <>
-            <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
-            <span className="inline-flex items-center gap-2 t-small text-[var(--color-positive)]">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)] pulse-soft" />
-              {watchingCount === 1
-                ? t.home.eyebrow.oneWatching
-                : t.home.eyebrow.manyWatching(watchingCount)}
-            </span>
-          </>
-        ) : null}
-      </div>
-    </section>
+    <PageHeader
+      eyebrow={d.eyebrow}
+      title={d.title}
+      description={description}
+    />
   );
 }
+
+/**
+ * LockedCallout — banner amber con border-left, icono candado, eyebrow + body
+ * + CTA a /wallet. Solo se muestra cuando la wallet está bloqueada en el
+ * dashboard (es el bloqueador #1 para usar la app — sin desbloquear no se
+ * arma ningún auto-exit).
+ */
+function LockedCallout() {
+  const { t } = useT();
+  const d = t.home.dashboard;
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="
+        mt-6 flex items-center gap-4
+        rounded-[10px] border border-[var(--color-hairline)]
+        border-l-[3px] border-l-[var(--color-warning)]
+        bg-[var(--color-bg-elevated)]
+        px-5 py-4
+      "
+    >
+      <span
+        className="
+          inline-flex h-9 w-9 flex-none items-center justify-center
+          rounded-full bg-[var(--color-warning)]/12
+        "
+        aria-hidden="true"
+      >
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--color-warning)"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-[17px] w-[17px]"
+        >
+          <rect x="4" y="11" width="16" height="9" rx="2" />
+          <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+        </svg>
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--color-warning)]">
+          {d.lockedEyebrow}
+        </div>
+        <p className="mt-1 text-[15px] text-[var(--color-text)]">
+          {d.lockedBody}
+        </p>
+      </div>
+      <Link
+        href="/wallet"
+        className="
+          inline-flex flex-none items-center gap-2 self-center
+          rounded-[7px] border border-[var(--color-warning)]/45
+          px-3.5 py-2 text-[12px] font-semibold uppercase tracking-[0.18em]
+          text-[var(--color-warning)]
+          transition-colors hover:bg-[var(--color-warning)]/10
+        "
+      >
+        {d.lockedCta}
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.9"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className="h-[13px] w-[13px]"
+          aria-hidden="true"
+        >
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      </Link>
+    </div>
+  );
+}
+
+// ============================================================================
+// BotWalletEyebrow — eliminado en el rediseño "refined minimal dark". La
+// info que mostraba (address + counters) ahora vive en el sidebar
+// (WalletBeacon) y en StatStrip. Las strings i18n `home.eyebrow.*` quedan
+// huérfanas a propósito por si revertimos.
+// ============================================================================
 
 // ============================================================================
 // Positions hub — la tabla principal del home
@@ -236,25 +287,27 @@ function PositionsHub({
     return <EmptyHub owner={owner} />;
   }
 
+  const watchingCount = refs.filter((r) => activeByPosition.has(r.id)).length;
+  const watchingStr = watchingCount.toString().padStart(2, "0");
+
   return (
     <section className="pt-8">
-      {/* Column headers — solo en md+; en mobile la fila se apila */}
-      <div className="hidden hairline-b pb-3 md:grid md:grid-cols-12 md:items-baseline md:gap-4">
-        <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)]">
-          {hubT.headerStatus}
+      {/* Section header — "Now watching · 03". El link al histórico del
+          sidebar y el del bloque "Histórico de transacciones" más abajo
+          cubren el acceso; aquí sería redundante. */}
+      <div className="mb-2 pb-3">
+        <div className="t-eyebrow text-[var(--color-text)]">
+          {hubT.nowWatching}{" "}
+          <span className="ml-1 t-num text-[var(--color-text-dim)]">
+            {watchingStr}
+          </span>
         </div>
-        <div className="md:col-span-3 t-eyebrow text-[var(--color-text-dim)]">
-          {hubT.headerPosition}
-        </div>
-        <div className="md:col-span-5 t-eyebrow text-[var(--color-text-dim)]">
-          {hubT.headerAutoExit}
-        </div>
-        <div className="md:col-span-2 t-eyebrow text-[var(--color-text-dim)] md:text-right">
-          {hubT.headerAction}
-        </div>
+        <p className="mt-1 t-small text-[var(--color-text-muted)]">
+          {hubT.subtitle}
+        </p>
       </div>
 
-      <ul className="divide-y divide-[var(--color-hairline)]">
+      <ul className="flex flex-col gap-3">
         {refs.map((ref) => (
           <PositionHubRow
             key={`${ref.protocol}:${ref.id}`}
@@ -267,11 +320,40 @@ function PositionsHub({
       </ul>
 
       {anyError ? (
-        <p className="mt-6 t-small text-[var(--color-danger)]">
-          {hubT.oneProtocolFailed(anyError)}
-        </p>
+        <div className="mt-6 space-y-2 t-small">
+          <p className="text-[var(--color-danger)]">
+            {hubT.oneProtocolFailed(anyError)}
+          </p>
+          {isRateLimitError(anyError) ? (
+            <p className="text-[var(--color-text-muted)]">
+              {hubT.rateLimitHintBefore}
+              <Link
+                href="/docs/operational#rpc"
+                className="font-semibold text-[var(--color-accent-bright)] underline decoration-[var(--color-accent-bright)]/40 underline-offset-2 transition-colors hover:decoration-[var(--color-accent-bright)]"
+              >
+                {hubT.rateLimitHintLink}
+              </Link>
+              {hubT.rateLimitHintAfter}
+            </p>
+          ) : null}
+        </div>
       ) : null}
     </section>
+  );
+}
+
+/**
+ * Detecta el rate-limit típico del RPC público de Solana — el SDK de Meteora
+ * lo encuentra al primer load de /positions porque `getAllLbPairPositionsByUser`
+ * hace muchas llamadas. El mensaje varía entre RPCs ("429", "too many requests",
+ * "rate limit exceeded"); matcheamos los tres.
+ */
+function isRateLimitError(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return (
+    m.includes("429") ||
+    m.includes("too many requests") ||
+    m.includes("rate limit")
   );
 }
 
@@ -294,202 +376,421 @@ function PositionHubRow({
     ref: posRef,
   });
 
-  const view = activeTask ? statusView(activeTask.status as BackendStatus) : null;
-  const tone = view ? TONE_CLASSES[view.tone] : null;
-  const statusLabel = activeTask
-    ? t.status[activeTask.status as BackendStatus]?.label ?? activeTask.status
+  const protocolLabel =
+    PROTOCOL_LABELS[posRef.protocol as ProtocolName] ?? posRef.protocol;
+  const status = activeTask
+    ? (activeTask.status as BackendStatus)
     : null;
+  const isPaused = status === "paused";
+  const hasWatcher = activeTask !== null;
+  const rowState: "active" | "paused" | "none" = !hasWatcher
+    ? "none"
+    : isPaused
+      ? "paused"
+      : "active";
 
   const symA = summary.data ? tokenSymbol(summary.data.tokenA.mint) : null;
   const symB = summary.data ? tokenSymbol(summary.data.tokenB.mint) : null;
-  const protocolLabel =
-    PROTOCOL_LABELS[posRef.protocol as ProtocolName] ?? posRef.protocol;
+  const currentPrice = summary.data?.currentPrice ?? null;
+  const lastPrice = activeTask?.runtime.lastPrice ?? null;
+  const livePrice = currentPrice ?? lastPrice;
+
+  const wrapperClass =
+    rowState === "active"
+      ? `
+        relative rounded-[10px] border border-[var(--color-hairline)]
+        border-l-[3px] border-l-[var(--color-accent)]
+        bg-[var(--color-bg-elevated)]
+        py-6 pl-6 pr-12
+        shadow-[0_1px_0_0_rgba(0,0,0,0.35)]
+        hover:bg-[var(--color-surface-hover)]
+      `
+      : rowState === "paused"
+        ? `
+          relative border-l-[3px] border-l-[var(--color-text-dim)]/55
+          hairline-b
+          py-5 pl-5 pr-10
+          hover:bg-[var(--color-surface-hover)]/40
+        `
+        : `
+          relative border-l-[3px] border-l-transparent
+          hairline-b
+          py-5 pl-5 pr-10
+          hover:bg-[var(--color-surface-hover)]/40
+        `;
+
+  const detailHref = activeTask
+    ? taskDetailHref(activeTask.id)
+    : positionDetailHref(posRef.id);
 
   return (
-    <li className="grid grid-cols-12 items-baseline gap-x-4 gap-y-1 py-5 md:gap-y-0">
-      {/* Status */}
-      <div className="col-span-12 md:col-span-2">
-        {view && tone ? (
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${tone.dot} ${
-                view.pulsing ? "pulse-soft" : ""
-              }`}
+    <li>
+      <Link
+        href={detailHref}
+        className={`group block transition-colors ${wrapperClass}`}
+      >
+        <RowHeader
+          symA={symA}
+          symB={symB}
+          posRef={posRef}
+          protocolLabel={protocolLabel}
+          isInRange={summary.data?.isInRange ?? null}
+          rowState={rowState}
+          statusLabel={
+            activeTask
+              ? t.status[status as BackendStatus]?.label ?? activeTask.status
+              : null
+          }
+          isDryRun={activeTask?.dryRun ?? false}
+        />
+
+        {rowState === "active" && activeTask ? (
+          <ActiveBufferRow task={activeTask} />
+        ) : null}
+
+        <div className="mt-5 grid grid-cols-1 items-center gap-6 md:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-8">
+            <BigPrice
+              price={livePrice}
+              quoteSymbol={symB}
+              dim={rowState !== "active"}
             />
-            <span className={`t-eyebrow ${tone.text}`}>{statusLabel}</span>
-            {activeTask?.dryRun ? (
-              <span className="t-eyebrow text-[var(--color-warning)]">
-                {t.format.sim}
-              </span>
+            {hasWatcher ? (
+              <div className="min-w-0 flex-1">
+                <TriggerBand
+                  currentPrice={livePrice}
+                  tpPrice={activeTask?.takeProfitPrice ?? null}
+                  slPrice={activeTask?.stopLossPrice ?? null}
+                  state={rowState === "active" ? "active" : "muted"}
+                />
+              </div>
             ) : null}
           </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="inline-block h-1.5 w-1.5 rounded-full border border-[var(--color-text-dim)]" />
-            <span className="t-eyebrow text-[var(--color-text-dim)]">
-              {t.status.noExit}
-            </span>
-          </div>
-        )}
-      </div>
 
-      {/* Position */}
-      <div className="col-span-12 md:col-span-3">
-        <div className="t-h3 text-[var(--color-text)]">
-          {symA && symB ? (
-            <>
-              {symA}{" "}
-              <span className="text-[var(--color-text-muted)]">/</span>{" "}
-              {symB}
-            </>
-          ) : (
-            <span className="t-num text-[var(--color-text)]">
-              {truncateAddress(posRef.id, 4, 4)}
-            </span>
-          )}
+          {hasWatcher ? (
+            <TriggerStats
+              currentPrice={livePrice}
+              tpPrice={activeTask?.takeProfitPrice ?? null}
+              slPrice={activeTask?.stopLossPrice ?? null}
+              paused={rowState === "paused"}
+            />
+          ) : null}
         </div>
-        {/* Sub-línea con rango + in/out + protocolo. El rango distingue
-            posiciones del mismo pool (pool trading: la misma pareja en
-            varios rangos a la vez). */}
-        <div className="mt-1 flex items-center gap-2">
-          {summary.data ? (
-            <>
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  summary.data.isInRange
-                    ? "bg-[var(--color-positive)]"
-                    : "bg-[var(--color-danger)]"
-                }`}
-                title={
-                  summary.data.isInRange ? "In your range" : "Out of range"
-                }
-              />
-              <span className="t-num text-xs text-[var(--color-text-muted)]">
-                {formatPrice(summary.data.range.min, 2)}
-                <span className="text-[var(--color-text-dim)]">–</span>
-                {formatPrice(summary.data.range.max, 2)}
-              </span>
-              <span className="t-eyebrow text-[var(--color-text-dim)]">·</span>
-              <span
-                className={`t-eyebrow ${
-                  posRef.protocol === "meteora"
-                    ? "text-[var(--color-accent-bright)]"
-                    : "text-[var(--color-text-dim)]"
-                }`}
-              >
-                {protocolLabel}
-              </span>
-            </>
-          ) : (
-            <span className="t-eyebrow text-[var(--color-text-dim)]">
-              <span
-                className={
-                  posRef.protocol === "meteora"
-                    ? "text-[var(--color-accent-bright)]"
-                    : ""
-                }
-              >
-                {protocolLabel}
-              </span>{" "}
-              · {posRef.label.split(" ").slice(-1)[0]}
-            </span>
-          )}
-        </div>
-      </div>
 
-      {/* Auto-exit: trigger + distancia. Solo se rellena si hay watcher
-          activo. Para "No exit" la celda queda vacía — sin guiones, sin
-          ruido (el CTA Action ya lleva al setup). */}
-      <div className="col-span-12 md:col-span-5">
-        {activeTask ? (
-          <AutoExitCell task={activeTask} currentPrice={summary.data?.currentPrice ?? null} />
-        ) : null}
-      </div>
-
-      {/* Action */}
-      <div className="col-span-12 md:col-span-2 md:text-right">
-        {activeTask ? (
-          <Link
-            href={taskDetailHref(activeTask.id)}
-            className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
+        <span
+          aria-hidden
+          className="
+            pointer-events-none absolute right-4 top-1/2
+            -translate-y-1/2
+            text-[var(--color-text-dim)] transition-all duration-200
+            group-hover:text-[var(--color-accent-bright)]
+            group-hover:translate-x-[3px]
+          "
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[18px] w-[18px]"
           >
-            {t.common.details}
-          </Link>
-        ) : (
-          <Link
-            href={positionDetailHref(posRef.id)}
-            className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
-          >
-            {t.common.autoExit}
-          </Link>
-        )}
-      </div>
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </span>
+      </Link>
     </li>
   );
 }
 
 /**
- * Celda Auto-exit de PositionsHub: muestra trigger(s) configurado(s) en
- * primera línea + distancia a CADA UNO en segunda. Si hay TP y SL,
- * ambas distancias se renderizan separadas; si solo uno, solo ese. Cada
- * distancia se pinta en warning si ya está reached, muted en otro caso.
+ * Header de la fila: par + pill protocolo + pill range a la izquierda;
+ * estado a la derecha (· Watching / Pausado / Sin auto-exit).
  */
-function AutoExitCell({
-  task,
-  currentPrice,
+function RowHeader({
+  symA,
+  symB,
+  posRef,
+  protocolLabel,
+  isInRange,
+  rowState,
+  statusLabel,
+  isDryRun,
 }: {
-  task: TaskRow;
-  currentPrice: number | null;
+  symA: string | null;
+  symB: string | null;
+  posRef: PositionRef;
+  protocolLabel: string;
+  isInRange: boolean | null;
+  rowState: "active" | "paused" | "none";
+  statusLabel: string | null;
+  isDryRun: boolean;
 }) {
-  const triggers = formatTriggers(
-    task.takeProfitPrice,
-    task.stopLossPrice,
-    4,
-  );
-  const current = currentPrice ?? task.runtime.lastPrice;
-  const tpDist =
-    task.takeProfitPrice !== null
-      ? formatDistance(current, task.takeProfitPrice, "above")
-      : null;
-  const slDist =
-    task.stopLossPrice !== null
-      ? formatDistance(current, task.stopLossPrice, "below")
-      : null;
-  const hasAnyDistance =
-    (tpDist && tpDist.pct !== null) || (slDist && slDist.pct !== null);
+  const { t } = useT();
+  const pairLabel =
+    symA && symB ? (
+      <>
+        {symA}
+        <span className="text-[var(--color-text-muted)]"> / </span>
+        {symB}
+      </>
+    ) : (
+      posRef.label
+    );
+
+  const stateLabel = (() => {
+    if (rowState === "none") return t.status.noExit;
+    if (rowState === "paused") return statusLabel ?? t.status.paused.label;
+    return statusLabel ?? t.status.armed.label;
+  })();
 
   return (
-    <div>
-      <div className="t-num text-[var(--color-text)]">{triggers}</div>
-      {hasAnyDistance ? (
-        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 t-eyebrow">
-          {tpDist && tpDist.pct !== null ? (
-            <span
-              className={
-                tpDist.reached
-                  ? "text-[var(--color-warning)]"
-                  : "text-[var(--color-text-dim)]"
-              }
-            >
-              {tpDist.text} TP
-            </span>
-          ) : null}
-          {tpDist?.pct !== null && slDist?.pct !== null ? (
-            <span className="text-[var(--color-text-dim)]">·</span>
-          ) : null}
-          {slDist && slDist.pct !== null ? (
-            <span
-              className={
-                slDist.reached
-                  ? "text-[var(--color-warning)]"
-                  : "text-[var(--color-text-dim)]"
-              }
-            >
-              {slDist.text} SL
-            </span>
-          ) : null}
-        </div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <span className="text-[17px] font-semibold tracking-tight text-[var(--color-text)]">
+        {pairLabel}
+      </span>
+      <Pill tone="neutral">{protocolLabel}</Pill>
+      {isInRange !== null ? (
+        <Pill tone={isInRange ? "positive" : "warning"}>
+          {isInRange ? t.format.inRange : t.format.outOfRange}
+        </Pill>
       ) : null}
+      <span className="ml-auto inline-flex items-center gap-2">
+        <StatusPill state={rowState} label={stateLabel} />
+        {isDryRun ? <SimTag /> : null}
+      </span>
+    </div>
+  );
+}
+
+/**
+ * Strip discreto que aparece solo cuando un trigger ya se cruzó y la task
+ * espera N tiempo antes de cerrar (time buffer / anti-flapping). Selecciona
+ * el buffer correcto según cuál umbral cruzó.
+ */
+function ActiveBufferRow({ task }: { task: TaskRow }) {
+  const tpRunning =
+    task.runtime.tpFirstCrossedAt !== null &&
+    (task.takeProfitBufferMs ?? 0) > 0;
+  const slRunning =
+    task.runtime.slFirstCrossedAt !== null &&
+    (task.stopLossBufferMs ?? 0) > 0;
+  if (!tpRunning && !slRunning) return null;
+  const firstCrossedAt = tpRunning
+    ? task.runtime.tpFirstCrossedAt
+    : task.runtime.slFirstCrossedAt;
+  const bufferMs = tpRunning ? task.takeProfitBufferMs : task.stopLossBufferMs;
+  return (
+    <div className="mt-2 flex justify-end">
+      <BufferCountdown
+        firstCrossedAt={firstCrossedAt}
+        bufferMs={bufferMs}
+      />
+    </div>
+  );
+}
+
+/**
+ * Pill enriquecida del estado de la fila — jerárquicamente superior a las
+ * pills del header (protocolo, range). Active = fondo jade-dim sólido + dot
+ * pulsante. Paused = fondo dim opaco + dot estático. None = transparente
+ * con dot vacío.
+ */
+function StatusPill({
+  state,
+  label,
+}: {
+  state: "active" | "paused" | "none";
+  label: string;
+}) {
+  const cls =
+    state === "active"
+      ? "border-[var(--color-accent)]/55 bg-[var(--color-accent)]/15 text-[var(--color-accent-bright)]"
+      : state === "paused"
+        ? "border-[var(--color-rule)] bg-[var(--color-text-dim)]/12 text-[var(--color-text-muted)]"
+        : "border-[var(--color-rule)] bg-transparent text-[var(--color-text-dim)]";
+  const dotCls =
+    state === "active"
+      ? "bg-[var(--color-accent)] pulse-soft shadow-[0_0_0_3px_var(--color-accent-dim)]"
+      : state === "paused"
+        ? "bg-[var(--color-text-muted)]"
+        : "border border-[var(--color-text-dim)]";
+  return (
+    <span
+      className={`
+        inline-flex items-center gap-2 rounded-full border
+        px-3 py-1
+        text-[11px] font-semibold uppercase tracking-[0.18em]
+        ${cls}
+      `}
+    >
+      <span
+        className={`inline-block h-[7px] w-[7px] rounded-full ${dotCls}`}
+        aria-hidden
+      />
+      {label}
+    </span>
+  );
+}
+
+/**
+ * Tag pequeño "Simulado" — se renderiza al lado del StatusPill cuando la
+ * task se creó en modo dry-run. Fuera de la pill para no romperla a
+ * multilinea y para que tenga presencia propia.
+ */
+function SimTag() {
+  const { t } = useT();
+  return (
+    <span
+      title={t.format.simTooltip}
+      className="
+        inline-flex items-center
+        text-[10px] font-semibold uppercase tracking-[0.18em]
+        text-[var(--color-warning)]
+      "
+    >
+      {t.format.sim}
+    </span>
+  );
+}
+
+function Pill({
+  children,
+  tone,
+}: {
+  children: React.ReactNode;
+  tone: "neutral" | "positive" | "warning";
+}) {
+  const cls =
+    tone === "positive"
+      ? "border-[var(--color-accent)]/35 text-[var(--color-accent-bright)] bg-[var(--color-accent)]/8"
+      : tone === "warning"
+        ? "border-[var(--color-warning)]/35 text-[var(--color-warning)] bg-[var(--color-warning)]/8"
+        : "border-[var(--color-rule)] text-[var(--color-text-muted)] bg-transparent";
+  return (
+    <span
+      className={`
+        inline-flex items-center rounded-[5px] border px-2 py-0.5
+        text-[11px] font-medium uppercase tracking-[0.12em]
+        ${cls}
+      `}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * Big number del precio actual del pool, con sym del quote debajo. Estilo
+ * coherente con el hero del detail (mockup G): mono, 32-40px, sin prefijo
+ * de moneda — los rangos son rates del par, no moneda absoluta.
+ */
+function BigPrice({
+  price,
+  quoteSymbol,
+  dim,
+}: {
+  price: number | null;
+  quoteSymbol: string | null;
+  dim: boolean;
+}) {
+  const { t } = useT();
+  const valueColor = dim
+    ? "text-[var(--color-text-dim)]"
+    : "text-[var(--color-text)]";
+  return (
+    <div className="flex flex-col leading-tight">
+      <div className={`t-num text-[32px] font-semibold tracking-tight ${valueColor}`}>
+        {price !== null ? formatPrice(price) : "—"}
+        {quoteSymbol ? (
+          <span className="ml-2 text-[14px] font-medium text-[var(--color-text-muted)]">
+            {quoteSymbol}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-1 t-eyebrow text-[var(--color-text-dim)]">
+        {t.home.hub.poolPrice}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Stack de tres columnas a la derecha: TP / SL / Nearest. Mono, eyebrows
+ * uppercase + valor. Si paused → guiones y `resume to track` en Nearest.
+ */
+function TriggerStats({
+  currentPrice,
+  tpPrice,
+  slPrice,
+  paused,
+}: {
+  currentPrice: number | null;
+  tpPrice: number | null;
+  slPrice: number | null;
+  paused: boolean;
+}) {
+  const { t } = useT();
+  const nearest = formatNearestDistance(currentPrice, tpPrice, slPrice);
+
+  const tpDisplay = tpPrice !== null ? formatPrice(tpPrice) : "—";
+  const slDisplay = slPrice !== null ? formatPrice(slPrice) : "—";
+
+  const tpValueColor = paused
+    ? "text-[var(--color-text-dim)]"
+    : "text-[var(--color-accent-bright)]";
+  const slValueColor = paused
+    ? "text-[var(--color-text-dim)]"
+    : "text-[var(--color-warning)]";
+
+  return (
+    <div className="grid grid-cols-3 gap-3 md:gap-5">
+      <StatCol label={t.home.hub.statTp} value={tpDisplay} valueClass={`t-num ${tpValueColor}`} prefix={tpPrice !== null ? "≥" : null} />
+      <StatCol label={t.home.hub.statSl} value={slDisplay} valueClass={`t-num ${slValueColor}`} prefix={slPrice !== null ? "≤" : null} />
+      <StatCol
+        label={t.home.hub.statNearest}
+        value={
+          paused || nearest.pct === null
+            ? "—"
+            : `${Math.abs(nearest.pct).toFixed(2)}%`
+        }
+        valueClass={
+          paused || nearest.kind === null
+            ? "t-num text-[var(--color-text-dim)]"
+            : `t-num ${
+                nearest.reached
+                  ? "text-[var(--color-warning)]"
+                  : nearest.kind === "tp"
+                    ? "text-[var(--color-accent-bright)]"
+                    : "text-[var(--color-warning)]"
+              }`
+        }
+      />
+    </div>
+  );
+}
+
+function StatCol({
+  label,
+  value,
+  valueClass,
+  prefix,
+}: {
+  label: string;
+  value: React.ReactNode;
+  valueClass: string;
+  prefix?: string | null;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="t-eyebrow text-[var(--color-text-dim)]">{label}</span>
+      <span className={`text-[15px] font-semibold leading-tight ${valueClass}`}>
+        {prefix ? (
+          <span className="mr-1 text-[var(--color-text-muted)]">{prefix}</span>
+        ) : null}
+        {value}
+      </span>
     </div>
   );
 }
@@ -612,21 +913,6 @@ function EmptyPath({
 // Recent activity — feed condensado de tasks terminadas
 // ============================================================================
 
-interface CloseResultShape {
-  dryRun?: boolean;
-  txId?: string;
-}
-
-function isSlippageError(msg: string): boolean {
-  const m = msg.toLowerCase();
-  return (
-    m.includes("slippage") ||
-    m.includes("tolerance") ||
-    m.includes("price impact") ||
-    m.includes("0x1782")
-  );
-}
-
 function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
   const { t } = useT();
   const actT = t.home.activity;
@@ -634,7 +920,7 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
 
   return (
     <section className="hairline-t mt-12 pt-10">
-      <div className="flex items-baseline justify-between">
+      <div className="mb-6 flex items-baseline justify-between">
         <div>
           <div className="t-eyebrow text-[var(--color-text-muted)]">
             {actT.eyebrow}
@@ -643,184 +929,31 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
         </div>
         <Link
           href="/tasks"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          className="
+            inline-flex flex-none items-center gap-1.5
+            t-eyebrow text-[var(--color-text-muted)]
+            transition-colors hover:text-[var(--color-accent-bright)]
+          "
         >
           {actT.viewAll}
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[12px] w-[12px]"
+            aria-hidden
+          >
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </Link>
       </div>
 
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="text-left t-eyebrow text-[var(--color-text-dim)]">
-              <th className="pb-3 pr-4 font-normal">{actT.headerWhen}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerPosition}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerTrigger}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerResult}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerTxError}</th>
-              <th className="pb-3 font-normal text-right">&nbsp;</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--color-hairline)]">
-            {tasks.slice(0, 8).map((t) => (
-              <LedgerRow key={t.id} task={t} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <HistoryLedger rows={tasks.slice(0, 8)} />
     </section>
   );
-}
-
-function LedgerRow({ task }: { task: TaskRow }) {
-  const { t } = useT();
-  const when = task.triggeredAt
-    ? new Date(task.triggeredAt).getTime()
-    : new Date(task.updatedAt).getTime();
-  const closeShape = task.closeResult as CloseResultShape | null;
-
-  return (
-    <tr className="group">
-      <td className="py-4 pr-4 align-top t-num text-[var(--color-text-muted)]">
-        {formatTimeAgo(when, t)}
-      </td>
-      <td className="py-4 pr-4 align-top t-small text-[var(--color-text)]">
-        {(() => {
-          const pair = formatTaskPair(task.protocolConfig);
-          return pair ? (
-            <>
-              {pair}{" "}
-              <span className="t-eyebrow text-[var(--color-text-dim)]">
-                · {task.protocol}
-              </span>
-            </>
-          ) : (
-            <>
-              {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
-            </>
-          );
-        })()}
-      </td>
-      <td className="py-4 pr-4 align-top t-num text-[var(--color-text)]">
-        {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
-        {task.exitTokenMint ? (
-          <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
-            → {tokenSymbol(task.exitTokenMint)}
-          </span>
-        ) : null}
-      </td>
-      <td className="py-4 pr-4 align-top">
-        <ResultChip task={task} />
-      </td>
-      <td className="py-4 pr-4 align-top">
-        <TxOrError task={task} closeShape={closeShape} />
-      </td>
-      <td className="py-4 align-top text-right">
-        <Link
-          href={taskDetailHref(task.id)}
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)]"
-        >
-          open →
-        </Link>
-      </td>
-    </tr>
-  );
-}
-
-/**
- * Chip de resultado: distingue visualmente Closed / Failed / Stopped en lugar
- * de mostrar el label genérico de estado. Para errores, anota la causa
- * detectada (slippage si aplica).
- */
-function ResultChip({ task }: { task: TaskRow }) {
-  const { t } = useT();
-  const actT = t.home.activity;
-  if (task.status === "done") {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)]" />
-        <span className="t-eyebrow text-[var(--color-positive)]">
-          {actT.resultClosed}
-        </span>
-        {task.dryRun ? (
-          <span className="t-eyebrow text-[var(--color-warning)]">
-            {t.format.sim}
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-  if (task.status === "error") {
-    const slip = task.lastError ? isSlippageError(task.lastError) : false;
-    return (
-      <div className="flex items-center gap-2">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
-        <span className="t-eyebrow text-[var(--color-danger)]">
-          {actT.resultFailed}
-        </span>
-        {slip ? (
-          <span className="t-eyebrow text-[var(--color-text-muted)]">
-            {actT.slippageTag}
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-  // stopped
-  return (
-    <div className="flex items-center gap-2">
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-text-dim)]" />
-      <span className="t-eyebrow text-[var(--color-text-muted)]">
-        {actT.resultStopped}
-      </span>
-    </div>
-  );
-}
-
-/**
- * Para closes exitosos: link a Solscan con la signature. Para errores:
- * preview del mensaje (truncado a una línea, hover muestra el completo).
- * Stopped o dry-run: dash.
- */
-function TxOrError({
-  task,
-  closeShape,
-}: {
-  task: TaskRow;
-  closeShape: CloseResultShape | null;
-}) {
-  const { t } = useT();
-  if (task.status === "done" && closeShape?.txId && !closeShape.dryRun) {
-    const cluster = task.network === "mainnet" ? "" : "?cluster=devnet";
-    return (
-      <a
-        href={`https://solscan.io/tx/${closeShape.txId}${cluster}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="t-eyebrow text-[var(--color-accent-bright)] hover:underline t-num"
-      >
-        {truncateAddress(closeShape.txId, 4, 4)} ↗
-      </a>
-    );
-  }
-  if (task.status === "done" && closeShape?.dryRun) {
-    return (
-      <span className="t-eyebrow text-[var(--color-text-dim)]">
-        {t.home.activity.simulated}
-      </span>
-    );
-  }
-  if (task.status === "error" && task.lastError) {
-    return (
-      <span
-        title={task.lastError}
-        className="t-small text-[var(--color-text-muted)] line-clamp-1 max-w-xs"
-      >
-        {task.lastError}
-      </span>
-    );
-  }
-  return <span className="t-eyebrow text-[var(--color-text-dim)]">—</span>;
 }
 
 // ============================================================================
@@ -832,7 +965,7 @@ function FirstRunHome() {
   const { t } = useT();
   const fr = t.home.firstRun;
   return (
-    <main className="mx-auto max-w-4xl px-6 pb-32 pt-16 fade-in">
+    <main className="mr-auto max-w-4xl px-6 pb-32 pt-16 fade-in">
       <section className="pb-20">
         <div className="t-eyebrow text-[var(--color-accent-bright)]">
           {fr.eyebrow}

@@ -260,6 +260,24 @@ export class TaskManager {
   }
 
   /**
+   * Wipe total de tasks. Lo invoca el flujo de delete-wallet: una wallet
+   * nueva no debe heredar auto-exits de la wallet anterior (las keys
+   * eran de otra cuenta, los positionIds pueden no pertenecerle).
+   * Detiene los watchers en curso antes de borrar para no dejar timers
+   * huérfanos.
+   */
+  deleteAllTasks(): void {
+    for (const id of [...this.running.keys()]) {
+      this.stopRunning(id);
+    }
+    // history se borra en cascada por la FK del schema.
+    const result = this.db.delete(tasks).run();
+    if (result.changes > 0) {
+      log(`[tasks] wallet reset: borradas ${result.changes} task(s) de la DB`);
+    }
+  }
+
+  /**
    * Cuando el vault se locked manualmente, todas las tasks armed/triggered/etc.
    * se pausan. El user puede resumirlas tras desbloquear.
    */

@@ -33,7 +33,10 @@ export function formatTokenAmount(
   const fractional = abs % divisor;
   let fracStr = fractional.toString().padStart(decimals, "0").slice(0, maxFrac);
   fracStr = fracStr.replace(/0+$/, "");
-  const result = fracStr ? `${whole}.${fracStr}` : whole.toString();
+  // Coma de miles en la parte entera (formato inglés). BigInt.toLocaleString
+  // funciona desde Node 18+; aquí seguro porque la app es Node 20+.
+  const wholeStr = whole.toLocaleString("en-US");
+  const result = fracStr ? `${wholeStr}.${fracStr}` : wholeStr;
   return negative ? `-${result}` : result;
 }
 
@@ -56,11 +59,38 @@ export function truncateAddress(addr: string, head = 4, tail = 4): string {
   return `${addr.slice(0, head)}…${addr.slice(-tail)}`;
 }
 
-/** Formatea un número decimal con un número fijo de decimales (sin trailing zeros). */
-export function formatPrice(n: number, decimals = 4): string {
+/**
+ * Formatea un número decimal en formato inglés (coma de miles, punto decimal).
+ * Default 2 decimales — el formato estándar de precios financieros, legible
+ * para todos los perfiles. Si el número es muy pequeño (típico de memes
+ * como BONK, ~0.00001), bumpea automáticamente para no perder precisión.
+ *   22.3773    → "22.38"
+ *   1234.5     → "1,234.50" (con minimum 2 si abs>=1 — sin trailing fold)
+ *   1000000.5  → "1,000,000.50"
+ *   0.0001234  → "0.000123"  (auto-bump a 6 decimales)
+ *   0.00000123 → "0.00000123" (auto-bump a 8 decimales)
+ *
+ * El caller puede forzar más precisión pasando `decimals` explícito.
+ */
+export function formatPrice(n: number, decimals = 2): string {
   if (!Number.isFinite(n)) return "?";
-  const s = n.toFixed(decimals);
-  return s.replace(/\.?0+$/, "") || "0";
+  const abs = Math.abs(n);
+  let max = decimals;
+  let min = abs >= 1 ? decimals : 0;
+  if (abs > 0 && abs < 0.0001) {
+    max = Math.max(decimals, 8);
+    min = 0;
+  } else if (abs > 0 && abs < 0.01) {
+    max = Math.max(decimals, 6);
+    min = 0;
+  } else if (abs > 0 && abs < 1) {
+    max = Math.max(decimals, 4);
+    min = 0;
+  }
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: min,
+    maximumFractionDigits: max,
+  });
 }
 
 /**
@@ -70,7 +100,7 @@ export function formatPrice1To1(
   price: number,
   tokenAMint: string,
   tokenBMint: string,
-  decimals = 6,
+  decimals = 2,
 ): string {
   return `1 ${tokenSymbol(tokenAMint)} = ${formatPrice(price, decimals)} ${tokenSymbol(tokenBMint)}`;
 }
@@ -132,7 +162,7 @@ export function formatTriggerSentence(
   const a = tokenAMint ? tokenSymbol(tokenAMint) : "Token A";
   const b = tokenBMint ? tokenSymbol(tokenBMint) : "Token B";
   const op = direction === "above" ? "≥" : "≤";
-  return `Close when 1 ${a} ${op} ${formatPrice(target, 6)} ${b}`;
+  return `Close when 1 ${a} ${op} ${formatPrice(target)} ${b}`;
 }
 
 /**
@@ -149,7 +179,7 @@ export function formatRangeStatus(isInRange: boolean, t: Dict = en): string {
 export function formatTriggers(
   takeProfit: number | null,
   stopLoss: number | null,
-  decimals = 4,
+  decimals = 2,
 ): string {
   const parts: string[] = [];
   if (takeProfit !== null) {

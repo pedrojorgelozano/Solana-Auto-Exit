@@ -9,16 +9,36 @@
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
-- [ ] **Rediseño de UI ("refined minimal dark")** — plan completo redactado
-  en [docs/sessions/2026-05-27-plan-redesign-refined-minimal-dark.md](sessions/2026-05-27-plan-redesign-refined-minimal-dark.md)
-  (gitignored). 7 bloques de trabajo (A-G), 6-9 sesiones estimadas. Cambia
-  paleta + fuentes + shell (sidebar) + IA (desaparecen `/wallet` y
-  `/positions`). Quedan 5 decisiones por cerrar antes de empezar (theme
-  toggle, USD oracle, eliminación de URLs, i18n toggle location, "New
-  auto-exit" modal vs página). Mockup fuente en `mockups/refined-minimal-dark.html`.
+- [ ] **Publicar release `v0.2.0`** — el rediseño UI está mergeado a
+  `main` y pusheado. Cambio visual mayor (paleta dark + sidebar +
+  hub visual + alerts contextuales + bulk-resume + /tasks como
+  histórico + wallet polish + etc.) → semver minor bump. Seguir
+  [docs/RELEASING.md](RELEASING.md) para el proceso (keypair de
+  firma, `pnpm tauri:release`, artefactos `.exe`/`.msi`/`latest.json`/
+  `SHA256SUMS.txt`, crear GitHub Release). La sección `[Unreleased]`
+  del CHANGELOG ya tiene todas las entries para arrastrar al
+  `## [0.2.0]`.
 
 ## Backlog (sin orden)
 
+- [ ] **Snapshot-check del bulk-resume tras desbloquear**. Hoy el callout
+  `N AUTO-EXITS PAUSADOS AL BLOQUEAR LA WALLET` + botón `REANUDAR
+  TODOS` reanuda **todas** las tasks paused-por-sistema sin distinguir
+  cuáles cruzaron trigger durante el lockdown. Si una posición cruzó
+  TP/SL mientras la wallet estaba bloqueada, el resume disparará un
+  cierre inmediato. Mejora: comparar `currentPrice` contra triggers de
+  cada candidata; partir el callout en dos: `M REANUDABLES SIN RIESGO
+  [REANUDAR ESTOS]` + `K CRUZARON TRIGGER — REVISA ANTES [VER TASK →]`.
+  Requiere getSummary o similar para cada paused. No urge — los buffers
+  suelen amortiguar el problema, pero merece la pena tras feedback de
+  uso real.
+- [ ] **Threshold de balance bajo configurable en `/settings`**. Hoy
+  hardcoded a `LOW_BALANCE_LAMPORTS = 50_000_000` (0.05 SOL) en
+  `DashboardAlerts.tsx`. Margen razonable para ~10 cierres + ATA
+  creation. Si en mainnet con SOL caro alguien quiere ajustar (e.g.
+  bajar a 0.01 SOL porque solo opera con stables y no abre cuentas
+  nuevas), exponerlo en `/settings` como `lowBalanceThresholdLamports`
+  con default actual.
 - [ ] Render legible de errores de validación zod en el web. Hoy el catch de
   `/settings` (y posiblemente otros forms con mutations) hace `err.message`
   directo; cuando el backend devuelve un `ZodError`, el message lleva el
@@ -63,9 +83,19 @@
 - [ ] Persistir `tokenMintA/B` en `protocolConfig` también para Meteora
   cuando F6.2 abra el flujo de tasks. F2.4 lo hizo para Orca; el receipt
   y la heurística del Dashboard asumen estos campos.
+- [ ] Bundlear SVGs reales de los logos de tokens en
+  `packages/web/public/tokens/<symbol>.svg`. Hoy `TokenBadge` renderiza
+  placeholders coloreados (círculo + 1-2 letras del símbolo, color del
+  registry o hash del mint). Para que se vea "como Orca/Meteora" hay que
+  descargar los SVGs oficiales de los 10-20 tokens más usados y servirlos
+  desde local (sin egress externo, alineado con el threat model). Después
+  `TokenBadge` puede priorizar `/tokens/<symbol>.svg` y caer al placeholder
+  solo si no hay archivo. Apuntado al rediseño UI (feature/ui-refined-dark).
 - [ ] Expandir el token registry de `packages/web/src/lib/tokens.ts` con
-  más mints conocidos (devnet Orca pools varios, mainnet USDT, mSOL, JitoSOL,
-  bonk, etc.). Posiblemente cargar de Jupiter token list en background.
+  más mints conocidos (devnet Orca pools varios, otros stables de mainnet,
+  LSTs adicionales, memes populares). Posiblemente cargar de Jupiter token
+  list en background — trade-off con la política "no external assets" del
+  threat model.
 - [ ] Cierre + swap atómico en una sola tx (combinar `closePositionInstructions`
   + `swapInstructions` + `buildAndSendTransaction` de `@orca-so/tx-sender`).
   Elimina el riesgo de slippage entre las dos tx.
@@ -147,6 +177,80 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Rediseño UI mergeado a main (2026-05-28)**: tras 38 commits acumulados
+  en `feature/ui-refined-dark`, merge `--no-ff` a `main`. Última sesión
+  añadió 7 commits funcionales sobre el rediseño anterior:
+  - `9822a8c` /tasks reconvertido a histórico puro (filtros COMPLETED/
+    ERRORS, default COMPLETED, `?filter=errors` deep-link desde callout
+    de errores). `HistoryLedger` compartido entre /tasks y bloque
+    "Histórico de transacciones" del dashboard. Wallet polish:
+    `AddressDisplay` con copy + truncar + Solscan, title sin jerga.
+    Sidebar nav reordenado, link al histórico dedup en el hub, back
+    dinámico en /tasks/[id], `Simulado` fuera de la pill, barrido
+    task→auto-exit en copy.
+  - `14e6c53` fix runtime: hydration mismatch en LangProvider (initial
+    state `en` + useEffect post-hydrate aplica preferencia real) y
+    modal layout invisible (backdrop z-40 + panel translate(-50%,-50%)
+    z-50).
+  - `b272b8d` `scripts/seed-history.ts` para probar el histórico con
+    datos plausibles (6 tasks done/stopped/error con timestamps
+    escalonados, mainnet+devnet, con/sin swap, dry-run).
+  - `efd20f6` fix server: `wallet.delete` wipea tasks de la DB (bug
+    encontrado: wallet nueva heredaba tasks de la anterior). Helper
+    `--wipe-all` en seed script.
+  - `b5af30f` quitada CTA `AUTO-EXIT →` redundante en filas sin
+    watcher (doble flecha + tres affordances apilados).
+  - `0e4005a` cleanup pre-merge: borrado `GlobalHeader.tsx` huérfano +
+    8 strings i18n unused (`sidebar.lockWallet/locking`,
+    `home.eyebrow.{botWallet,locked,onePosition,manyPositions,
+    loadingPositions,oneWatching,manyWatching}`).
+  - Docs sync (este commit) + merge a main + push.
+  Release `v0.2.0` queda pendiente (sigue [RELEASING.md](RELEASING.md)).
+- **Dashboard hub rewrite + alerts inteligentes (2026-05-28)**: 3 commits
+  funcionales sobre `feature/ui-refined-dark`. Sidebar brand mark de
+  monograma `A` en mono (el icono anterior era logout universal). Token
+  badges placeholder ocultos con kill-switch hasta tener SVGs reales.
+  Rewrite del hub del home: filas como cards elevadas cuando active /
+  rows planas cuando paused/none, con header (par + pills + StatusPill
+  enriquecida), big number del precio + nuevo componente `TriggerBand`
+  (banda entre SL y TP con nodo del precio, sin labels redundantes) +
+  stack 3-col TP/SL/Nearest (solo `%` con color contextual). Section
+  header `Vigilando ahora · N` + link `Abrir el ledger →` arriba.
+  `BufferCountdown` vivo (refresh cada segundo, solo visible cuando hay
+  trigger cruzado en espera de buffer). `LockedCallout` dedicado para
+  wallet bloqueada (antes era un span camuflado en el header). Barrido
+  `vault → wallet` en strings expuestas al usuario. `StatStrip`
+  retirado (3 KPIs ruidosos que duplicaban / escondían info). Nuevo
+  `DashboardAlerts` con tres callouts amber contextuales — solo visibles
+  cuando aplican: `BALANCE BAJO` (< 0.05 SOL), `N AUTO-EXITS EN ERROR`
+  + CTA al ledger, y `N AUTO-EXITS PAUSADOS AL BLOQUEAR LA WALLET` con
+  botón `REANUDAR TODOS` que itera `tasks.start` para todas las paused-
+  por-sistema (heurística por `lastError` string-match). Decisión
+  deliberada: NO añadir info estática al dashboard (swap-out, slippage,
+  poll interval) — vive en el detalle. Sí añadir info dinámica y
+  accionable (countdown buffer). Verificado en vivo el bulk-resume. Tras
+  este lote, la rama acumula **30 commits**. Sin push, sin merge.
+  Commits `93f9a38`, `744ef2a`, `e28cd65`.
+- **Detail mockup G + iteración fina del rediseño UI (2026-05-27)**: 16
+  commits sobre la rama `feature/ui-refined-dark`. Rewrite del detail
+  `/tasks/[id]` siguiendo `mockups/auto-exit-detail.html` (header +
+  hero con `PriceBand` + trigger cards + holdings 2×2 + details
+  sidebar + activity timeline con nodos coloreados; layout 2-col
+  `1fr 332px` sticky). Drop del panel "When a trigger fires"
+  (redundante con onboarding + receipts). Anclar todas las páginas al
+  sidebar con `mr-auto` (antes `mx-auto` dejaba ~250px de hueco
+  muerto en viewports anchos). Subida de la escala tipográfica para
+  perfiles mayores (body 15→17, eyebrows 11→13, etc.). Unificación
+  del formato de números: 2 decimales por defecto con auto-bump si
+  `<1`, separador inglés de miles (`1,234.56`), sin sufijo de moneda
+  en rates del par (la denominación se ancla en el hero `1 SOL = X
+  devUSDC` como hace Orca/Meteora). Lock movido del sidebar a
+  `/wallet` con copy honesto sobre el trade-off (también en
+  `/docs/security#hot-wallet-tradeoff`). Decisión formal en
+  [ADR-039](DECISIONS.md) — el modelo hot-wallet 24/7 se acepta como
+  postura por defecto; mitigation real = "treat the bot wallet as
+  hot operational, never cold holdings". Sin push, sin merge.
+  Commits `8da3543` a `bce3da6`.
 - **Docker self-hosted server + web verificado + merge a main (2026-05-27)**:
   walkthrough end-to-end de la UI por navegador en el stack Docker —
   `/settings`, `/wallet`, `/positions` + configure, `/tasks` + detalle, `/docs`.

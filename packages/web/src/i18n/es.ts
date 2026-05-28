@@ -39,8 +39,10 @@ export const es: typeof en = {
     botRunning: "bot en marcha",
     botUnreachable: "bot inalcanzable",
     connecting: "conectando",
-    testMode: "modo test",
-    testModeTooltip: "Modo test (Solana devnet) — pulsa para volver a real",
+    testMode: "Test · devnet",
+    testModeTooltip: "Modo test (Solana devnet) — pulsa para abrir ajustes",
+    mainnetLive: "Mainnet · Live",
+    mainnetLiveTooltip: "Fondos reales — cada cierre firma una transacción en Solana mainnet",
     onOrcaMeteora: "en Orca · Meteora",
     languageToggle: "Idioma",
   },
@@ -50,6 +52,24 @@ export const es: typeof en = {
     setupWallet: "configurar wallet",
     walletLocked: "wallet bloqueada",
     walletUnlocked: "wallet desbloqueada",
+  },
+
+  sidebar: {
+    aria: {
+      primary: "Primaria",
+    },
+    workspaceLabel: "Workspace",
+    nav: {
+      dashboard: "Dashboard",
+      wallet: "Wallet",
+      positions: "Posiciones",
+      autoExits: "Histórico",
+      settings: "Ajustes",
+    },
+    serverLabel: "Server",
+    walletLabel: "Wallet",
+    setupWallet: "Configurar wallet",
+    docs: "Docs",
   },
 
   status: {
@@ -108,7 +128,9 @@ export const es: typeof en = {
     triggerAlreadyTrue: " · trigger ya activo",
     triggerMet: " · trigger cumplido",
     firedThisOne: "· disparado por este",
-    sim: "· sim",
+    sim: "Simulado",
+    simTooltip:
+      "Este auto-exit corrió en modo simulación: no se ejecutaron transacciones reales en cadena.",
     simulation: "· simulación",
   },
 
@@ -139,24 +161,58 @@ export const es: typeof en = {
       disclaimerLink: "→ Uso bajo tu propia responsabilidad · disclaimer",
     },
 
+    dashboard: {
+      eyebrow: "Resumen",
+      title: "Dashboard",
+      descriptionLoading: "Leyendo posiciones de esta wallet…",
+      descriptionNone: "Aún no hay posiciones LP en esta wallet.",
+      descriptionOne: "1 posición detectada — configura un auto-exit abajo.",
+      descriptionMany: (n: number) =>
+        `${n} posiciones detectadas en esta wallet.`,
+      lockedEyebrow: "Wallet bloqueada",
+      lockedBody: "Desbloquéala para armar cualquier auto-exit.",
+      lockedCta: "Desbloquear",
+    },
+
+    alerts: {
+      lowBalanceEyebrow: "Balance bajo",
+      lowBalanceBody: (sol: string) =>
+        `Tu bot tiene ${sol} SOL — puede no pagar fees al cerrar.`,
+      lowBalanceCta: "Recargar",
+      errorsEyebrow: (n: number) =>
+        n === 1 ? "1 auto-exit en error" : `${n} auto-exits en error`,
+      errorsBody:
+        "Algo salió mal en el último cierre. Revisa qué pasó y reanuda o detén.",
+      errorsCta: "Ver en histórico",
+      resumeEyebrow: (n: number) =>
+        n === 1
+          ? "1 auto-exit pausado al bloquear la wallet"
+          : `${n} auto-exits pausados al bloquear la wallet`,
+      resumeBody:
+        "Reanúdalos cuando quieras seguir vigilando los precios.",
+      resumeCta: "Reanudar todos",
+      resumeCtaPending: "Reanudando…",
+    },
+
     eyebrow: {
-      botWallet: "Bot wallet",
-      locked: "· bloqueada",
-      onePosition: "1 posición",
-      manyPositions: (n: number) => `${n} posiciones`,
-      loadingPositions: "cargando posiciones…",
-      oneWatching: "1 auto-exit vigilando",
-      manyWatching: (n: number) => `${n} auto-exits vigilando`,
       whatIs: "→ Qué es una bot wallet",
     },
 
     hub: {
-      headerStatus: "Estado",
-      headerPosition: "Posición",
-      headerAutoExit: "Auto-exit",
-      headerAction: "Acción",
+      nowWatching: "Vigilando ahora",
+      subtitle:
+        "Cada fila se cierra sola en cuanto el precio cruza un umbral — take-profit arriba, stop-loss abajo.",
+      openLedger: "Histórico",
+      poolPrice: "precio actual del pool",
+      statTp: "Take-profit",
+      statSl: "Stop-loss",
+      statNearest: "Más cercano",
+      bufferLabel: "BUFFER",
       loading: "Consultando la cadena para posiciones de esta wallet…",
       oneProtocolFailed: (msg: string) => `Una query de protocolo falló: ${msg}`,
+      rateLimitHintBefore: "El RPC público de Solana te está limitando las queries — ",
+      rateLimitHintLink: "configura un RPC privado",
+      rateLimitHintAfter: " (free tier, sin fugas, un minuto de setup).",
     },
 
     emptyHub: {
@@ -181,7 +237,7 @@ export const es: typeof en = {
     activity: {
       eyebrow: "Histórico de transacciones",
       title: "Cierres, swaps y fallos.",
-      viewAll: "Ver todos →",
+      viewAll: "Ver todos",
       headerWhen: "Cuándo",
       headerPosition: "Posición",
       headerTrigger: "Trigger",
@@ -294,7 +350,8 @@ export const es: typeof en = {
   taskDetail: {
     pageEyebrow: "Auto-exit",
     pageTitle: "Estado en vivo",
-    backLabel: "Todos los auto-exits",
+    backToDashboard: "Dashboard",
+    backToHistory: "Histórico",
 
     hero: {
       currentPrice: "Precio actual",
@@ -351,7 +408,7 @@ export const es: typeof en = {
         " borra este auto-exit fallido y configura uno nuevo en la misma posición con más slippage (prueba ",
       recommendedNormal: " para pairs normales, ",
       recommendedVolatile:
-        " para pools volátiles o poco profundos). Las tasks vivas son inmutables por diseño (ADR-013), así que editar no es posible.",
+        " para pools volátiles o poco profundos). Los auto-exits vivos son inmutables por diseño (ADR-013), así que editar no es posible.",
       nonSlippage:
         "Esto no parece un problema de slippage — posiblemente congestión del RPC, un error de red transitorio o un problema de estado de cuenta. ",
       closeAttemptedYes: "El intento de cierre falló, así que ",
@@ -392,6 +449,95 @@ export const es: typeof en = {
       outputMinimum: "Output (mínimo)",
     },
 
+    // ---- Bloque G: detail mockup ----
+    head: {
+      protocol: {
+        orca: "Orca Whirlpools",
+        meteora: "Meteora DLMM",
+      },
+      armedPrefix: "Armado",
+      taskShortPrefix: "auto-exit",
+      pollingPrefix: "cada",
+      openInExplorer: "Abrir la posición en el explorer de Solana",
+    },
+
+    heroPanel: {
+      liveLabel: "Precio del pool · en vivo",
+      liveMetaPrefix: (ago: string) =>
+        `Actualizado ${ago} · próximo poll en`,
+      liveMetaNoTick: "aún sin ticks",
+      toTp: "Hasta take-profit",
+      toSl: "Hasta stop-loss",
+      poolRange: "Rango del pool",
+      inRange: "En rango",
+      outOfRange: "Fuera de rango",
+      bandLegendRange: "Rango de liquidez — generando fees",
+      bandLegendSl: "Stop-loss",
+      bandLegendTp: "Take-profit",
+      bandLegendPrice: "Precio en vivo",
+      bandAria: (args: {
+        lo: string;
+        hi: string;
+        rangeLo: string;
+        rangeHi: string;
+        sl: string | null;
+        tp: string | null;
+        currentPrice: string;
+        inRange: boolean;
+      }) =>
+        `Banda de precio de ${args.lo} a ${args.hi}. El rango de liquidez va de ${args.rangeLo} a ${args.rangeHi}.${
+          args.sl ? ` Trigger de stop-loss en ${args.sl}.` : ""
+        }${args.tp ? ` Trigger de take-profit en ${args.tp}.` : ""} Precio actual del pool: ${args.currentPrice} — ${args.inRange ? "dentro" : "fuera"} del rango.`,
+      zoneTag: "Rango de liquidez",
+    },
+
+    triggerCard: {
+      tp: "Take-profit",
+      sl: "Stop-loss",
+      armedBadge: "Armado",
+      firedBadge: "Disparado",
+      distance: "Distancia al trigger",
+      reached: "trigger cumplido",
+      bufferFootTp: (price: string, duration: string) =>
+        `Cierra solo si el precio se mantiene ≥ ${price} durante ${duration}`,
+      bufferFootSl: (price: string, duration: string) =>
+        `Cierra solo si el precio se mantiene ≤ ${price} durante ${duration}`,
+      noBufferFoot: "Cierra en el siguiente tick tras el trigger.",
+    },
+
+    holdings: {
+      title: "Holdings de la posición",
+      refreshed: "refrescado cada 10s",
+      liquidity: "Liquidez",
+      pendingFees: "Fees pendientes",
+      rangeStatus: "Estado del rango",
+      estimatedValue: "Valor estimado",
+      estimatedValueNote: "liquidez + fees pendientes",
+      feesValueNote: (totalInQuote: string) =>
+        `≈ ${totalInQuote} — se recogen al cerrar`,
+      rangeWithStatus: (lo: string, hi: string) =>
+        `${lo} – ${hi} · generando fees`,
+      rangeWhenOut: (lo: string, hi: string) =>
+        `${lo} – ${hi} · sin generar fees`,
+      noFees: "—",
+    },
+
+    detailsPanel: {
+      title: "Detalles",
+      protocol: "Protocolo",
+      network: "Red",
+      networkMainnet: "Mainnet",
+      networkDevnet: "Devnet",
+      exitToken: "Token de salida",
+      exitTokenNone: "ninguno",
+      timeBuffer: "Time buffer",
+      pollInterval: "Intervalo de poll",
+      closeSlippage: "Slippage de cierre",
+      swapSlippage: "Slippage de swap",
+      positionMint: "Mint de la posición",
+      bufferDash: "—",
+    },
+
     timeline: {
       eyebrow: "Actividad",
       whatsInHere: "→ Qué hay aquí",
@@ -419,9 +565,9 @@ export const es: typeof en = {
         resumed: "Watcher reanudado tras una pausa.",
         pausedUser: "Pausado por el usuario.",
         pausedVaultLocked:
-          "Pausado — la vault se bloqueó mientras el watcher estaba corriendo.",
+          "Pausado — la wallet se bloqueó mientras el watcher estaba corriendo.",
         pausedServerRestart:
-          "Pausado al arrancar — la vault estaba bloqueada tras el reinicio del servidor.",
+          "Pausado al arrancar — la wallet estaba bloqueada tras el reinicio del servidor.",
         pausedOther: (reason: string) => `Pausado (${reason}).`,
         stopped: "Detenido manualmente. Sin más ticks.",
         triggered: (kind: string) =>
@@ -451,19 +597,17 @@ export const es: typeof en = {
 
   tasksList: {
     pageEyebrow: "Histórico",
-    pageTitle: "Todos los auto-exits.",
+    pageTitle: "Histórico.",
     pageDescription:
-      "Activos, pausados, completados y con error — todo lo que este servidor sabe.",
+      "Cierres y errores de auto-exits pasados. Los activos viven en el dashboard.",
     backLabel: "Inicio",
     noMatch: "Ningún auto-exit coincide con este filtro.",
     emptyEyebrow: "Vacío",
-    emptyTitle: "Aún no hay auto-exits.",
+    emptyTitle: "Aún no hay cierres ni errores.",
     emptyBody:
-      "Un auto-exit vigila una posición LP y la cierra cuando se alcanza tu precio de take-profit o stop-loss. Configura uno sobre cualquier posición que tenga la bot wallet — aparecerá aquí desde la creación hasta el cierre. Las ejecuciones en modo test (Solana devnet) aparecen junto a las reales.",
-    emptyCta: "Ir a posiciones →",
+      "Cuando un auto-exit se cierre — porque el precio alcanzó el trigger, lo detuviste manualmente, o falló — aparecerá aquí. Las posiciones activas vigilándose viven en el dashboard.",
+    emptyCta: "Ir al dashboard →",
     filters: {
-      all: "Todos",
-      active: "Activos",
       completed: "Completados",
       errors: "Errores",
     },
@@ -471,8 +615,8 @@ export const es: typeof en = {
       status: "Estado",
       position: "Posición",
       trigger: "Trigger",
-      lastPrice: "Último precio",
-      distance: "Distancia",
+      closedAt: "Cerró por",
+      result: "Resultado",
       when: "Cuándo",
     },
   },
@@ -481,7 +625,7 @@ export const es: typeof en = {
     pageEyebrow: "Ajustes",
     pageTitle: "Defaults para este servidor.",
     pageDescription:
-      "Los defaults de RPC, slippage y polling pre-rellenan el formulario de auto-exit. El form deja sobrescribirlos por task; esto es solo el punto de partida.",
+      "Los defaults de RPC, slippage y polling pre-rellenan el formulario de auto-exit. El form deja sobrescribirlos por auto-exit; esto es solo el punto de partida.",
     backLabel: "Inicio",
 
     updater: {
@@ -521,7 +665,7 @@ export const es: typeof en = {
         " de abajo a un endpoint mainnet (Helius, QuickNode, Triton, o tu propio nodo). La URL pública de devnet no funciona.",
       bullet1Prefix: "Actualiza la ",
       bullet2:
-        "Las tasks existentes mantienen su red original — no se auto-migran. Solo los nuevos auto-exits serán en mainnet.",
+        "Los auto-exits existentes mantienen su red original — no se auto-migran. Solo los nuevos serán en mainnet.",
       bullet3: "Re-testea tu estrategia en devnet antes de pulsar el switch.",
       understood:
         "Entiendo que esto firmará transacciones con fondos reales y he actualizado mi URL del RPC.",
@@ -577,7 +721,7 @@ export const es: typeof en = {
       copy10: " · reacción más rápida. Solo merece la pena para triggers ",
       copy10Without: "sin",
       copy10Rest:
-        " time buffer y en un RPC de pago (8.6k requests/día por task — quema el tier gratis de Helius en 12 días).",
+        " time buffer y en un RPC de pago (8.6k requests/día por auto-exit — quema el tier gratis de Helius en 12 días).",
       copy30: " · ",
       copy30Recommended: "default recomendado",
       copy30Rest:
@@ -590,7 +734,7 @@ export const es: typeof en = {
     },
 
     perTaskNote:
-      "Los slippages de arriba se pueden sobrescribir por task en el formulario de configure. El intervalo de poll es global del servidor; el form no expone override por task. Cambiar un default aquí solo afecta a nuevos auto-exits.",
+      "Los slippages de arriba se pueden sobrescribir por auto-exit en el formulario de configure. El intervalo de poll es global del servidor; el form no expone override por auto-exit. Cambiar un default aquí solo afecta a nuevos auto-exits.",
 
     resetPrompt:
       "¿Resetear URL del RPC, slippage e intervalo de poll a sus defaults?\n\nTu elección de red (TEST / REAL) se mantiene — cámbiala desde el toggle de arriba si lo necesitas.",
@@ -599,9 +743,9 @@ export const es: typeof en = {
 
   wallet: {
     pageEyebrow: "Wallet",
-    pageTitle: "El keypair que firma tus cierres.",
+    pageTitle: "La wallet del bot.",
     pageDescription:
-      "Cifrada en disco con scrypt + AES-256-GCM. Descifrada en memoria solo mientras la wallet está desbloqueada.",
+      "La cuenta con la que el bot abre y cierra tus auto-exits. Vive cifrada en tu equipo y solo se desbloquea cuando tú la desbloqueas.",
     backLabel: "Inicio",
     encryptionLink: "→ Cómo funciona el cifrado y el almacenamiento de claves",
     loading: "Cargando estado de la wallet…",
@@ -635,8 +779,24 @@ export const es: typeof en = {
 
     unlocked: {
       eyebrow: "Wallet desbloqueada",
+      addressDisplay: {
+        copy: "Copiar",
+        copied: "Copiada",
+        showFull: "Mostrar completa",
+        showTruncated: "Mostrar truncada",
+        viewOnExplorer: "Ver en Solscan",
+      },
       body:
-        "El keypair está en memoria. Se usará para firmar las transacciones de cierre y swap de los auto-exits armados. Bloquea cuando termines.",
+        "El keypair está en memoria. Se usará para firmar las transacciones de cierre y swap de los auto-exits armados.",
+      lockEyebrow: "Bloquear",
+      lockTitle: "Bloquear la wallet",
+      lockExplainP1:
+        "Saca la key desencriptada de la memoria. El archivo cifrado se queda en disco — desbloquear te pide la passphrase de nuevo.",
+      lockExplainP2:
+        "Los auto-exits activos se pausan mientras esté bloqueada y se reanudan al desbloquear. Útil si vas a estar fuera bastante tiempo y prefieres que el bot deje de vigilar.",
+      lockExplainTradeoff:
+        "→ Notas de seguridad",
+      lockButton: "Bloquear wallet",
       locking: "Bloqueando…",
       lock: "Bloquear",
     },
@@ -709,7 +869,7 @@ export const es: typeof en = {
     importWarning: {
       eyebrow: "Alcance operacional",
       body:
-        "La clave se guarda cifrada en disco en esta máquina y se descifra en memoria solo mientras la vault está desbloqueada. Si tanto tu passphrase como el archivo de vault fueran comprometidos a la vez, los activos en esta única address podrían moverse por el atacante — nada más en tu wallet, ninguna otra cuenta, ninguna address derivada de seed.",
+        "La clave se guarda cifrada en disco en esta máquina y se descifra en memoria solo mientras la wallet está desbloqueada. Si tanto tu passphrase como el archivo cifrado de la wallet fueran comprometidos a la vez, los activos en esta única address podrían moverse por el atacante — nada más en tu wallet, ninguna otra cuenta, ninguna address derivada de seed.",
       body2:
         "La práctica habitual es importar una cuenta dedicada a operaciones activas (una cuenta \"caliente\" separada de las cold holdings), no la cuenta donde guardas todo.",
       readMore: "→ Leer el blast radius preciso",

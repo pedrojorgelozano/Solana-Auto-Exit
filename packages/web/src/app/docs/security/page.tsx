@@ -49,6 +49,57 @@ export default function Security() {
         </ul>
       </section>
 
+      <section id="hot-wallet-tradeoff" className="hairline-t pt-10">
+        <h2 className="t-h2">Running 24/7 vs. locking when away</h2>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          This tool signs autonomously, so the key needs to be decrypted
+          in RAM while the bot is operating. That is the same model
+          Phantom and Backpack use while you have them unlocked — the
+          difference is that the bot stays unlocked longer because that
+          is what makes it useful at 3am.
+        </p>
+        <p className="mt-3 t-body text-[var(--color-text-muted)]">
+          You have two reasonable postures:
+        </p>
+        <ul className="mt-4 space-y-3 t-body text-[var(--color-text-muted)]">
+          <li>
+            <span className="text-[var(--color-text)]">
+              Unlocked, 24/7 coverage.
+            </span>{" "}
+            Triggers fire whether you are at the computer or not. The key
+            lives in RAM the whole time the wallet is unlocked. For a
+            compromise to leak the key, something with elevated privileges
+            (malware, a memory dump) would need to run on this machine —
+            in which case Phantom and the rest of your wallets are equally
+            exposed. We bind the API to{" "}
+            <code className="t-num text-[var(--color-text)]">127.0.0.1</code>{" "}
+            so only local processes can talk to the bot.
+          </li>
+          <li>
+            <span className="text-[var(--color-text)]">
+              Lock when you are away for a long stretch.
+            </span>{" "}
+            The key is removed from RAM and active auto-exits pause until
+            you unlock again. Useful if you will be off the machine for
+            days and prefer the bot to stop watching during that time. The
+            cost is that any trigger that fires while locked is missed —
+            the watcher resumes from the current price, not from where it
+            was when you locked.
+          </li>
+        </ul>
+        <p className="mt-4 t-body text-[var(--color-text-muted)]">
+          <span className="text-[var(--color-text)]">
+            Practical guidance:
+          </span>{" "}
+          treat the bot wallet as a hot operational account — only fund it
+          with what you are actively trading, not your cold holdings.
+          That single rule keeps the blast radius bounded if anything ever
+          goes wrong. For most users, leaving the wallet unlocked while
+          the bot operates is a reasonable trade-off, the same as anyone
+          who keeps Phantom open while they browse DeFi.
+        </p>
+      </section>
+
       <section className="hairline-t pt-10">
         <h2 className="t-h2">Network bind: localhost-only</h2>
         <p className="mt-3 t-body text-[var(--color-text-muted)]">

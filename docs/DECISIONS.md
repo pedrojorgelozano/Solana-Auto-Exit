@@ -292,7 +292,7 @@ En el primer intento solo configuré funder y el cierre falló con `Payer not se
 ## ADR-017 — Dirección estética "trading desk editorial" para la UI
 
 **Fecha**: 2026-05-20
-**Estado**: Aceptada
+**Estado**: Superada por [ADR-038](#adr-038)
 
 **Contexto**: La primera iteración del frontend (F1.1–F1.6) usó la paleta default que cualquier modelo genera para una "dashboard cripto": near-black `#0a0a0b` + acento morado `#7c5cff` + fonts del sistema + cards anidadas. Feedback explícito del usuario: "muy fea, poco intuitiva, cosas que no entiendo ni yo". Es exactamente el patrón que el skill `frontend-design` describe como "AI slop" — la convergencia visual que se repite en Vercel/Linear/Railway y cualquier producto crypto de los últimos tres años.
 
@@ -969,3 +969,87 @@ Conclusión: con dependencias WASM + nativas + cargadas por `createRequire`, **s
 - **AppArmor profile**: similar coste y crea dependencia de un LSM específico (no portátil entre distros). Mismo argumento que seccomp custom.
 - **Image scanning en CI** (Trivy / Grype): útil para detectar CVEs en deps de la base image, pero rendimiento decreciente para un proyecto pequeño con pocas deps y base alpine. Queda en backlog.
 - **Pin de base image por digest** (`node:24-alpine@sha256:...`): incrementa reproducibilidad y elimina la ventana "pulled a different image". Si se hace, hay que añadir Renovate/Dependabot para rotar el digest cuando hay parches de seguridad. Trade-off de mantenimiento; no aplicado en esta vuelta.
+
+## ADR-038 — Rediseño UI "refined minimal dark" (supera ADR-017)
+
+**Fecha**: 2026-05-27
+**Estado**: Aceptada · implementada en rama `feature/ui-refined-dark`, sin merge a `main`
+
+**Contexto**: [ADR-017](#adr-017) (2026-05-20) estableció dirección estética "trading desk editorial" — cream cálido + acento oxblood/terracota + Fraunces (serif display) + Source Serif 4 (body) + JetBrains Mono. Esa dirección sirvió para sacar la base completa de la app y el primer release público v0.1.0, pero tras casi una semana de uso y construir contra ella, la lectura de Pedro fue: visualmente distintiva pero no resuena con el target audience (operadores de DeFi en Solana, que esperan dark mode y acentos verdes/morados estilo Orca / Meteora / Drift). Se generaron tres mockups HTML estáticos como exploración (`mockups/refined-minimal-dark.html`, `refined-minimal-warm.html`, `auto-exit-detail.html`) y Pedro eligió "refined minimal dark" como dirección nueva.
+
+**Decisión**: Reemplazar la dirección visual completa. Aplicar el mockup `refined-minimal-dark.html` con regla estricta: **mantener TODA la funcionalidad actual, sin añadir ni suprimir nada — solo cambia la estética y la organización visual**. Esta regla descarta partes del mockup que sí habrían cambiado flows (eliminar `/wallet` y `/positions` del nav, stat strip con USD aggregate, filter chips nuevas, etc.).
+
+Seis bloques visuales aplicados:
+
+1. **Paleta + fuentes**. `--color-bg` `#0b0d0f` + `--color-bg-elevated` `#14171b` + `--color-accent` `#5fd6a4` (jade) + `--color-warning` `#e6ad5e` (amber, "triggered" / test mode) + `--color-danger` `#e07a59` (rust, mainnet pill). Fonts: Hanken Grotesk (body + headings), Newsreader italic (`.serif-it` accent decorativo, NO headings), Spline Sans Mono (`.t-num`). Los NOMBRES de los tokens se mantienen (`.t-h1`, `.t-eyebrow`, `--color-text-muted`, etc.) — solo cambian los valores. Atmospheric glow + grain via `body::before` / `body::after`.
+
+2. **Shell sidebar lateral** (252px) reemplaza `GlobalHeader`. Brand + nav primaria (Dashboard / Wallet / Auto-exits / Settings) + sidebar-foot con server beacon + wallet beacon + Lock button + Docs link + LangToggle. `usePathname()` resalta la ruta activa con barrita jade vertical. Responsive: <860px colapsa a fila top.
+
+3. **`PageHeader` nuevo** con patrón `.view-head` del mockup: eyebrow + h1 + deck con `.serif-it` italic accent + actions slot a la derecha. `NetworkPill` automático (rust "Mainnet · Live" cuando network=mainnet; amber "Test · devnet" clickable cuando devnet). API compatible — todos los callers existentes siguen funcionando, sumadas `actions?` y `showNetworkPill?` opcionales.
+
+4. **Dashboard renovado**: `StatStrip` componente nuevo con 3 KPIs calculados con data existente (Watching count / Nearest trigger / Last update) — solo renderiza si hay tasks activas. `DashboardHeader` con descripción dinámica según el número de posiciones detectadas + locked warning (con palabra "unlock" como link a `/wallet`) si el vault está locked. `BotWalletEyebrow` eliminado: la address ahora vive en sidebar (WalletBeacon) y el counter de tasks en StatStrip.
+
+5. **Ledger /tasks** con `TokenPair` badges + `dist-bar` visual mini (width inversamente proporcional a la distancia al trigger más cercano: jade cuando lejos, amber cuando reached) + hover row a `surface-hover`.
+
+6. **Settings 3-panel**: `Panel.tsx` reutilizable (border + surface elevada + head con icono+título+descripción + body). Tres paneles en /settings: Network & RPC (globe icon), Auto-exit defaults (bolt icon), Updates (refresh icon). Form interno intacto.
+
+Componentes nuevos creados: `Sidebar`, `Panel`, `StatStrip`, `TokenBadge`, `TokenPair`. Registry de tokens extendido a 12 con colores brand para los placeholders coloreados (logos SVG reales apuntados al backlog).
+
+**Consecuencias**:
+
+- (+) Look mucho más cercano al estándar DeFi en Solana — primera impresión más profesional para el target audience.
+- (+) Sidebar persistente da navegación más predecible que el header global anterior. La address del bot wallet siempre visible.
+- (+) NetworkPill auto en cada vista — más prominente que el chip discreto del header anterior, alineado con el riesgo real ("real funds" siempre claramente marcado).
+- (+) `dist-bar` visual en el ledger da feedback inmediato del progreso hacia el trigger sin tener que leer porcentajes.
+- (+) Token badges acercan el look a Orca/Meteora sin acoplarse a sus CDNs (todo local, sin egress nuevo).
+- (+) Regla "no funcionalidad nueva" sostenida — facilita revertir si el rediseño no convence en uso real; no hay endpoints nuevos que mantener.
+- (−) Implementado en rama `feature/ui-refined-dark`, **sin push y sin merge a `main`**. Pedro decidirá si lo mergea tras vivir con él. Si nunca se mergea, el trabajo queda como historial de la rama (descartable).
+- (−) `packages/web/src/components/GlobalHeader.tsx` queda huérfano (no se importa desde ningún sitio); cleanup pendiente al merge.
+- (−) Strings i18n `home.eyebrow.*` quedan huérfanas (eran de `BotWalletEyebrow`, eliminado). Reversibles si se rescata el componente.
+- (−) Logos placeholders coloreados, no SVGs reales. Al backlog.
+- (−) Cambio visual mayor — merece bump a v0.2.0 cuando se mergee, no v0.1.x.
+
+**Alternativas consideradas**:
+
+- **Mantener "Light cuaderno" (ADR-017)**: distintiva pero la lectura del usuario es que no resuena con DeFi en Solana. Descartada.
+- **Theme toggle dual (light cream + dark)**: doble coste de mantenimiento, ningún user real lo pidió. Reemplazo completo es más limpio y permite iterar sin la rigidez de mantener dos estéticas coherentes.
+- **Reescribir las páginas desde cero según el mockup literal** (incluyendo eliminar /wallet del nav, USD aggregate, filter chips, global activity feed): violaría la regla "todas las funcionalidades actuales". Descartada explícitamente al inicio del plan.
+- **Pasar oracle USD (Helius / Pyth / Jupiter) para el "Under watch $"** del stat strip: introduce dependencia externa (egress nuevo) que choca con el threat model ("no external assets" del audit). Apuntado al backlog.
+- **Lookup dinámico de tokens via Jupiter Token List** para mostrar logos reales: misma objeción de egress. Solución actual = registry local + placeholders coloreados. Al backlog también: bundlear los SVGs reales en `/public/tokens/` (sin egress nuevo).
+- **Fetch externo de los logos** (CDN de Solana Token List, GitHub raw, etc.): cada logo sería un egress distinto. Descartado.
+
+---
+
+## ADR-039 — Postura hot-wallet 24/7 con Lock fuera del sidebar
+
+**Fecha**: 2026-05-27
+**Estado**: Aceptada
+
+**Contexto**: El producto se vende como "auto-exit que cierra solo cuando se cumpla el trigger, también cuando no estás" (set-and-forget). Esa promesa requiere que la wallet esté unlocked en RAM del server mientras el bot opera. Hasta este sprint, el sidebar tenía un botón "Lock wallet" prominente al pie. Al usarlo, los watchers se pausan y dejan de poder firmar — es decir, el botón empujaba a una acción que **rompe la propuesta de valor del producto**. Además, el copy alrededor del lock (en wallet, en /docs/security) trataba el unlocked-24/7 como un riesgo grave que el user debe asumir, lo cual no se sostiene bajo un razonamiento honesto: el vector real de extracción de la key de RAM exige comprometer el sistema operativo del host, y en ese mismo escenario Phantom / Backpack están igual de expuestos (también guardan la key descifrada en memoria del browser mientras están unlocked, y la mayoría de gente desactiva el auto-lock).
+
+**Decisión**:
+
+1. Aceptar formalmente el modelo **hot-wallet 24/7 unlocked** como postura por defecto y promesa del producto.
+2. Quitar el botón "Lock wallet" del `Sidebar`. Mantener el lock como acción legítima pero accesible solo desde `/wallet → UnlockedSection`, con un panel propio que explica las consecuencias **antes** de pulsar (los auto-exits pausan, los triggers se pierden hasta el siguiente unlock).
+3. Documentar el trade-off honestamente en `/docs/security#hot-wallet-tradeoff` con tono comparativo: el riesgo extra sobre Phantom unlocked es marginal; el vector más común de pérdida de fondos (phishing) no aplica a este modelo porque el bot solo firma close+swap de posiciones específicas según reglas internas.
+4. La **mitigación real** es operacional, no criptográfica: *treat the bot wallet as a hot operational account — fund it only with what you are actively trading, never your cold holdings*. Esa regla acota el blast radius si el peor caso (host comprometido mientras unlocked) ocurre.
+5. No perseguir ahora la opción de integrar Ledger / signing service / delegation de authority. Es un cambio arquitectónico fuerte (semanas) y el ratio coste/beneficio para el perfil de usuarios actuales (operaciones modestas, no high-net-worth, no targets específicos de APT) es malísimo. Queda como **feature aspiracional V2** mencionada solo en conversación, sin entrada formal en TODO ni en DECISIONS — si el producto crece a users gestionando 6-7 cifras, se reabre el debate.
+
+**Consecuencias**:
+
+- (+) La promesa "set and forget" deja de tener un botón en la UI que la contradice. El user no puede usar Lock por inercia y perder triggers sin entender por qué.
+- (+) Copy honesto en /docs/security y en /wallet — el user que quiere entender el modelo lo entiende, sin alarmismo gratuito.
+- (+) Sin overengineering. No se invierten semanas en una solución arquitectónica que pocos users necesitan.
+- (+) La guía operacional explícita ("hot operational, never cold holdings") es accionable y entendible incluso por users no técnicos.
+- (−) Cualquier user que asuma erróneamente que la wallet debe lockearse "por seguridad" como en Phantom puede confundirse — mitigado por el panel explicativo en /wallet, pero queda como riesgo de UX.
+- (−) El modelo sigue exponiendo la key en RAM mientras unlocked. Si un user con cantidades significativas usa el producto, la postura no es la ideal. Mitigado por la guía operacional.
+- (−) Si en el futuro un incidente real de seguridad ocurre, esta ADR es el documento que justifica la decisión — debe sostenerse honestamente.
+
+**Alternativas consideradas**:
+
+- **Mantener el Lock en el sidebar con copy de seguridad fuerte**: empuja a usar Lock por inercia → pierde triggers → mala experiencia. Descartada — el botón es un anti-patrón para nuestro use case.
+- **Auto-lock por inactividad (configurable, default 30 min)** (entry vieja en backlog): incompatible con la promesa 24/7. Solo tiene sentido si los users operan en ráfagas supervisadas. Para nuestro target (set and forget), igualmente contradictorio. Mantenido en backlog pero baja prioridad.
+- **Integrar Ledger / hardware wallet directa**: imposible — Ledger no firma sin pulsación física, contradice la operación autónoma. Descartada por modelo.
+- **Signing service local aislado en proceso separado**: la key sigue en RAM, solo cambia el proceso. Reduce superficie pero no elimina el problema. Esfuerzo medio (1-2 semanas) sin solucionar la categoría de ataque. Descartada para este sprint.
+- **Pre-signed transactions con delegation de authority** (Ledger firma upfront, key del bot solo cierra posiciones específicas via delegation): la solución más prometedora si el producto crece. Aspiracional V2. Descartada por ahora por coste/beneficio para el perfil actual de usuarios.
+- **Limit orders on-chain (Jupiter / Drift / programa custom)**: la key nunca firma en runtime, el chain ejecuta. Solución ideal en seguridad pero requiere o bien soportar solo swaps simples (no close+swap de LP) o escribir un programa Solana custom (4-8 semanas). Descartada por ahora.

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { FieldError } from "@/components/ui/Card";
@@ -9,7 +10,9 @@ import { Label, PasswordInput } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress } from "@/lib/format";
+import { AddressDisplay } from "@/components/AddressDisplay";
 import { useT } from "@/i18n/context";
+import { NETWORK } from "@/lib/constants";
 
 export default function WalletPage() {
   const utils = trpc.useUtils();
@@ -20,7 +23,7 @@ export default function WalletPage() {
   });
 
   return (
-    <main className="mx-auto max-w-3xl px-6 pb-32 pt-12 fade-in">
+    <main className="mr-auto max-w-3xl px-6 pb-32 pt-12 fade-in">
       <PageHeader
         eyebrow={w.pageEyebrow}
         title={w.pageTitle}
@@ -126,6 +129,7 @@ function UnlockSection({
 }) {
   const { t } = useT();
   const l = t.wallet.locked;
+  const router = useRouter();
   const [passphrase, setPassphrase] = useState("");
   const [error, setError] = useState<string | null>(null);
   const unlock = trpc.wallet.unlock.useMutation();
@@ -137,6 +141,12 @@ function UnlockSection({
       await unlock.mutateAsync({ passphrase });
       setPassphrase("");
       refresh();
+      // Post-unlock UX: el wallet sigue mostrándose en el sidebar; mandamos
+      // al user al dashboard, que es donde está la lista de posiciones +
+      // auto-exits (el siguiente paso lógico). La página /wallet sigue
+      // siendo navegable para gestionar la cuenta (lock/delete) cuando
+      // haga falta.
+      router.push("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     }
@@ -193,6 +203,8 @@ function UnlockedSection({
   const { t } = useT();
   const u = t.wallet.unlocked;
   const lock = trpc.wallet.lock.useMutation();
+  const settings = trpc.settings.get.useQuery();
+  const network = settings.data?.network ?? NETWORK;
 
   const onLock = async () => {
     await lock.mutateAsync();
@@ -205,13 +217,35 @@ function UnlockedSection({
         <div className="t-eyebrow text-[var(--color-positive)]">
           {u.eyebrow}
         </div>
-        <h2 className="mt-3 t-h2 break-all t-num">{address}</h2>
-        <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+        <div className="mt-4">
+          <AddressDisplay address={address} network={network} size="md" />
+        </div>
+        <p className="mt-5 max-w-xl t-body text-[var(--color-text-muted)]">
           {u.body}
         </p>
-        <div className="mt-6 flex items-center justify-end">
+      </section>
+
+      {/* Lock panel — antes vivía en el sidebar. Reubicado aquí con copy
+          neutro: lockear es una operación legítima pero rompe el 'set and
+          forget'; queremos que el user entienda esto sin dramatismo. */}
+      <section className="hairline-t pt-8">
+        <div className="t-eyebrow text-[var(--color-text-muted)]">
+          {u.lockEyebrow}
+        </div>
+        <h3 className="mt-3 t-h2">{u.lockTitle}</h3>
+        <div className="mt-4 max-w-xl space-y-3 t-body text-[var(--color-text-muted)]">
+          <p>{u.lockExplainP1}</p>
+          <p>{u.lockExplainP2}</p>
+        </div>
+        <div className="mt-6 flex items-baseline justify-between gap-4 flex-wrap">
+          <Link
+            href="/docs/security#hot-wallet-tradeoff"
+            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          >
+            {u.lockExplainTradeoff}
+          </Link>
           <Button variant="secondary" onClick={onLock} disabled={lock.isPending}>
-            {lock.isPending ? u.locking : u.lock}
+            {lock.isPending ? u.locking : u.lockButton}
           </Button>
         </div>
       </section>

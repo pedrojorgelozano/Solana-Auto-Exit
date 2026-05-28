@@ -1,31 +1,36 @@
-import { Fraunces, Source_Serif_4, JetBrains_Mono } from "next/font/google";
+import { Newsreader, Hanken_Grotesk, Spline_Sans_Mono } from "next/font/google";
 
 /**
- * Sistema tipográfico "Light cuaderno" (supera ADR-017):
- * - Display: Fraunces variable (opsz axis), serif con personalidad para los
- *   titulares grandes. Conservada de la dirección anterior.
- * - Body: Source Serif 4 — serif limpio y muy legible diseñado para texto
- *   largo. Sustituye a Instrument Sans para reforzar el "feel cuaderno"
- *   sin perder legibilidad en cuerpos a 16-17 px.
- * - Mono: JetBrains Mono con tabular nums para addresses Solana y números
- *   donde la alineación importa.
+ * Sistema tipográfico "Refined minimal dark":
+ * - Body / headings: Hanken Grotesk (sans humanista, peso 400–700). Es la
+ *   fuente primaria, en `font-body`. Headings <h1>–<h4> son sans bold, no
+ *   serif — el mockup usa peso 700 con tracking negativo.
+ * - Display / accent: Newsreader italic (axes opsz). Usado solo para los
+ *   acentos editoriales `.serif-it` ("around the clock"), no para
+ *   titulares. Vive en `font-display` por compatibilidad con el resto del
+ *   árbol que no debe cambiarse, pero conceptualmente es "accent".
+ * - Mono: Spline Sans Mono con tabular nums (.num / .t-num) para números
+ *   y direcciones — variant ligeramente más cálido que JetBrains Mono.
  */
 
-export const fraunces = Fraunces({
+export const fraunces = Newsreader({
   subsets: ["latin"],
   variable: "--font-display",
   axes: ["opsz"],
+  style: ["italic"],
   display: "swap",
 });
 
-export const sourceSerif = Source_Serif_4({
+export const sourceSerif = Hanken_Grotesk({
   subsets: ["latin"],
   variable: "--font-body",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-export const jetbrainsMono = JetBrains_Mono({
+export const jetbrainsMono = Spline_Sans_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
+  weight: ["400", "500", "600"],
   display: "swap",
 });

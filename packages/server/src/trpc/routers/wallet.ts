@@ -137,7 +137,11 @@ export const walletRouter = router({
 
   /** Borra el vault del disco. Irreversible — el wallet vuelve a estar fuera. */
   delete: publicProcedure.mutation(({ ctx }) => {
-    ctx.taskManager.pauseAllOnVaultLock();
+    // Orden importante: primero detener cualquier watcher activo, luego
+    // wipe completo de tasks (la nueva wallet no debe heredar nada de
+    // la anterior — keys distintas, positionIds de otro owner), luego
+    // borrar el archivo cifrado.
+    ctx.taskManager.deleteAllTasks();
     ctx.vault.delete();
     return { ok: true };
   }),
