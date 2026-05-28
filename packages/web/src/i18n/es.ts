@@ -74,17 +74,6 @@ export const es: typeof en = {
     docs: "Docs",
   },
 
-  statStrip: {
-    watching: "Vigilando",
-    watchingNote: (n: number) =>
-      n === 1 ? "1 auto-exit en vivo" : `${n} auto-exits en vivo`,
-    nearestTrigger: "Trigger más próximo",
-    nearestNote: "entre todos los auto-exits",
-    nearestNoneNote: "ningún trigger cruzado",
-    lastSync: "Última lectura",
-    lastSyncNote: "lectura más reciente del watcher",
-  },
-
   status: {
     idle: {
       label: "Listo",
@@ -180,9 +169,29 @@ export const es: typeof en = {
       descriptionOne: "1 posición detectada — configura un auto-exit abajo.",
       descriptionMany: (n: number) =>
         `${n} posiciones detectadas en esta wallet.`,
-      lockedPrefix: "El vault está bloqueado — ",
-      lockedLink: "desbloquea",
-      lockedSuffix: " para armar auto-exits.",
+      lockedEyebrow: "Wallet bloqueada",
+      lockedBody: "Desbloquéala para armar cualquier auto-exit.",
+      lockedCta: "Desbloquear",
+    },
+
+    alerts: {
+      lowBalanceEyebrow: "Balance bajo",
+      lowBalanceBody: (sol: string) =>
+        `Tu bot tiene ${sol} SOL — puede no pagar fees al cerrar.`,
+      lowBalanceCta: "Recargar",
+      errorsEyebrow: (n: number) =>
+        n === 1 ? "1 auto-exit en error" : `${n} auto-exits en error`,
+      errorsBody:
+        "Algo salió mal en el último cierre. Revisa qué pasó y reanuda o detén.",
+      errorsCta: "Ver tasks",
+      resumeEyebrow: (n: number) =>
+        n === 1
+          ? "1 auto-exit pausado al bloquear la wallet"
+          : `${n} auto-exits pausados al bloquear la wallet`,
+      resumeBody:
+        "Reanúdalos cuando quieras seguir vigilando los precios.",
+      resumeCta: "Reanudar todos",
+      resumeCtaPending: "Reanudando…",
     },
 
     eyebrow: {
@@ -197,10 +206,15 @@ export const es: typeof en = {
     },
 
     hub: {
-      headerStatus: "Estado",
-      headerPosition: "Posición",
-      headerAutoExit: "Auto-exit",
-      headerAction: "Acción",
+      nowWatching: "Vigilando ahora",
+      subtitle:
+        "Cada fila se cierra sola en cuanto el precio cruza un umbral — take-profit arriba, stop-loss abajo.",
+      openLedger: "Abrir el ledger",
+      poolPrice: "precio actual del pool",
+      statTp: "Take-profit",
+      statSl: "Stop-loss",
+      statNearest: "Más cercano",
+      bufferLabel: "BUFFER",
       loading: "Consultando la cadena para posiciones de esta wallet…",
       oneProtocolFailed: (msg: string) => `Una query de protocolo falló: ${msg}`,
       rateLimitHintBefore: "El RPC público de Solana te está limitando las queries — ",
@@ -557,9 +571,9 @@ export const es: typeof en = {
         resumed: "Watcher reanudado tras una pausa.",
         pausedUser: "Pausado por el usuario.",
         pausedVaultLocked:
-          "Pausado — la vault se bloqueó mientras el watcher estaba corriendo.",
+          "Pausado — la wallet se bloqueó mientras el watcher estaba corriendo.",
         pausedServerRestart:
-          "Pausado al arrancar — la vault estaba bloqueada tras el reinicio del servidor.",
+          "Pausado al arrancar — la wallet estaba bloqueada tras el reinicio del servidor.",
         pausedOther: (reason: string) => `Pausado (${reason}).`,
         stopped: "Detenido manualmente. Sin más ticks.",
         triggered: (kind: string) =>
@@ -856,7 +870,7 @@ export const es: typeof en = {
     importWarning: {
       eyebrow: "Alcance operacional",
       body:
-        "La clave se guarda cifrada en disco en esta máquina y se descifra en memoria solo mientras la vault está desbloqueada. Si tanto tu passphrase como el archivo de vault fueran comprometidos a la vez, los activos en esta única address podrían moverse por el atacante — nada más en tu wallet, ninguna otra cuenta, ninguna address derivada de seed.",
+        "La clave se guarda cifrada en disco en esta máquina y se descifra en memoria solo mientras la wallet está desbloqueada. Si tanto tu passphrase como el archivo cifrado de la wallet fueran comprometidos a la vez, los activos en esta única address podrían moverse por el atacante — nada más en tu wallet, ninguna otra cuenta, ninguna address derivada de seed.",
       body2:
         "La práctica habitual es importar una cuenta dedicada a operaciones activas (una cuenta \"caliente\" separada de las cold holdings), no la cuenta donde guardas todo.",
       readMore: "→ Leer el blast radius preciso",

@@ -85,20 +85,6 @@ export const en = {
   },
 
   // ============================================================================
-  // Stat strip — KPIs del dashboard
-  // ============================================================================
-  statStrip: {
-    watching: "Watching",
-    watchingNote: (n: number) =>
-      n === 1 ? "1 auto-exit live" : `${n} auto-exits live`,
-    nearestTrigger: "Nearest trigger",
-    nearestNote: "across all auto-exits",
-    nearestNoneNote: "no triggers crossed yet",
-    lastSync: "Last update",
-    lastSyncNote: "most recent watcher read",
-  },
-
-  // ============================================================================
   // Status labels (statusView)
   // ============================================================================
   status: {
@@ -214,16 +200,41 @@ export const en = {
       descriptionOne: "1 position detected — configure an auto-exit below.",
       descriptionMany: (n: number) =>
         `${n} positions detected in this wallet.`,
-      lockedPrefix: "The vault is locked — ",
-      lockedLink: "unlock",
-      lockedSuffix: " to arm any auto-exit.",
+      lockedEyebrow: "Wallet locked",
+      lockedBody: "Unlock it to arm any auto-exit.",
+      lockedCta: "Unlock",
+    },
+
+    alerts: {
+      lowBalanceEyebrow: "Low balance",
+      lowBalanceBody: (sol: string) =>
+        `Your bot has ${sol} SOL — may not afford fees when closing.`,
+      lowBalanceCta: "Top up",
+      errorsEyebrow: (n: number) =>
+        n === 1 ? "1 auto-exit errored" : `${n} auto-exits errored`,
+      errorsBody:
+        "Something went wrong on the last close. Check the details and resume or stop.",
+      errorsCta: "View tasks",
+      resumeEyebrow: (n: number) =>
+        n === 1
+          ? "1 auto-exit paused when the wallet was locked"
+          : `${n} auto-exits paused when the wallet was locked`,
+      resumeBody:
+        "Resume them when you want to keep watching prices again.",
+      resumeCta: "Resume all",
+      resumeCtaPending: "Resuming…",
     },
 
     hub: {
-      headerStatus: "Status",
-      headerPosition: "Position",
-      headerAutoExit: "Auto-exit",
-      headerAction: "Action",
+      nowWatching: "Now watching",
+      subtitle:
+        "Each row closes itself the moment price crosses a target — take-profit up, stop-loss down.",
+      openLedger: "Open the ledger",
+      poolPrice: "current pool price",
+      statTp: "Take-profit",
+      statSl: "Stop-loss",
+      statNearest: "Nearest",
+      bufferLabel: "BUFFER",
       loading: "Querying chain for positions of this wallet…",
       oneProtocolFailed: (msg: string) => `One protocol query failed: ${msg}`,
       rateLimitHintBefore: "Looks like Solana's public RPC is rate-limiting you — ",
@@ -587,9 +598,9 @@ export const en = {
         resumed: "Watcher resumed after a pause.",
         pausedUser: "Paused by user.",
         pausedVaultLocked:
-          "Paused — the vault was locked while the watcher was running.",
+          "Paused — the wallet was locked while the watcher was running.",
         pausedServerRestart:
-          "Paused at boot — vault was locked after the server restarted.",
+          "Paused at boot — the wallet was locked after the server restarted.",
         pausedOther: (reason: string) => `Paused (${reason}).`,
         stopped: "Stopped manually. No further ticks.",
         triggered: (kind: string) =>
@@ -901,7 +912,7 @@ export const en = {
     importWarning: {
       eyebrow: "Operational scope",
       body:
-        "The key is held encrypted at rest on this machine and decrypted in memory only while the vault is unlocked. If both your passphrase and the vault file were compromised, the assets at this single address could be moved by the attacker — nothing else in your wallet, no other accounts, no seed-derived addresses.",
+        "The key is held encrypted at rest on this machine and decrypted in memory only while the wallet is unlocked. If both your passphrase and the encrypted wallet file were compromised at once, the assets at this single address could be moved by the attacker — nothing else in your wallet, no other accounts, no seed-derived addresses.",
       body2:
         "Standard practice is to import an account dedicated to active operations (a \"hot\" account separate from cold holdings), not the account where you store everything.",
       readMore: "→ Read the precise blast radius",
