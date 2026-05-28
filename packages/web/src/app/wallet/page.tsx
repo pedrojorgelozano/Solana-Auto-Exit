@@ -10,7 +10,9 @@ import { Label, PasswordInput } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress } from "@/lib/format";
+import { AddressDisplay } from "@/components/AddressDisplay";
 import { useT } from "@/i18n/context";
+import { NETWORK } from "@/lib/constants";
 
 export default function WalletPage() {
   const utils = trpc.useUtils();
@@ -201,6 +203,8 @@ function UnlockedSection({
   const { t } = useT();
   const u = t.wallet.unlocked;
   const lock = trpc.wallet.lock.useMutation();
+  const settings = trpc.settings.get.useQuery();
+  const network = settings.data?.network ?? NETWORK;
 
   const onLock = async () => {
     await lock.mutateAsync();
@@ -213,8 +217,10 @@ function UnlockedSection({
         <div className="t-eyebrow text-[var(--color-positive)]">
           {u.eyebrow}
         </div>
-        <h2 className="mt-3 t-h2 break-all t-num">{address}</h2>
-        <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
+        <div className="mt-4">
+          <AddressDisplay address={address} network={network} size="md" />
+        </div>
+        <p className="mt-5 max-w-xl t-body text-[var(--color-text-muted)]">
           {u.body}
         </p>
       </section>

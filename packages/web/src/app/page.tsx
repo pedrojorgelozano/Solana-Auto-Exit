@@ -12,18 +12,12 @@ import { positionDetailHref, taskDetailHref } from "@/lib/routes";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { useT } from "@/i18n/context";
 import { type BackendStatus } from "@/lib/status";
-import {
-  formatNearestDistance,
-  formatPrice,
-  formatTaskPair,
-  formatTimeAgo,
-  formatTriggers,
-  truncateAddress,
-} from "@/lib/format";
+import { formatNearestDistance, formatPrice } from "@/lib/format";
 import { tokenSymbol } from "@/lib/tokens";
 import { TriggerBand } from "@/components/TriggerBand";
 import { BufferCountdown } from "@/components/BufferCountdown";
 import { DashboardAlerts } from "@/components/DashboardAlerts";
+import { HistoryLedger } from "@/components/HistoryLedger";
 import {
   NETWORK,
   PROTOCOL_LABELS,
@@ -298,41 +292,19 @@ function PositionsHub({
 
   return (
     <section className="pt-8">
-      {/* Section header — "Now watching · 03" + link al ledger completo. */}
-      <div className="mb-2 flex items-end justify-between gap-4 pb-3">
-        <div>
-          <div className="t-eyebrow text-[var(--color-text)]">
-            {hubT.nowWatching}{" "}
-            <span className="ml-1 t-num text-[var(--color-text-dim)]">
-              {watchingStr}
-            </span>
-          </div>
-          <p className="mt-1 t-small text-[var(--color-text-muted)]">
-            {hubT.subtitle}
-          </p>
+      {/* Section header — "Now watching · 03". El link al histórico del
+          sidebar y el del bloque "Histórico de transacciones" más abajo
+          cubren el acceso; aquí sería redundante. */}
+      <div className="mb-2 pb-3">
+        <div className="t-eyebrow text-[var(--color-text)]">
+          {hubT.nowWatching}{" "}
+          <span className="ml-1 t-num text-[var(--color-text-dim)]">
+            {watchingStr}
+          </span>
         </div>
-        <Link
-          href="/tasks"
-          className="
-            inline-flex flex-none items-center gap-1.5
-            t-eyebrow text-[var(--color-text-muted)]
-            transition-colors hover:text-[var(--color-accent-bright)]
-          "
-        >
-          {hubT.openLedger}
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.9"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-[12px] w-[12px]"
-            aria-hidden
-          >
-            <path d="M5 12h14M13 6l6 6-6 6" />
-          </svg>
-        </Link>
+        <p className="mt-1 t-small text-[var(--color-text-muted)]">
+          {hubT.subtitle}
+        </p>
       </div>
 
       <ul className="flex flex-col gap-3">
@@ -610,12 +582,9 @@ function RowHeader({
           {isInRange ? t.format.inRange : t.format.outOfRange}
         </Pill>
       ) : null}
-      <span className="ml-auto">
-        <StatusPill
-          state={rowState}
-          label={stateLabel}
-          isDryRun={isDryRun}
-        />
+      <span className="ml-auto inline-flex items-center gap-2">
+        <StatusPill state={rowState} label={stateLabel} />
+        {isDryRun ? <SimTag /> : null}
       </span>
     </div>
   );
@@ -657,13 +626,10 @@ function ActiveBufferRow({ task }: { task: TaskRow }) {
 function StatusPill({
   state,
   label,
-  isDryRun,
 }: {
   state: "active" | "paused" | "none";
   label: string;
-  isDryRun: boolean;
 }) {
-  const { t } = useT();
   const cls =
     state === "active"
       ? "border-[var(--color-accent)]/55 bg-[var(--color-accent)]/15 text-[var(--color-accent-bright)]"
@@ -690,11 +656,27 @@ function StatusPill({
         aria-hidden
       />
       {label}
-      {isDryRun ? (
-        <span className="ml-1 text-[var(--color-warning)]">
-          {t.format.sim}
-        </span>
-      ) : null}
+    </span>
+  );
+}
+
+/**
+ * Tag pequeño "Simulado" — se renderiza al lado del StatusPill cuando la
+ * task se creó en modo dry-run. Fuera de la pill para no romperla a
+ * multilinea y para que tenga presencia propia.
+ */
+function SimTag() {
+  const { t } = useT();
+  return (
+    <span
+      title={t.format.simTooltip}
+      className="
+        inline-flex items-center
+        text-[10px] font-semibold uppercase tracking-[0.18em]
+        text-[var(--color-warning)]
+      "
+    >
+      {t.format.sim}
     </span>
   );
 }
@@ -957,21 +939,6 @@ function EmptyPath({
 // Recent activity — feed condensado de tasks terminadas
 // ============================================================================
 
-interface CloseResultShape {
-  dryRun?: boolean;
-  txId?: string;
-}
-
-function isSlippageError(msg: string): boolean {
-  const m = msg.toLowerCase();
-  return (
-    m.includes("slippage") ||
-    m.includes("tolerance") ||
-    m.includes("price impact") ||
-    m.includes("0x1782")
-  );
-}
-
 function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
   const { t } = useT();
   const actT = t.home.activity;
@@ -979,7 +946,7 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
 
   return (
     <section className="hairline-t mt-12 pt-10">
-      <div className="flex items-baseline justify-between">
+      <div className="mb-6 flex items-baseline justify-between">
         <div>
           <div className="t-eyebrow text-[var(--color-text-muted)]">
             {actT.eyebrow}
@@ -988,184 +955,31 @@ function RecentActivity({ tasks }: { tasks: TaskRow[] }) {
         </div>
         <Link
           href="/tasks"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+          className="
+            inline-flex flex-none items-center gap-1.5
+            t-eyebrow text-[var(--color-text-muted)]
+            transition-colors hover:text-[var(--color-accent-bright)]
+          "
         >
           {actT.viewAll}
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[12px] w-[12px]"
+            aria-hidden
+          >
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </Link>
       </div>
 
-      <div className="mt-6 overflow-x-auto">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="text-left t-eyebrow text-[var(--color-text-dim)]">
-              <th className="pb-3 pr-4 font-normal">{actT.headerWhen}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerPosition}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerTrigger}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerResult}</th>
-              <th className="pb-3 pr-4 font-normal">{actT.headerTxError}</th>
-              <th className="pb-3 font-normal text-right">&nbsp;</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--color-hairline)]">
-            {tasks.slice(0, 8).map((t) => (
-              <LedgerRow key={t.id} task={t} />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <HistoryLedger rows={tasks.slice(0, 8)} />
     </section>
   );
-}
-
-function LedgerRow({ task }: { task: TaskRow }) {
-  const { t } = useT();
-  const when = task.triggeredAt
-    ? new Date(task.triggeredAt).getTime()
-    : new Date(task.updatedAt).getTime();
-  const closeShape = task.closeResult as CloseResultShape | null;
-
-  return (
-    <tr className="group">
-      <td className="py-4 pr-4 align-top t-num text-[var(--color-text-muted)]">
-        {formatTimeAgo(when, t)}
-      </td>
-      <td className="py-4 pr-4 align-top t-small text-[var(--color-text)]">
-        {(() => {
-          const pair = formatTaskPair(task.protocolConfig);
-          return pair ? (
-            <>
-              {pair}{" "}
-              <span className="t-eyebrow text-[var(--color-text-dim)]">
-                · {task.protocol}
-              </span>
-            </>
-          ) : (
-            <>
-              {task.protocol} · {truncateAddress(task.positionId, 4, 4)}
-            </>
-          );
-        })()}
-      </td>
-      <td className="py-4 pr-4 align-top t-num text-[var(--color-text)]">
-        {formatTriggers(task.takeProfitPrice, task.stopLossPrice, 4)}
-        {task.exitTokenMint ? (
-          <span className="ml-2 t-eyebrow text-[var(--color-text-dim)]">
-            → {tokenSymbol(task.exitTokenMint)}
-          </span>
-        ) : null}
-      </td>
-      <td className="py-4 pr-4 align-top">
-        <ResultChip task={task} />
-      </td>
-      <td className="py-4 pr-4 align-top">
-        <TxOrError task={task} closeShape={closeShape} />
-      </td>
-      <td className="py-4 align-top text-right">
-        <Link
-          href={taskDetailHref(task.id)}
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)]"
-        >
-          open →
-        </Link>
-      </td>
-    </tr>
-  );
-}
-
-/**
- * Chip de resultado: distingue visualmente Closed / Failed / Stopped en lugar
- * de mostrar el label genérico de estado. Para errores, anota la causa
- * detectada (slippage si aplica).
- */
-function ResultChip({ task }: { task: TaskRow }) {
-  const { t } = useT();
-  const actT = t.home.activity;
-  if (task.status === "done") {
-    return (
-      <div className="flex items-center gap-2">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-positive)]" />
-        <span className="t-eyebrow text-[var(--color-positive)]">
-          {actT.resultClosed}
-        </span>
-        {task.dryRun ? (
-          <span className="t-eyebrow text-[var(--color-warning)]">
-            {t.format.sim}
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-  if (task.status === "error") {
-    const slip = task.lastError ? isSlippageError(task.lastError) : false;
-    return (
-      <div className="flex items-center gap-2">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-danger)]" />
-        <span className="t-eyebrow text-[var(--color-danger)]">
-          {actT.resultFailed}
-        </span>
-        {slip ? (
-          <span className="t-eyebrow text-[var(--color-text-muted)]">
-            {actT.slippageTag}
-          </span>
-        ) : null}
-      </div>
-    );
-  }
-  // stopped
-  return (
-    <div className="flex items-center gap-2">
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-text-dim)]" />
-      <span className="t-eyebrow text-[var(--color-text-muted)]">
-        {actT.resultStopped}
-      </span>
-    </div>
-  );
-}
-
-/**
- * Para closes exitosos: link a Solscan con la signature. Para errores:
- * preview del mensaje (truncado a una línea, hover muestra el completo).
- * Stopped o dry-run: dash.
- */
-function TxOrError({
-  task,
-  closeShape,
-}: {
-  task: TaskRow;
-  closeShape: CloseResultShape | null;
-}) {
-  const { t } = useT();
-  if (task.status === "done" && closeShape?.txId && !closeShape.dryRun) {
-    const cluster = task.network === "mainnet" ? "" : "?cluster=devnet";
-    return (
-      <a
-        href={`https://solscan.io/tx/${closeShape.txId}${cluster}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="t-eyebrow text-[var(--color-accent-bright)] hover:underline t-num"
-      >
-        {truncateAddress(closeShape.txId, 4, 4)} ↗
-      </a>
-    );
-  }
-  if (task.status === "done" && closeShape?.dryRun) {
-    return (
-      <span className="t-eyebrow text-[var(--color-text-dim)]">
-        {t.home.activity.simulated}
-      </span>
-    );
-  }
-  if (task.status === "error" && task.lastError) {
-    return (
-      <span
-        title={task.lastError}
-        className="t-small text-[var(--color-text-muted)] line-clamp-1 max-w-xs"
-      >
-        {task.lastError}
-      </span>
-    );
-  }
-  return <span className="t-eyebrow text-[var(--color-text-dim)]">—</span>;
 }
 
 // ============================================================================

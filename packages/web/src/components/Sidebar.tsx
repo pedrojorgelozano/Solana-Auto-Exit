@@ -97,8 +97,8 @@ function Nav() {
   // se accede desde una row del home, no desde nav.
   const items: Array<{ href: string; label: string; icon: React.ReactNode }> = [
     { href: "/", label: t.sidebar.nav.dashboard, icon: <DashboardIcon /> },
-    { href: "/wallet", label: t.sidebar.nav.wallet, icon: <WalletIcon /> },
     { href: "/tasks", label: t.sidebar.nav.autoExits, icon: <AutoExitIcon /> },
+    { href: "/wallet", label: t.sidebar.nav.wallet, icon: <WalletIcon /> },
     { href: "/settings", label: t.sidebar.nav.settings, icon: <SettingsIcon /> },
   ];
 
@@ -199,7 +199,7 @@ function WalletBeacon() {
 
   if (status.isLoading) {
     return (
-      <div className="flex items-center gap-[9px] rounded-[7px] border-t border-[var(--color-hairline)] px-[10px] py-[9px]">
+      <div className="flex items-center gap-[9px] rounded-[7px] border-y border-[var(--color-hairline)] px-[10px] py-[9px]">
         <span className="inline-block h-[7px] w-[7px] flex-none rounded-full bg-[var(--color-text-muted)]" />
         <span className="text-[14px] text-[var(--color-text-muted)]">
           {t.sidebar.walletLabel}
@@ -214,7 +214,7 @@ function WalletBeacon() {
         type="button"
         onClick={connect.open}
         className="
-          flex items-center gap-[9px] rounded-[7px] border-t border-[var(--color-hairline)]
+          flex items-center gap-[9px] rounded-[7px] border-y border-[var(--color-hairline)]
           px-[10px] py-[9px] text-left transition-colors
           hover:bg-[var(--color-surface-hover)]
         "
@@ -238,7 +238,7 @@ function WalletBeacon() {
     <Link
       href="/wallet"
       className="
-        flex items-center gap-[9px] rounded-[7px] border-t border-[var(--color-hairline)]
+        flex items-center gap-[9px] rounded-[7px] border-y border-[var(--color-hairline)]
         px-[10px] py-[9px] transition-colors hover:bg-[var(--color-surface-hover)]
       "
     >

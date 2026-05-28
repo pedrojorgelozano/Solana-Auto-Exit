@@ -73,7 +73,7 @@ export const en = {
       dashboard: "Dashboard",
       wallet: "Wallet",
       positions: "Positions",
-      autoExits: "Auto-exits",
+      autoExits: "History",
       settings: "Settings",
     },
     serverLabel: "Server",
@@ -146,7 +146,9 @@ export const en = {
     triggerAlreadyTrue: " · trigger already true",
     triggerMet: " · trigger met",
     firedThisOne: "· fired this one",
-    sim: "· sim",
+    sim: "Simulated",
+    simTooltip:
+      "This auto-exit ran in simulation mode: no real on-chain transactions were executed.",
     simulation: "· simulation",
   },
 
@@ -214,7 +216,7 @@ export const en = {
         n === 1 ? "1 auto-exit errored" : `${n} auto-exits errored`,
       errorsBody:
         "Something went wrong on the last close. Check the details and resume or stop.",
-      errorsCta: "View tasks",
+      errorsCta: "View in history",
       resumeEyebrow: (n: number) =>
         n === 1
           ? "1 auto-exit paused when the wallet was locked"
@@ -229,7 +231,7 @@ export const en = {
       nowWatching: "Now watching",
       subtitle:
         "Each row closes itself the moment price crosses a target — take-profit up, stop-loss down.",
-      openLedger: "Open the ledger",
+      openLedger: "History",
       poolPrice: "current pool price",
       statTp: "Take-profit",
       statSl: "Stop-loss",
@@ -264,7 +266,7 @@ export const en = {
     activity: {
       eyebrow: "Transaction history",
       title: "Closes, swaps and failures.",
-      viewAll: "View all →",
+      viewAll: "View all",
       headerWhen: "When",
       headerPosition: "Position",
       headerTrigger: "Trigger",
@@ -382,7 +384,8 @@ export const en = {
   taskDetail: {
     pageEyebrow: "Auto-exit",
     pageTitle: "Live status",
-    backLabel: "All auto-exits",
+    backToDashboard: "Dashboard",
+    backToHistory: "History",
 
     hero: {
       currentPrice: "Current price",
@@ -440,7 +443,7 @@ export const en = {
         " delete this failed auto-exit and configure a new one on the same position with higher slippage (try ",
       recommendedNormal: " for normal pairs, ",
       recommendedVolatile:
-        " for volatile / shallow pools). Live tasks are immutable by design (ADR-013), so editing isn't possible.",
+        " for volatile / shallow pools). Live auto-exits are immutable by design (ADR-013), so editing isn't possible.",
       nonSlippage:
         "This doesn't look like a slippage issue — possibly RPC congestion, a transient network error, or an account state problem. ",
       closeAttemptedYes: "The close attempt failed, so ",
@@ -632,19 +635,17 @@ export const en = {
   // ============================================================================
   tasksList: {
     pageEyebrow: "History",
-    pageTitle: "All auto-exits.",
+    pageTitle: "History.",
     pageDescription:
-      "Active, paused, completed and errored — everything this server knows about.",
+      "Closes and errors from past auto-exits. Live ones live in the dashboard.",
     backLabel: "Home",
     noMatch: "No auto-exits match this filter.",
     emptyEyebrow: "Empty",
-    emptyTitle: "No auto-exits yet.",
+    emptyTitle: "No closes or errors yet.",
     emptyBody:
-      "An auto-exit watches a single LP position and closes it when your take-profit or stop-loss price hits. Configure one on any position the bot wallet owns — it will appear here from creation through completion. Test-mode runs (Solana devnet) show up alongside real ones.",
-    emptyCta: "Go to positions →",
+      "When an auto-exit closes — because price hit the trigger, you stopped it manually, or it errored — it will appear here. Live positions being watched live in the dashboard.",
+    emptyCta: "Go to dashboard →",
     filters: {
-      all: "All",
-      active: "Active",
       completed: "Completed",
       errors: "Errors",
     },
@@ -652,8 +653,8 @@ export const en = {
       status: "Status",
       position: "Position",
       trigger: "Trigger",
-      lastPrice: "Last price",
-      distance: "Distance",
+      closedAt: "Closed by",
+      result: "Result",
       when: "When",
     },
   },
@@ -665,7 +666,7 @@ export const en = {
     pageEyebrow: "Settings",
     pageTitle: "Defaults for this server.",
     pageDescription:
-      "RPC, slippage and polling defaults pre-fill the auto-exit form. The form lets you override per-task; this is just the starting point.",
+      "RPC, slippage and polling defaults pre-fill the auto-exit form. The form lets you override per auto-exit; this is just the starting point.",
     backLabel: "Home",
 
     updater: {
@@ -704,7 +705,7 @@ export const en = {
         " below to a mainnet endpoint (Helius, QuickNode, Triton, or your own node). The public devnet URL won't work.",
       bullet1Prefix: "Update ",
       bullet2:
-        "Existing tasks keep their original network — they don't auto-migrate. Only new auto-exits will be on mainnet.",
+        "Existing auto-exits keep their original network — they don't auto-migrate. Only new ones will be on mainnet.",
       bullet3: "Re-test your strategy on devnet before flipping the switch.",
       understood:
         "I understand this will sign transactions with real funds and I've updated my RPC URL.",
@@ -761,7 +762,7 @@ export const en = {
         " · fastest reaction. Only worth it for triggers ",
       copy10Without: "without",
       copy10Rest:
-        " time buffer and on a paid RPC (8.6k requests/day per task — burns Helius free tier in 12 days).",
+        " time buffer and on a paid RPC (8.6k requests/day per auto-exit — burns Helius free tier in 12 days).",
       copy30: " · ",
       copy30Recommended: "recommended default",
       copy30Rest:
@@ -774,7 +775,7 @@ export const en = {
     },
 
     perTaskNote:
-      "Slippage settings above can be overridden per-task on the configure form. Poll interval is server-wide; the form does not expose a per-task override. Changing a default here only affects new auto-exits.",
+      "Slippage settings above can be overridden per auto-exit on the configure form. Poll interval is server-wide; the form does not expose a per auto-exit override. Changing a default here only affects new auto-exits.",
 
     resetPrompt:
       "Reset RPC URL, slippage and poll interval to defaults?\n\nYour network choice (TEST / REAL) is preserved — switch it from the toggle above if you need to.",
@@ -786,9 +787,9 @@ export const en = {
   // ============================================================================
   wallet: {
     pageEyebrow: "Wallet",
-    pageTitle: "The keypair that signs your closes.",
+    pageTitle: "Your bot's wallet.",
     pageDescription:
-      "Encrypted at rest with scrypt + AES-256-GCM. Decrypted in memory only while the wallet is unlocked.",
+      "The account the bot uses to open and close your auto-exits. It lives encrypted on your machine and only unlocks when you unlock it.",
     backLabel: "Home",
     encryptionLink: "→ How encryption and key storage work",
     loading: "Loading wallet status…",
@@ -822,6 +823,13 @@ export const en = {
 
     unlocked: {
       eyebrow: "Wallet unlocked",
+      addressDisplay: {
+        copy: "Copy",
+        copied: "Copied",
+        showFull: "Show full",
+        showTruncated: "Show truncated",
+        viewOnExplorer: "View on Solscan",
+      },
       body:
         "The keypair is in memory. It will be used to sign close and swap transactions for armed auto-exits.",
       // Lock panel — visible solo cuando la wallet está unlocked. Explica

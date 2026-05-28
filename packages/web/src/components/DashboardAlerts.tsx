@@ -98,7 +98,7 @@ export function DashboardAlerts({
           eyebrow={a.errorsEyebrow(errorCount)}
           body={a.errorsBody}
           ctaLabel={a.errorsCta}
-          ctaHref="/tasks"
+          ctaHref="/tasks?filter=errors"
           icon={<ErrorIcon />}
         />
       ) : null}

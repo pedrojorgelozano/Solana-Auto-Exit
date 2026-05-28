@@ -78,10 +78,22 @@ export default function TaskPage() {
   const refresh = () => utils.tasks.get.invalidate({ id });
   const { t } = useT();
 
+  // Back dinámico según dónde "vive" la task: las históricas (done/stopped/
+  // error) viven en /tasks; las live (idle/armed/triggered/closing/paused)
+  // viven en el dashboard. Si task.data aún no cargó, default al dashboard
+  // (es el home natural del producto).
+  const status = task.data?.status as string | undefined;
+  const isHistorical =
+    status === "done" || status === "stopped" || status === "error";
+  const backHref = isHistorical ? "/tasks" : "/";
+  const backLabel = isHistorical
+    ? t.taskDetail.backToHistory
+    : t.taskDetail.backToDashboard;
+
   return (
     <main className="mr-auto max-w-[1180px] px-8 pb-24 pt-8 fade-in">
       <Link
-        href="/tasks"
+        href={backHref}
         className="
           inline-flex items-center gap-[7px] text-[14px] font-medium
           text-[var(--color-text-dim)] transition-colors
@@ -100,7 +112,7 @@ export default function TaskPage() {
         >
           <path d="M19 12H5M11 6l-6 6 6 6" />
         </svg>
-        {t.taskDetail.backLabel}
+        {backLabel}
       </Link>
 
       <div className="mt-6">
