@@ -39,6 +39,17 @@
   bajar a 0.01 SOL porque solo opera con stables y no abre cuentas
   nuevas), exponerlo en `/settings` como `lowBalanceThresholdLamports`
   con default actual.
+- [ ] Ocultar el toggle "Auto-actualización" del `/settings` cuando la app
+  no se ejecuta dentro del shell Tauri. Hoy el toggle se renderiza
+  siempre (`UpdaterPanel` en `packages/web/src/app/settings/page.tsx`),
+  pero el plugin `tauri-plugin-updater` que lo escucha solo existe en
+  la app desktop instalada (Windows `.exe`/`.msi`). En instalaciones
+  Docker / pnpm-from-source / cualquier entorno sin shell Tauri, el
+  toggle es engañoso — el usuario lo activa esperando auto-update y no
+  pasa nada. Detección: `typeof window !== "undefined" &&
+  "__TAURI_INTERNALS__" in window` (o equivalente de Tauri 2.x). Si
+  no es Tauri, no renderizar la sección del updater o reemplazarla
+  por una nota "actualización manual — ver INSTALL.md".
 - [ ] Render legible de errores de validación zod en el web. Hoy el catch de
   `/settings` (y posiblemente otros forms con mutations) hace `err.message`
   directo; cuando el backend devuelve un `ZodError`, el message lleva el
