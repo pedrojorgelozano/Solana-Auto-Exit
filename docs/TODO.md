@@ -10,10 +10,12 @@
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
 - [ ] **Decidir merge del rediseño UI** — rama `feature/ui-refined-dark`
-  acumula **26 commits** del rediseño "refined minimal dark" completo
+  acumula **30 commits** del rediseño "refined minimal dark" completo
   (paleta dark + sidebar + nuevos componentes + rate-limit hint +
   detail mockup G + anclar al sidebar + escala tipográfica + 2
-  decimales + lock fuera del sidebar). Aceptada como
+  decimales + lock fuera del sidebar + dashboard hub rewrite con cards
+  + TriggerBand + StatusPill + BufferCountdown + DashboardAlerts con
+  bulk-resume + retira StatStrip). Aceptada como
   [ADR-038](DECISIONS.md) y reforzada por [ADR-039](DECISIONS.md), pero
   **sin merge a `main`** ni push. Al mergear:
   - Borrar `packages/web/src/components/GlobalHeader.tsx` (huérfano,
@@ -27,6 +29,24 @@
 
 ## Backlog (sin orden)
 
+- [ ] **Snapshot-check del bulk-resume tras desbloquear**. Hoy el callout
+  `N AUTO-EXITS PAUSADOS AL BLOQUEAR LA WALLET` + botón `REANUDAR
+  TODOS` reanuda **todas** las tasks paused-por-sistema sin distinguir
+  cuáles cruzaron trigger durante el lockdown. Si una posición cruzó
+  TP/SL mientras la wallet estaba bloqueada, el resume disparará un
+  cierre inmediato. Mejora: comparar `currentPrice` contra triggers de
+  cada candidata; partir el callout en dos: `M REANUDABLES SIN RIESGO
+  [REANUDAR ESTOS]` + `K CRUZARON TRIGGER — REVISA ANTES [VER TASK →]`.
+  Requiere getSummary o similar para cada paused. No urge — los buffers
+  suelen amortiguar el problema, pero merece la pena tras feedback de
+  uso real.
+- [ ] **Threshold de balance bajo configurable en `/settings`**. Hoy
+  hardcoded a `LOW_BALANCE_LAMPORTS = 50_000_000` (0.05 SOL) en
+  `DashboardAlerts.tsx`. Margen razonable para ~10 cierres + ATA
+  creation. Si en mainnet con SOL caro alguien quiere ajustar (e.g.
+  bajar a 0.01 SOL porque solo opera con stables y no abre cuentas
+  nuevas), exponerlo en `/settings` como `lowBalanceThresholdLamports`
+  con default actual.
 - [ ] Render legible de errores de validación zod en el web. Hoy el catch de
   `/settings` (y posiblemente otros forms con mutations) hace `err.message`
   directo; cuando el backend devuelve un `ZodError`, el message lleva el
@@ -165,6 +185,31 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Dashboard hub rewrite + alerts inteligentes (2026-05-28)**: 3 commits
+  funcionales sobre `feature/ui-refined-dark`. Sidebar brand mark de
+  monograma `A` en mono (el icono anterior era logout universal). Token
+  badges placeholder ocultos con kill-switch hasta tener SVGs reales.
+  Rewrite del hub del home: filas como cards elevadas cuando active /
+  rows planas cuando paused/none, con header (par + pills + StatusPill
+  enriquecida), big number del precio + nuevo componente `TriggerBand`
+  (banda entre SL y TP con nodo del precio, sin labels redundantes) +
+  stack 3-col TP/SL/Nearest (solo `%` con color contextual). Section
+  header `Vigilando ahora · N` + link `Abrir el ledger →` arriba.
+  `BufferCountdown` vivo (refresh cada segundo, solo visible cuando hay
+  trigger cruzado en espera de buffer). `LockedCallout` dedicado para
+  wallet bloqueada (antes era un span camuflado en el header). Barrido
+  `vault → wallet` en strings expuestas al usuario. `StatStrip`
+  retirado (3 KPIs ruidosos que duplicaban / escondían info). Nuevo
+  `DashboardAlerts` con tres callouts amber contextuales — solo visibles
+  cuando aplican: `BALANCE BAJO` (< 0.05 SOL), `N AUTO-EXITS EN ERROR`
+  + CTA al ledger, y `N AUTO-EXITS PAUSADOS AL BLOQUEAR LA WALLET` con
+  botón `REANUDAR TODOS` que itera `tasks.start` para todas las paused-
+  por-sistema (heurística por `lastError` string-match). Decisión
+  deliberada: NO añadir info estática al dashboard (swap-out, slippage,
+  poll interval) — vive en el detalle. Sí añadir info dinámica y
+  accionable (countdown buffer). Verificado en vivo el bulk-resume. Tras
+  este lote, la rama acumula **30 commits**. Sin push, sin merge.
+  Commits `93f9a38`, `744ef2a`, `e28cd65`.
 - **Detail mockup G + iteración fina del rediseño UI (2026-05-27)**: 16
   commits sobre la rama `feature/ui-refined-dark`. Rewrite del detail
   `/tasks/[id]` siguiendo `mockups/auto-exit-detail.html` (header +
