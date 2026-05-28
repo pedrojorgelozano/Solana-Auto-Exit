@@ -176,8 +176,12 @@ export const es: typeof en = {
 
     alerts: {
       lowBalanceEyebrow: "Balance bajo",
-      lowBalanceBody: (sol: string) =>
-        `Tu bot tiene ${sol} SOL — puede no pagar fees al cerrar.`,
+      lowBalanceBody: (sol: string, network: "mainnet" | "devnet") =>
+        `Tu bot tiene ${sol} SOL en ${network} — puede no pagar fees al cerrar. ${
+          network === "devnet"
+            ? "Si tu wallet tiene SOL en mainnet, cambia la red en /settings."
+            : ""
+        }`.trim(),
       lowBalanceCta: "Recargar",
       errorsEyebrow: (n: number) =>
         n === 1 ? "1 auto-exit en error" : `${n} auto-exits en error`,
