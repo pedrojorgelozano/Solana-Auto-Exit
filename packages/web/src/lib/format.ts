@@ -166,7 +166,7 @@ export function formatTriggerSentence(
 }
 
 /**
- * "in range" / "out of range" → "In your range" / "Out of range" (legible).
+ * "in range" / "out of range" → "In range" / "Out of range" (legible).
  */
 export function formatRangeStatus(isInRange: boolean, t: Dict = en): string {
   return isInRange ? t.format.inRange : t.format.outOfRange;

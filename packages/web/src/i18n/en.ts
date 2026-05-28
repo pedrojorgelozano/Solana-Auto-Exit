@@ -126,7 +126,7 @@ export const en = {
   // Format helpers (range, time ago, buffer)
   // ============================================================================
   format: {
-    inRange: "In your range",
+    inRange: "In range",
     outOfRange: "Out of range",
     bufferOff: "off",
     bufferMet: "buffer met",
