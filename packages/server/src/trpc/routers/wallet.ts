@@ -15,7 +15,17 @@ import {
   recordUnlockSuccess,
 } from "../../security/unlock-limiter.js";
 
-const DEFAULT_RPC_URL = "https://api.devnet.solana.com";
+// Fallback por red cuando NO hay rpc_url stored. Antes había un único
+// `DEFAULT_RPC_URL = devnet` hardcoded, lo que causaba un bug muy feo:
+// si el usuario cambiaba network a mainnet pero no tocaba el rpcUrl
+// stored (o no había stored), `wallet.balance` consultaba devnet y
+// devolvía 0 SOL como respuesta válida → callout 'low balance' falso
+// aunque la wallet tuviera SOL real en mainnet. Ahora alineado con
+// settings.get: fallback al canónico de la red activa.
+const DEFAULT_RPC_BY_NETWORK = {
+  mainnet: "https://api.mainnet-beta.solana.com",
+  devnet: "https://api.devnet.solana.com",
+} as const;
 
 const sourceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("base58"), value: z.string().min(40) }),
@@ -154,12 +164,19 @@ export const walletRouter = router({
   balance: publicProcedure
     .input(z.object({ address: z.string().min(32) }))
     .query(async ({ ctx, input }) => {
-      const row = ctx.db
+      const rpcRow = ctx.db
         .select()
         .from(settingsTable)
         .where(eq(settingsTable.key, "rpc_url"))
         .get();
-      const rpcUrl = row?.value ?? DEFAULT_RPC_URL;
+      const networkRow = ctx.db
+        .select()
+        .from(settingsTable)
+        .where(eq(settingsTable.key, "network"))
+        .get();
+      const network: "mainnet" | "devnet" =
+        networkRow?.value === "devnet" ? "devnet" : "mainnet";
+      const rpcUrl = rpcRow?.value ?? DEFAULT_RPC_BY_NETWORK[network];
       const res = await fetch(rpcUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -225,6 +225,39 @@ export const settingsRouter = router({
       .values({ key: dbKey, value: dbValue })
       .onConflictDoUpdate({ target: settings.key, set: { value: dbValue } })
       .run();
+
+    // Cuando cambias `network`, sincroniza el rpcUrl persistido si
+    // estaba en el default canónico de la red anterior. Si era custom
+    // (Helius con API key, Triton, etc.) respetamos lo que el usuario
+    // configuró — solo auto-flippeamos cuando estaba en uno de los
+    // dos defaults conocidos. Esto evita el caso real: usuario empieza
+    // en devnet, persiste rpcUrl=devnet por defecto, switch a mainnet,
+    // y luego `wallet.balance` consulta devnet con su address de
+    // mainnet → 0 SOL aunque tenga SOL real.
+    if (input.key === "network") {
+      const targetNetwork = input.value as "mainnet" | "devnet";
+      const currentRpcRow = ctx.db
+        .select()
+        .from(settings)
+        .where(eq(settings.key, KEYS.rpcUrl))
+        .get();
+      const currentRpc = currentRpcRow?.value;
+      const isCanonical =
+        currentRpc === DEFAULT_RPC.mainnet ||
+        currentRpc === DEFAULT_RPC.devnet;
+      if (!currentRpc || isCanonical) {
+        const nextRpc = DEFAULT_RPC[targetNetwork];
+        ctx.db
+          .insert(settings)
+          .values({ key: KEYS.rpcUrl, value: nextRpc })
+          .onConflictDoUpdate({
+            target: settings.key,
+            set: { value: nextRpc },
+          })
+          .run();
+      }
+    }
+
     return { ok: true };
   }),
 
