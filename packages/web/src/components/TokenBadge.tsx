@@ -8,6 +8,11 @@ import { tokenColor, tokenSymbol, tokenMeta } from "@/lib/tokens";
  * NO usa logos reales todavía — apuntado al backlog (bundlear SVGs de los
  * tokens más populares en `/public/tokens/` y servirlos desde aquí).
  */
+// Kill-switch temporal: los placeholders coloreados con iniciales se ven
+// "AI slop" comparados con logos reales. Cuando se bundleen los SVGs
+// oficiales de los tokens (item del backlog), quitar este flag.
+const HIDE_BADGES = true;
+
 export function TokenBadge({
   mint,
   size = 20,
@@ -23,6 +28,7 @@ export function TokenBadge({
    */
   ringColor?: string;
 }) {
+  if (HIDE_BADGES) return null;
   const symbol = tokenSymbol(mint);
   const color = tokenColor(mint);
   // El symbol puede venir como truncate "ABcd…WXYZ" si no conocemos el
@@ -70,6 +76,7 @@ export function TokenPair({
   size?: number;
   ringColor?: string;
 }) {
+  if (HIDE_BADGES) return null;
   return (
     <span className="inline-flex items-center flex-none">
       <TokenBadge mint={mintA} size={size} />
