@@ -69,6 +69,23 @@
   threshold en `DashboardAlerts`. Bonus: exportar histórico a CSV
   desde `/settings` antes de wipear (`scripts/seed-history.ts
   --wipe-all` es el wipe pero hoy no hay export).
+- [ ] Documentación en español. Todos los docs públicos del repo
+  (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/INSTALL.md`,
+  `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/RELEASING.md`,
+  `docs/SECURITY-AUDIT.md`, `docs/TESTING.md`, `docs/TODO.md`) están
+  en inglés. La app interna sí es bilingüe EN/ES (i18n completo en
+  `/docs/*` y toda la UI), pero un usuario hispanohablante que aterriza
+  en el repo se topa con instalación / seguridad / arquitectura en
+  inglés. Plan razonable cuando se aborde:
+  - Priorizar los que toca el usuario final (`README.md`, `INSTALL.md`,
+    `SECURITY.md`). Los técnicos profundos (`ARCHITECTURE.md`,
+    `DECISIONS.md`, `SECURITY-AUDIT.md`) son audiencia developer
+    internacional → quizá no merecen traducción dual.
+  - Estrategia: archivos paralelos (`README.es.md` al lado de
+    `README.md`) o subcarpeta (`docs/es/`). El primero es la
+    convención de muchos proyectos (Vue, Vite, etc.).
+  - Mantener la versión EN como source-of-truth para no acumular
+    drift; las ES se actualizan cuando hace falta.
 - [ ] Render legible de errores de validación zod en el web. Hoy el catch de
   `/settings` (y posiblemente otros forms con mutations) hace `err.message`
   directo; cuando el backend devuelve un `ZodError`, el message lleva el
