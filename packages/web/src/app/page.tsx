@@ -474,33 +474,7 @@ function PositionHubRow({
               slPrice={activeTask?.stopLossPrice ?? null}
               paused={rowState === "paused"}
             />
-          ) : (
-            <div className="flex items-center justify-end">
-              <span
-                className="
-                  inline-flex items-center gap-2
-                  rounded-[7px] border border-[var(--color-accent)]/40
-                  px-3.5 py-2 text-[12px] font-semibold uppercase tracking-[0.18em]
-                  text-[var(--color-accent-bright)]
-                  transition-colors group-hover:bg-[var(--color-accent)]/10
-                "
-              >
-                {t.common.autoExit}
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.9"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="h-[13px] w-[13px]"
-                  aria-hidden
-                >
-                  <path d="M5 12h14M13 6l6 6-6 6" />
-                </svg>
-              </span>
-            </div>
-          )}
+          ) : null}
         </div>
 
         <span
