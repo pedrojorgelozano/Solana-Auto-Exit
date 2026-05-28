@@ -56,21 +56,13 @@ function Brand() {
           inline-flex h-[34px] w-[34px] items-center justify-center flex-none
           rounded-[9px] border border-[var(--color-rule)]
           bg-[var(--color-accent-dim)]
+          text-[18px] font-bold leading-none tracking-tight
+          text-[var(--color-accent)]
         "
+        style={{ fontFamily: "var(--font-mono)" }}
         aria-hidden="true"
       >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="var(--color-accent)"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-[19px] w-[19px]"
-        >
-          <path d="M11 4H6.5A2.5 2.5 0 0 0 4 6.5v11A2.5 2.5 0 0 0 6.5 20H11" />
-          <path d="M13 12h8M17 8l4 4-4 4" />
-        </svg>
+        A
       </span>
       <span className="flex flex-col leading-tight">
         <span className="text-[15px] font-bold tracking-tight text-[var(--color-text)] group-hover:text-[var(--color-accent-bright)] transition-colors">
