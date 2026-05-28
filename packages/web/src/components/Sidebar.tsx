@@ -7,6 +7,9 @@ import { truncateAddress } from "@/lib/format";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { useT } from "@/i18n/context";
 import { LangToggle } from "@/i18n/LangToggle";
+import pkg from "../../package.json";
+
+const APP_VERSION = pkg.version;
 
 /**
  * Sidebar lateral persistente. Reemplaza al GlobalHeader del rediseño
@@ -151,10 +154,25 @@ function SidebarFoot() {
     <div className="mt-auto flex flex-col gap-[2px] pt-4">
       <ServerBeacon />
       <WalletBeacon />
+      <VersionLine />
       <div className="mt-3 flex items-center justify-between gap-2 px-1">
         <DocsLink />
         <LangToggle />
       </div>
+    </div>
+  );
+}
+
+/**
+ * Línea muted con la versión del workspace. Útil para reportar bugs,
+ * confirmar que un update se aplicó, y saber si estás en pre-release.
+ * Importada del package.json del root — se actualiza automáticamente
+ * cuando se bumpea la versión siguiendo RELEASING.md.
+ */
+function VersionLine() {
+  return (
+    <div className="mt-1 px-[10px] text-[11px] text-[var(--color-text-dim)] t-num">
+      v{APP_VERSION}
     </div>
   );
 }
