@@ -34,6 +34,17 @@ sqlite.pragma("foreign_keys = ON");
 const db = drizzle(sqlite, { schema });
 
 const isClean = process.argv.includes("--clean");
+const isWipeAll = process.argv.includes("--wipe-all");
+
+if (isWipeAll) {
+  // Wipe TOTAL — útil para recuperarte del bug en el que las tasks
+  // huérfanas de una wallet anterior sobreviven al `wallet.delete`.
+  // Borra cada task que haya en la DB sin filtro.
+  const result = db.delete(schema.tasks).run();
+  console.log(`[seed] WIPED ${result.changes} task(s) — todas eliminadas`);
+  sqlite.close();
+  process.exit(0);
+}
 
 if (isClean) {
   const result = db
