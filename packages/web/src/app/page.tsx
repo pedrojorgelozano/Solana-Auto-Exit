@@ -426,24 +426,24 @@ function PositionHubRow({
   const wrapperClass =
     rowState === "active"
       ? `
-        rounded-[10px] border border-[var(--color-hairline)]
+        relative rounded-[10px] border border-[var(--color-hairline)]
         border-l-[3px] border-l-[var(--color-accent)]
         bg-[var(--color-bg-elevated)]
-        px-6 py-6
+        py-6 pl-6 pr-12
         shadow-[0_1px_0_0_rgba(0,0,0,0.35)]
         hover:bg-[var(--color-surface-hover)]
       `
       : rowState === "paused"
         ? `
-          border-l-[3px] border-l-[var(--color-text-dim)]/55
+          relative border-l-[3px] border-l-[var(--color-text-dim)]/55
           hairline-b
-          py-5 pl-5 pr-3
+          py-5 pl-5 pr-10
           hover:bg-[var(--color-surface-hover)]/40
         `
         : `
-          border-l-[3px] border-l-transparent
+          relative border-l-[3px] border-l-transparent
           hairline-b
-          py-5 pl-5 pr-3
+          py-5 pl-5 pr-10
           hover:bg-[var(--color-surface-hover)]/40
         `;
 
@@ -530,6 +530,29 @@ function PositionHubRow({
             </div>
           )}
         </div>
+
+        <span
+          aria-hidden
+          className="
+            pointer-events-none absolute right-4 top-1/2
+            -translate-y-1/2
+            text-[var(--color-text-dim)] transition-all duration-200
+            group-hover:text-[var(--color-accent-bright)]
+            group-hover:translate-x-[3px]
+          "
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-[18px] w-[18px]"
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </span>
       </Link>
     </li>
   );
