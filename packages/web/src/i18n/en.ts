@@ -79,8 +79,6 @@ export const en = {
     serverLabel: "Server",
     walletLabel: "Wallet",
     setupWallet: "Set up wallet",
-    lockWallet: "Lock wallet",
-    locking: "Locking…",
     docs: "Docs",
   },
 
@@ -184,13 +182,6 @@ export const en = {
     },
 
     eyebrow: {
-      botWallet: "Bot wallet",
-      locked: "· locked",
-      onePosition: "1 position",
-      manyPositions: (n: number) => `${n} positions`,
-      loadingPositions: "loading positions…",
-      oneWatching: "1 auto-exit watching",
-      manyWatching: (n: number) => `${n} auto-exits watching`,
       whatIs: "→ What's a bot wallet",
     },
 

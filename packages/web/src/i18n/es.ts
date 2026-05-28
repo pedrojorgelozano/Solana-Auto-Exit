@@ -69,8 +69,6 @@ export const es: typeof en = {
     serverLabel: "Server",
     walletLabel: "Wallet",
     setupWallet: "Configurar wallet",
-    lockWallet: "Bloquear wallet",
-    locking: "Bloqueando…",
     docs: "Docs",
   },
 
@@ -197,13 +195,6 @@ export const es: typeof en = {
     },
 
     eyebrow: {
-      botWallet: "Bot wallet",
-      locked: "· bloqueada",
-      onePosition: "1 posición",
-      manyPositions: (n: number) => `${n} posiciones`,
-      loadingPositions: "cargando posiciones…",
-      oneWatching: "1 auto-exit vigilando",
-      manyWatching: (n: number) => `${n} auto-exits vigilando`,
       whatIs: "→ Qué es una bot wallet",
     },
 
