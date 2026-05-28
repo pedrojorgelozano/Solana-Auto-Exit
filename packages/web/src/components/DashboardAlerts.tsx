@@ -51,6 +51,12 @@ export function DashboardAlerts({
   const tasks = trpc.tasks.list.useQuery(undefined, {
     refetchInterval: 5_000,
   });
+  // El balance lo consulta el server contra el RPC configurado en
+  // settings — la network activa importa porque una wallet con SOL en
+  // mainnet aparece como 0 si consultas devnet. Surface el contexto
+  // en el callout para que el usuario lo entienda.
+  const settings = trpc.settings.get.useQuery();
+  const network = settings.data?.network ?? "devnet";
   const start = trpc.tasks.start.useMutation();
   const utils = trpc.useUtils();
 
@@ -105,7 +111,7 @@ export function DashboardAlerts({
       {lowBalance ? (
         <AlertCallout
           eyebrow={a.lowBalanceEyebrow}
-          body={a.lowBalanceBody(balanceSolStr)}
+          body={a.lowBalanceBody(balanceSolStr, network)}
           ctaLabel={a.lowBalanceCta}
           ctaHref="/wallet"
           icon={<LowBalanceIcon />}

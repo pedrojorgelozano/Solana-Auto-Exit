@@ -200,8 +200,12 @@ export const en = {
 
     alerts: {
       lowBalanceEyebrow: "Low balance",
-      lowBalanceBody: (sol: string) =>
-        `Your bot has ${sol} SOL — may not afford fees when closing.`,
+      lowBalanceBody: (sol: string, network: "mainnet" | "devnet") =>
+        `Your bot has ${sol} SOL on ${network} — may not afford fees when closing. ${
+          network === "devnet"
+            ? "If your wallet has SOL on mainnet, switch network in /settings."
+            : ""
+        }`.trim(),
       lowBalanceCta: "Top up",
       errorsEyebrow: (n: number) =>
         n === 1 ? "1 auto-exit errored" : `${n} auto-exits errored`,
