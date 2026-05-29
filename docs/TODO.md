@@ -78,14 +78,16 @@
 - [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar.
 - [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet,
   multi-hop). Hoy solo mismo pool (ADR-008).
-- [ ] Ampliar cobertura de tests (baseline actual: 53 con Vitest — security
-  + buffer + verify + manager.markError). Pendientes priorizados:
-  `wallet/vault.ts` cripto roundtrip + bad-passphrase distinguible de
-  tampered, `engine/core/{retry,loop}.ts` + `engine/config/env.ts`,
-  lifecycle completo de `TaskManager` (`boot()` re-pausa stale states,
-  `pauseAllOnVaultLock`, transiciones atómicas con DB en transaction),
-  adapters Orca + Meteora con SDK mocks, routers tRPC vía
-  `appRouter.createCaller(ctx)`. Detalle en [TESTING.md](TESTING.md).
+- [ ] Ampliar cobertura de tests (baseline actual: 130 con Vitest). Las
+  prioridades 1–3 (vault cripto, módulos puros del engine, lifecycle de
+  TaskManager) se cerraron el 2026-05-29. Pendientes priorizados:
+  adapters Orca + Meteora con SDK mocks (el más delicado: los SDKs no
+  exponen interfaces limpias y los golden fixtures envejecen), routers
+  tRPC vía `appRouter.createCaller(ctx)` con DB en memoria (validaciones
+  zod de `tasks.create`, gate de mainnet, unlock-limiter e2e, endpoints
+  nuevos `meta.dbSize` / `tasks.listHistorical`), y `executeClose` del
+  watcher con un adapter fake (close→verify→swap→done + ramas de error).
+  Detalle en [TESTING.md](TESTING.md).
 - [ ] Auto-lock del wallet por inactividad (configurable; default 30 min sin
   operaciones). Hoy no hay timeout.
 - [ ] Sustituir el spawn `shell: true` del probe-e2e por `cross-spawn` o
@@ -115,6 +117,19 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Sprint de cobertura de tests (2026-05-29)**: cerradas las prioridades
+  1–3 del backlog de tests (55 → 130, +75). (1) `vault.test.ts`: roundtrip
+  cripto create/unlock + clasificación B-09 (`WrongPassphraseError` vs
+  `VaultCorruptedError`, con forge de un vault cuyo tag GCM valida pero el
+  contenido es inválido) + validación de inputs + copia de `getRawSecret`
+  + lock/delete. (2) `retry.test.ts` + `loop.test.ts` + `env.test.ts`:
+  módulos puros del engine (`isPermanentSolanaError`, `withRetry` con
+  backoff, control flow del loop, `loadBaseConfig` + gate de mainnet).
+  (3) `manager.lifecycle.test.ts`: `boot()` re-pausa activos, no toca
+  terminales; `pauseAllOnVaultLock`; atomicidad B-04 (rollback en
+  `createTask`); cascada FK de history; `deleteAllTasks`; paginación
+  cursor + counts. Sin cambios en código de producción. typecheck verde.
+  Commit `f8cca18` (tests) + este (docs).
 - **Cluster performance + data hygiene (2026-05-29)**: 3 items
   dejando /tasks listo para uso sostenido. (1) Health check del
   tamaño SQLite: nuevo router `meta` con `dbSize`, threshold 50 MB
