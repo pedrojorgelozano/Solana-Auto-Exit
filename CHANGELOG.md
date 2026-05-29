@@ -6,8 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-29
+
+The hardening release. Ships the P0 fix for the sidecar-zombie bug that broke auto-update — and which this very release's update finally verifies end-to-end, since the fix only takes effect on an update *from* a build that carries it (v0.2.0 → v0.3.0). Two safety/correctness fixes on top: resuming auto-exits after the wallet was locked now holds back any task whose price crossed its trigger while paused (instead of bulk-resuming it into an immediate close), and the "one active auto-exit per position" rule is now enforced on the backend, not just in the UI. Plus a large jump in automated test coverage (55 → 154) and some build hygiene. No breaking changes; no new permissions or egress.
+
 ### Tests
-- **Test baseline grows 55 → 130 (+75).** Closes priorities 1–3 of the standing test backlog (see `docs/TESTING.md`). No production code changed — only new `*.test.ts` files.
+- **Test baseline grows 55 → 154.** A dedicated sprint added +75 (this bullet), closing priorities 1–3 of the standing test backlog (see `docs/TESTING.md`) with no production-code changes — only new `*.test.ts` files. The remaining +24 shipped alongside the resume-safety and one-auto-exit-per-position features (in the Changed section below).
   - **`wallet/vault.ts` (server)** — crypto roundtrip (create → unlock returns the same address and the same 64 bytes) and the B-09 error classification: `WrongPassphraseError` for a wrong passphrase and for tampered ciphertext (GCM auth fail), `VaultCorruptedError` for an altered address field, an unexpected payload length, or decrypted bytes that aren't a valid ed25519 keypair. The two latter branches need a vault whose GCM tag *validates* but whose content is wrong — impossible to reach by mangling a real vault — so the suite forges one with a local helper mirroring the vault format. Also: input validation (short passphrase, wrong-length / incoherent secret), `getRawSecret` returning an independent copy, and `lock`/`delete` clearing the in-memory key. Secrets are generated from `node:crypto` ed25519 (no `@solana/web3.js` dependency in the server).
   - **`engine/core/retry.ts`** — `isPermanentSolanaError` keyword heuristic (permanent vs transient, case-insensitive, non-`Error` inputs) and `withRetry` (success-first, retry-until-success, attempt exhaustion throws the last error, immediate rethrow when `retryableErrors` returns false, and a real-timer lower-bound check that the backoff is exponential rather than linear).
   - **`engine/core/loop.ts`** — tick `continue`/`stop` control flow and that a throwing tick is swallowed and the loop continues.
@@ -120,7 +124,8 @@ First public release — a self-hosted desktop app that watches Orca and Meteora
 - **Opt-in auto-update** via GitHub Releases — off by default.
 - `SHA256SUMS.txt` published with each release for download integrity verification.
 
-[Unreleased]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/releases/tag/v0.1.0

@@ -1,6 +1,6 @@
 {
   "name": "@solana-auto-exit/server",
-  "version": "0.2.1-dev",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "main": "./src/main.ts",
