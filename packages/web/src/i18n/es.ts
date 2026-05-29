@@ -641,6 +641,9 @@ export const es: typeof en = {
       title: "Buscar versiones nuevas.",
       label: "Comprobar al arrancar",
       copy: "Si está activo, la app pregunta a GitHub si hay una versión nueva cada vez que arranca. Off por defecto — esa comprobación es una petición de red que sale de tu ordenador, así que es opt-in.",
+      notTauriCopy:
+        "El auto-update solo está disponible en la app desktop instalada. Estás ejecutando el servidor fuera de Tauri, así que las actualizaciones son manuales.",
+      notTauriLink: "→ Cómo actualizar manualmente",
     },
 
     networkSection: {
@@ -691,6 +694,11 @@ export const es: typeof en = {
       devnetWarning:
         "El endpoint público de devnet tiene rate-limits. Para uso sostenido cambia a Helius, QuickNode, Triton, o un nodo propio.",
       useDefault: (network: string) => `usar default ${network}`,
+      testCta: "Probar conexión",
+      testing: "Probando…",
+      testOk: (version: string, latencyMs: number) =>
+        `OK · ${version} · ${latencyMs} ms`,
+      testFailPrefix: "Fallo al probar el RPC: ",
     },
 
     slippage: {
@@ -743,6 +751,17 @@ export const es: typeof en = {
 
     perTaskNote:
       "Los slippages de arriba se pueden sobrescribir por auto-exit en el formulario de configure. El intervalo de poll es global del servidor; el form no expone override por auto-exit. Cambiar un default aquí solo afecta a nuevos auto-exits.",
+
+    lowBalance: {
+      eyebrow: "Dashboard",
+      title: "Umbral de balance bajo.",
+      label: "Avisar cuando el saldo de SOL baje de",
+      unit: "SOL",
+      copy:
+        "Solo afecta al callout del dashboard, no al watcher. Pon 0 para desactivar. Default 0.05 SOL cubre ~10 cierres + ATA creation.",
+      invalid:
+        "Introduce un número entre 0 y 5 SOL.",
+    },
 
     resetPrompt:
       "¿Resetear URL del RPC, slippage e intervalo de poll a sus defaults?\n\nTu elección de red (TEST / REAL) se mantiene — cámbiala desde el toggle de arriba si lo necesitas.",

@@ -5,10 +5,6 @@ import { trpc } from "@/lib/trpc";
 import { useT } from "@/i18n/context";
 import { formatTokenAmount } from "@/lib/format";
 
-// 0.05 SOL — margen razonable para ~10 cierres + ATA creation si aplica.
-// Hardcoded por ahora; si crece la demanda, mover a settings.
-const LOW_BALANCE_LAMPORTS = 50_000_000;
-
 // Strings literales que el server pone en `lastError` cuando pausa tasks
 // automáticamente (vault-lock o boot tras reinicio). Si el server los
 // cambia, ajustar aquí — son la heurística para distinguir paused-system
@@ -57,12 +53,18 @@ export function DashboardAlerts({
   // en el callout para que el usuario lo entienda.
   const settings = trpc.settings.get.useQuery();
   const network = settings.data?.network ?? "devnet";
+  // 0 → desactivado (el user pidió no ver el callout nunca). Default
+  // server-side es 50_000_000 (0.05 SOL); mientras la settings.get carga,
+  // usamos el mismo default como fallback.
+  const lowBalanceThreshold =
+    settings.data?.lowBalanceThresholdLamports ?? 50_000_000;
   const start = trpc.tasks.start.useMutation();
   const utils = trpc.useUtils();
 
   const lowBalance =
+    lowBalanceThreshold > 0 &&
     balance.data !== undefined &&
-    balance.data.lamports < LOW_BALANCE_LAMPORTS;
+    balance.data.lamports < lowBalanceThreshold;
   // El balance falla típicamente cuando el RPC público de Solana
   // rate-limita o el rpcUrl está mal. No queremos disparar "low
   // balance" como falso positivo en ese caso — mejor un callout

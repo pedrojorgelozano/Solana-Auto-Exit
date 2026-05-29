@@ -673,6 +673,9 @@ export const en = {
       title: "Check for new versions.",
       label: "Auto-check on startup",
       copy: "When on, the app asks GitHub for a newer version each time it starts. Off by default — that check is a network request that leaves your machine, so it's opt-in.",
+      notTauriCopy:
+        "Auto-update is only available in the installed desktop app. You're running this server outside Tauri, so updates are manual.",
+      notTauriLink: "→ How to update manually",
     },
 
     networkSection: {
@@ -722,6 +725,11 @@ export const en = {
       devnetWarning:
         "The public devnet endpoint is rate-limited. For sustained use swap to Helius, QuickNode, Triton, or a node you run.",
       useDefault: (network: string) => `use ${network} default`,
+      testCta: "Test connection",
+      testing: "Testing…",
+      testOk: (version: string, latencyMs: number) =>
+        `OK · ${version} · ${latencyMs} ms`,
+      testFailPrefix: "RPC test failed: ",
     },
 
     slippage: {
@@ -775,6 +783,17 @@ export const en = {
 
     perTaskNote:
       "Slippage settings above can be overridden per auto-exit on the configure form. Poll interval is server-wide; the form does not expose a per auto-exit override. Changing a default here only affects new auto-exits.",
+
+    lowBalance: {
+      eyebrow: "Dashboard",
+      title: "Low balance threshold.",
+      label: "Warn when SOL balance falls below",
+      unit: "SOL",
+      copy:
+        "Affects only the dashboard callout, not the watcher. Set to 0 to disable. Default 0.05 SOL covers ~10 closes + ATA creation.",
+      invalid:
+        "Enter a number between 0 and 5 SOL.",
+    },
 
     resetPrompt:
       "Reset RPC URL, slippage and poll interval to defaults?\n\nYour network choice (TEST / REAL) is preserved — switch it from the toggle above if you need to.",

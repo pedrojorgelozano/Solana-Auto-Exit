@@ -35,6 +35,14 @@ export interface SettingsSnapshot {
   /** Intervalo de poll del watcher, en ms. */
   defaultPollMs: number;
   /**
+   * Umbral en lamports por debajo del cual el dashboard muestra el callout
+   * "low balance". Default 50_000_000 (0.05 SOL) — margen razonable para
+   * ~10 cierres + ATA creation. Un user que solo opera stables y nunca
+   * abre cuentas nuevas puede bajarlo; uno con muchos cierres simultáneos
+   * puede subirlo.
+   */
+  lowBalanceThresholdLamports: number;
+  /**
    * Si la app desktop comprueba actualizaciones al arrancar. Off por
    * defecto: el check hace un fetch a GitHub, así que es opt-in (auditoría
    * de egress de red). Ver ADR-032.
@@ -53,6 +61,7 @@ export interface SettingsSnapshot {
     slippageBps: number;
     exitSlippageBps: number;
     pollMs: number;
+    lowBalanceThresholdLamports: number;
   };
   /** Si el server tiene ALLOW_MAINNET_LIVE=true, la UI ofrece el switch a mainnet con confirmación. */
   mainnetGateAllowed: boolean;
@@ -80,6 +89,9 @@ const DEFAULTS = {
   // Con time-buffers la latencia del polling es cosmética; 30s es el sweet
   // spot que cabe en Helius free tier por watcher. Ver explicación en /settings.
   defaultPollMs: 30_000,
+  // 0.05 SOL. Razonado para ~10 cierres + ATA creation. El frontend del
+  // dashboard muestra "low balance" si el saldo cae por debajo.
+  lowBalanceThresholdLamports: 50_000_000,
   // Auditoría de egress: el check de updates pinga GitHub, así que es opt-in.
   updaterAutoCheck: false,
 };
@@ -103,6 +115,7 @@ const KEYS = {
   defaultSlippageBps: "default_slippage_bps",
   defaultExitSlippageBps: "default_exit_slippage_bps",
   defaultPollMs: "default_poll_ms",
+  lowBalanceThresholdLamports: "low_balance_threshold_lamports",
   updaterAutoCheck: "updater_auto_check",
 } as const;
 
@@ -126,6 +139,12 @@ const updateInput = z.discriminatedUnion("key", [
   z.object({
     key: z.literal("defaultPollMs"),
     value: z.number().int().min(1_000).max(600_000),
+  }),
+  z.object({
+    key: z.literal("lowBalanceThresholdLamports"),
+    // 0 desactiva el callout (caso "no me molestes nunca"). Tope 5 SOL —
+    // un threshold mayor no aporta señal (5 SOL son ~200 cierres de margen).
+    value: z.number().int().min(0).max(5_000_000_000),
   }),
   z.object({
     key: z.literal("updaterAutoCheck"),
@@ -174,6 +193,10 @@ export const settingsRouter = router({
         map.get(KEYS.defaultPollMs),
         DEFAULTS.defaultPollMs,
       ),
+      lowBalanceThresholdLamports: parseIntOr(
+        map.get(KEYS.lowBalanceThresholdLamports),
+        DEFAULTS.lowBalanceThresholdLamports,
+      ),
       // Boolean persistido como texto; cualquier cosa que no sea "true" → off.
       updaterAutoCheck: map.get(KEYS.updaterAutoCheck) === "true",
       // factoryDefaults representa "lo que devolvería el snapshot tras un
@@ -185,6 +208,7 @@ export const settingsRouter = router({
         slippageBps: DEFAULTS.defaultSlippageBps,
         exitSlippageBps: DEFAULTS.defaultExitSlippageBps,
         pollMs: DEFAULTS.defaultPollMs,
+        lowBalanceThresholdLamports: DEFAULTS.lowBalanceThresholdLamports,
       },
       mainnetGateAllowed: gate,
     };
@@ -260,6 +284,86 @@ export const settingsRouter = router({
 
     return { ok: true };
   }),
+
+  /**
+   * Probe del RPC. La UI lo usa para confirmar que la URL configurada (o la
+   * que el usuario está tipeando) responde antes de guardar. zod ya valida
+   * que sea URL; esto valida reachability. Devuelve `{ ok, version, latencyMs }`
+   * si el RPC responde a `getVersion` en <5s. Lanza con mensaje accionable si
+   * falla (DNS, timeout, status no-OK, JSON corrupto, scheme/host bloqueado).
+   *
+   * Misma defensa SSRF que `update` — antes de hacer fetch, pasa por
+   * assertSafeRpcUrl. Esto evita que el botón se use como side-channel para
+   * probar reachability de IPs internas / metadata endpoints.
+   */
+  testRpc: publicProcedure
+    .input(z.object({ url: z.string().url() }))
+    .mutation(async ({ input }) => {
+      try {
+        assertSafeRpcUrl(input.url);
+      } catch (err) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+      const startedAt = Date.now();
+      let res: Response;
+      try {
+        res = await fetch(input.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "getVersion",
+          }),
+          signal: AbortSignal.timeout(5_000),
+        });
+      } catch (err) {
+        // AbortError → timeout. ConnectTimeoutError → undici DNS/TCP fail.
+        // TypeError → fetch failure (CORS/scheme/network). Damos un mensaje
+        // accionable; el `cause` original se pierde pero el message está
+        // bien para el usuario.
+        const detail = err instanceof Error ? err.message : String(err);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `Could not reach the RPC: ${detail}`,
+        });
+      }
+      const latencyMs = Date.now() - startedAt;
+      if (!res.ok) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: `RPC responded with HTTP ${res.status} ${res.statusText}.`,
+        });
+      }
+      let body: { result?: { "solana-core"?: string }; error?: { message?: string } };
+      try {
+        body = (await res.json()) as typeof body;
+      } catch {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "RPC returned non-JSON. The URL may not be a Solana JSON-RPC endpoint.",
+        });
+      }
+      if (body.error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: body.error.message ?? "RPC returned an error.",
+        });
+      }
+      const version = body.result?.["solana-core"];
+      if (typeof version !== "string") {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message:
+            "RPC responded without a Solana version. The URL may not be a Solana JSON-RPC endpoint.",
+        });
+      }
+      return { ok: true as const, version, latencyMs };
+    }),
 
   /**
    * Reset a defaults: borra rpcUrl, slippage, exit-slippage y pollMs.

@@ -9,6 +9,7 @@ import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/Segmented";
 import { trpc } from "@/lib/trpc";
+import { formatTrpcError } from "@/lib/trpcError";
 import { useT } from "@/i18n/context";
 
 // Mismos presets que /positions/[mint] — homogeneidad entre defaults y form.
@@ -75,6 +76,7 @@ function SettingsForm({
     defaultSlippageBps: number;
     defaultExitSlippageBps: number;
     defaultPollMs: number;
+    lowBalanceThresholdLamports: number;
     updaterAutoCheck: boolean;
     factoryDefaults: {
       network: "devnet" | "mainnet";
@@ -82,6 +84,7 @@ function SettingsForm({
       slippageBps: number;
       exitSlippageBps: number;
       pollMs: number;
+      lowBalanceThresholdLamports: number;
     };
     mainnetGateAllowed: boolean;
   };
@@ -97,6 +100,11 @@ function SettingsForm({
     initial.defaultExitSlippageBps,
   );
   const [pollMs, setPollMs] = useState<number>(initial.defaultPollMs);
+  // String input para tolerar typing ("0.", "", etc.); parseado on-save.
+  // Convertimos lamports → SOL para mostrar; en save volvemos a lamports.
+  const [lowBalanceSol, setLowBalanceSol] = useState<string>(
+    lamportsToSolString(initial.lowBalanceThresholdLamports),
+  );
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
@@ -109,21 +117,31 @@ function SettingsForm({
     setSlippageBps(initial.defaultSlippageBps);
     setExitSlippageBps(initial.defaultExitSlippageBps);
     setPollMs(initial.defaultPollMs);
+    setLowBalanceSol(lamportsToSolString(initial.lowBalanceThresholdLamports));
   }, [
     initial.rpcUrl,
     initial.defaultSlippageBps,
     initial.defaultExitSlippageBps,
     initial.defaultPollMs,
+    initial.lowBalanceThresholdLamports,
   ]);
 
   const update = trpc.settings.update.useMutation();
   const reset = trpc.settings.reset.useMutation();
 
+  const parsedLowBalanceLamports = solStringToLamports(lowBalanceSol);
+  const lowBalanceValid =
+    parsedLowBalanceLamports !== null &&
+    parsedLowBalanceLamports >= 0 &&
+    parsedLowBalanceLamports <= 5_000_000_000;
+
   const dirty =
     rpcUrl !== initial.rpcUrl ||
     slippageBps !== initial.defaultSlippageBps ||
     exitSlippageBps !== initial.defaultExitSlippageBps ||
-    pollMs !== initial.defaultPollMs;
+    pollMs !== initial.defaultPollMs ||
+    (lowBalanceValid &&
+      parsedLowBalanceLamports !== initial.lowBalanceThresholdLamports);
 
   const onSave = async () => {
     setError(null);
@@ -150,12 +168,23 @@ function SettingsForm({
       if (pollMs !== initial.defaultPollMs) {
         ops.push(update.mutateAsync({ key: "defaultPollMs", value: pollMs }));
       }
+      if (
+        lowBalanceValid &&
+        parsedLowBalanceLamports !== initial.lowBalanceThresholdLamports
+      ) {
+        ops.push(
+          update.mutateAsync({
+            key: "lowBalanceThresholdLamports",
+            value: parsedLowBalanceLamports,
+          }),
+        );
+      }
       await Promise.all(ops);
       await refresh();
       setSavedAt(Date.now());
       window.setTimeout(() => setSavedAt(null), 2500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
 
@@ -184,11 +213,14 @@ function SettingsForm({
       setSlippageBps(initial.factoryDefaults.slippageBps);
       setExitSlippageBps(initial.factoryDefaults.exitSlippageBps);
       setPollMs(initial.factoryDefaults.pollMs);
+      setLowBalanceSol(
+        lamportsToSolString(initial.factoryDefaults.lowBalanceThresholdLamports),
+      );
       await refresh();
       setSavedAt(Date.now());
       window.setTimeout(() => setSavedAt(null), 2500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
 
@@ -228,17 +260,20 @@ function SettingsForm({
                   ? s.rpc.mainnetWarning
                   : s.rpc.devnetWarning}
               </p>
-              {rpcUrl !== initial.defaultRpcByNetwork[initial.network] ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setRpcUrl(initial.defaultRpcByNetwork[initial.network])
-                  }
-                  className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-                >
-                  {s.rpc.useDefault(initial.network)}
-                </button>
-              ) : null}
+              <div className="flex items-baseline gap-4">
+                <TestRpcButton url={rpcUrl} />
+                {rpcUrl !== initial.defaultRpcByNetwork[initial.network] ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setRpcUrl(initial.defaultRpcByNetwork[initial.network])
+                    }
+                    className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
+                  >
+                    {s.rpc.useDefault(initial.network)}
+                  </button>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
@@ -371,6 +406,39 @@ function SettingsForm({
         </p>
       </Panel>
 
+      {/* Dashboard threshold */}
+      <Panel
+        icon={<DashboardIcon />}
+        title={t.settings.lowBalance.eyebrow}
+        description={t.settings.lowBalance.title}
+      >
+        <div className="pt-4">
+          <Label htmlFor="lowBalance">{t.settings.lowBalance.label}</Label>
+          <div className="flex items-baseline gap-3">
+            <Input
+              id="lowBalance"
+              value={lowBalanceSol}
+              onChange={(e) => setLowBalanceSol(e.target.value)}
+              placeholder="0.05"
+              spellCheck={false}
+              inputMode="decimal"
+              className="t-num max-w-[160px]"
+            />
+            <span className="t-small text-[var(--color-text-muted)]">
+              {t.settings.lowBalance.unit}
+            </span>
+          </div>
+          {!lowBalanceValid && lowBalanceSol.trim() !== "" ? (
+            <p className="mt-2 t-small text-[var(--color-warning)]">
+              {t.settings.lowBalance.invalid}
+            </p>
+          ) : null}
+          <p className="mt-3 max-w-2xl t-small text-[var(--color-text-muted)]">
+            {t.settings.lowBalance.copy}
+          </p>
+        </div>
+      </Panel>
+
       <UpdaterPanel enabled={initial.updaterAutoCheck} refresh={refresh} />
 
       {error ? <FieldError>{error}</FieldError> : null}
@@ -397,7 +465,10 @@ function SettingsForm({
           >
             {s.resetCta}
           </Button>
-          <Button onClick={onSave} disabled={!dirty || update.isPending}>
+          <Button
+            onClick={onSave}
+            disabled={!dirty || update.isPending || !lowBalanceValid}
+          >
             {update.isPending ? t.common.saving : t.common.saveChanges}
           </Button>
         </div>
@@ -410,6 +481,13 @@ function SettingsForm({
 // UpdaterPanel — toggle del auto-check de actualizaciones. Standalone: guarda
 // al instante (no entra en el dirty-tracking del form). Off por defecto — el
 // check es egress a GitHub, así que es opt-in (auditoría / ADR-032).
+//
+// Solo es funcional dentro del shell Tauri (la app desktop instalada). En
+// Docker / pnpm-from-source el plugin `tauri-plugin-updater` no existe, así
+// que el toggle sería un no-op engañoso. Detectamos `__TAURI_INTERNALS__` y
+// fuera de Tauri renderizamos un panel placeholder que apunta a INSTALL.md
+// para la actualización manual. La detección es client-only (`window` no
+// existe durante el SSG); el estado `null` inicial evita hydration mismatch.
 // ============================================================================
 
 function UpdaterPanel({
@@ -422,7 +500,14 @@ function UpdaterPanel({
   const { t } = useT();
   const s = t.settings.updater;
   const [error, setError] = useState<string | null>(null);
+  const [isTauri, setIsTauri] = useState<boolean | null>(null);
   const update = trpc.settings.update.useMutation();
+
+  useEffect(() => {
+    setIsTauri(
+      typeof window !== "undefined" && "__TAURI_INTERNALS__" in window,
+    );
+  }, []);
 
   const onChange = async (next: boolean) => {
     if (next === enabled) return;
@@ -431,9 +516,31 @@ function UpdaterPanel({
       await update.mutateAsync({ key: "updaterAutoCheck", value: next });
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
+
+  // Antes de hidratar: nada. Evita un flash del panel "wrong" y el
+  // hydration mismatch entre SSG (siempre false) y client (true en Tauri).
+  if (isTauri === null) return null;
+
+  if (!isTauri) {
+    return (
+      <Panel icon={<UpdaterIcon />} title={s.eyebrow} description={s.title}>
+        <p className="pt-4 max-w-2xl t-small text-[var(--color-text-muted)]">
+          {s.notTauriCopy}{" "}
+          <a
+            href="https://github.com/pedrojorgelozano/Solana-Auto-Exit/blob/main/docs/INSTALL.md"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[var(--color-accent-bright)] hover:underline"
+          >
+            {s.notTauriLink}
+          </a>
+        </p>
+      </Panel>
+    );
+  }
 
   return (
     <Panel icon={<UpdaterIcon />} title={s.eyebrow} description={s.title}>
@@ -453,6 +560,61 @@ function UpdaterPanel({
         {error ? <FieldError>{error}</FieldError> : null}
       </div>
     </Panel>
+  );
+}
+
+// ============================================================================
+// TestRpcButton — probe del endpoint actual del input (no del persistido).
+// Pega `settings.testRpc` con la URL que el user está tipeando; muestra
+// version + latencia si OK, o el mensaje del error. El estado vive solo en
+// el botón (no en el form) — un test no es "guardar cambios".
+// ============================================================================
+
+function TestRpcButton({ url }: { url: string }) {
+  const { t } = useT();
+  const s = t.settings.rpc;
+  const test = trpc.settings.testRpc.useMutation();
+  const [result, setResult] = useState<
+    | { kind: "ok"; version: string; latencyMs: number }
+    | { kind: "error"; message: string }
+    | null
+  >(null);
+
+  const onClick = async () => {
+    setResult(null);
+    try {
+      const out = await test.mutateAsync({ url });
+      setResult({ kind: "ok", version: out.version, latencyMs: out.latencyMs });
+    } catch (err) {
+      setResult({
+        kind: "error",
+        message: formatTrpcError(err),
+      });
+    }
+  };
+
+  return (
+    <div className="flex items-baseline gap-3">
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={test.isPending || !url}
+        className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors disabled:opacity-50"
+      >
+        {test.isPending ? s.testing : s.testCta}
+      </button>
+      {result?.kind === "ok" ? (
+        <span className="t-small text-[var(--color-positive)]">
+          {s.testOk(result.version, result.latencyMs)}
+        </span>
+      ) : null}
+      {result?.kind === "error" ? (
+        <span className="t-small text-[var(--color-danger)]">
+          {s.testFailPrefix}
+          {result.message}
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -483,6 +645,36 @@ function UpdaterIcon() {
       <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" />
     </svg>
   );
+}
+
+function DashboardIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-[15px] w-[15px]" aria-hidden="true">
+      <path d="M3 12a9 9 0 0 1 18 0" />
+      <path d="M12 12l4-3" />
+    </svg>
+  );
+}
+
+// ============================================================================
+// Helpers — SOL ↔ lamports para el input de low balance threshold. Mantenemos
+// el state como string (no number) para tolerar typing intermedio ("0.",
+// "", ".5") sin re-renderizar valores corruptos. Solo convertimos al save.
+// ============================================================================
+
+function lamportsToSolString(lamports: number): string {
+  if (!Number.isFinite(lamports) || lamports < 0) return "0";
+  // Hasta 9 decimales; quitar trailing zeros para legibilidad.
+  return (lamports / 1_000_000_000).toFixed(9).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function solStringToLamports(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return null;
+  // Math.round es importante — `0.05 * 1e9 = 50000000.00000001` en JS.
+  return Math.round(n * 1_000_000_000);
 }
 
 // ============================================================================
@@ -551,7 +743,7 @@ function NetworkPanel({
     try {
       await performSwitch("devnet");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
 
@@ -595,7 +787,7 @@ function NetworkPanel({
               await performSwitch("mainnet");
               setPendingReal(false);
             } catch (err) {
-              setError(err instanceof Error ? err.message : String(err));
+              setError(formatTrpcError(err));
             }
           }}
           onCancel={() => {
