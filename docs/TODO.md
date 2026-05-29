@@ -6,11 +6,21 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **Verificar el auto-update real `v0.2.0 → v0.3.0`** (primera vez que se
-  ejercita el fix del sidecar zombie end-to-end). Instalar v0.2.0, activar
-  updates en `/settings`, reiniciar, aceptar el update y confirmar que el
-  NSIS NO aborta con "Error opening file for writing" (que era el síntoma del
-  zombie). Si pasa, el P0 queda verificado en producción; si no, reabrir.
+- [ ] **Fix robusto del sidecar zombie en el lado del INSTALLER (NSIS hook)**.
+  El fix de v0.3.0 (`ae706fc`) corre en `on_download_finish`, o sea en la app
+  que actualiza (la vieja) — solo ayuda si la vieja ya lo lleva (v0.3.0→v0.3.x).
+  Los que están en v0.2.0/v0.1.x **no pueden** auto-actualizar a v0.3.0: la app
+  vieja no mata el sidecar y NSIS aborta con "Error opening file for writing"
+  (verificado: el update v0.2.0→v0.3.0 del 29 falló igual). Fix superior:
+  añadir un preinstall hook al template NSIS que mate `auto-exit-server.exe`
+  al arrancar la instalación. Viaja en el INSTALADOR nuevo → funciona sea cual
+  sea la versión vieja, incluida la que no tiene el fix de Rust. Tauri permite
+  customizar el NSIS via `installerHooks`/template. Cubriría a los stragglers
+  en v0.2.0 cuando salga v0.3.1.
+- [ ] **Verificar el auto-update real `v0.3.0 → v0.3.1`** cuando salga v0.3.1
+  (primer hop en que la app vieja YA lleva el fix de Rust). Confirmar que el
+  NSIS no aborta. Es la verificación real del P0 — v0.2.0→v0.3.0 no servía
+  porque v0.2.0 predata el fix.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
