@@ -23,15 +23,17 @@ fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
  */
 export type Db = BetterSQLite3Database<typeof schema>;
 
-function migrationsReady(): boolean {
-  if (fs.existsSync(MIGRATIONS_FOLDER)) return true;
-  // Primera ejecución sin migraciones generadas: el server arranca pero las
-  // queries fallarán hasta que se corra drizzle-kit generate.
-  console.warn(
+function assertMigrationsReady(): void {
+  if (fs.existsSync(MIGRATIONS_FOLDER)) return;
+  // Antes esto era un `console.warn` + return false, y el server arrancaba
+  // igualmente. La primera query (`taskManager.boot()`, `vault.status()`,
+  // cualquiera) fallaba luego con un error críptico de drizzle como
+  // "no such table: tasks". Lanzar aquí hace el error obvio y actionable
+  // en el arranque, no a la primera petición tRPC.
+  throw new Error(
     `[db] No migrations folder at ${MIGRATIONS_FOLDER}. ` +
       `Run \`pnpm --filter @solana-auto-exit/server exec drizzle-kit generate\` first.`,
   );
-  return false;
 }
 
 let db: Db;
@@ -63,9 +65,8 @@ if (typeof process.versions.bun === "string") {
 
   db = drizzle(sqlite, { schema }) as Db;
   runMigrations = () => {
-    if (migrationsReady()) {
-      migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-    }
+    assertMigrationsReady();
+    migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
   };
   closeDb = () => sqlite.close();
 } else {
@@ -79,9 +80,8 @@ if (typeof process.versions.bun === "string") {
 
   db = drizzle(sqlite, { schema });
   runMigrations = () => {
-    if (migrationsReady()) {
-      migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-    }
+    assertMigrationsReady();
+    migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
   };
   closeDb = () => sqlite.close();
 }
