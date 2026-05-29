@@ -32,24 +32,6 @@
   Requiere getSummary o similar para cada paused. No urge — los buffers
   suelen amortiguar el problema, pero merece la pena tras feedback de
   uso real.
-- [ ] **Threshold de balance bajo configurable en `/settings`**. Hoy
-  hardcoded a `LOW_BALANCE_LAMPORTS = 50_000_000` (0.05 SOL) en
-  `DashboardAlerts.tsx`. Margen razonable para ~10 cierres + ATA
-  creation. Si en mainnet con SOL caro alguien quiere ajustar (e.g.
-  bajar a 0.01 SOL porque solo opera con stables y no abre cuentas
-  nuevas), exponerlo en `/settings` como `lowBalanceThresholdLamports`
-  con default actual.
-- [ ] Ocultar el toggle "Auto-actualización" del `/settings` cuando la app
-  no se ejecuta dentro del shell Tauri. Hoy el toggle se renderiza
-  siempre (`UpdaterPanel` en `packages/web/src/app/settings/page.tsx`),
-  pero el plugin `tauri-plugin-updater` que lo escucha solo existe en
-  la app desktop instalada (Windows `.exe`/`.msi`). En instalaciones
-  Docker / pnpm-from-source / cualquier entorno sin shell Tauri, el
-  toggle es engañoso — el usuario lo activa esperando auto-update y no
-  pasa nada. Detección: `typeof window !== "undefined" &&
-  "__TAURI_INTERNALS__" in window` (o equivalente de Tauri 2.x). Si
-  no es Tauri, no renderizar la sección del updater o reemplazarla
-  por una nota "actualización manual — ver INSTALL.md".
 - [ ] Paginación del `/tasks` (Histórico). Hoy `trpc.tasks.list` carga
   TODAS las filas y el HistoryLedger las renderiza todas a la vez.
   Para usuarios casuales (1 task/mes) no es problema; para un power
@@ -86,15 +68,6 @@
     convención de muchos proyectos (Vue, Vite, etc.).
   - Mantener la versión EN como source-of-truth para no acumular
     drift; las ES se actualizan cuando hace falta.
-- [ ] Render legible de errores de validación zod en el web. Hoy el catch de
-  `/settings` (y posiblemente otros forms con mutations) hace `err.message`
-  directo; cuando el backend devuelve un `ZodError`, el message lleva el
-  array de issues serializado como JSON crudo. Ej: pegar `oo.mainnet-beta.solana.com`
-  sin scheme en el RPC URL devuelve `[ { "validation": "url", "code":
-  "invalid_string", "message": "Invalid url", "path": [ "value" ] } ]`. Fix
-  esperado: parsear `error.data?.zodError` del TRPCClientError y mostrar
-  solo el `message` del primer issue (o concatenar los messages). Aplicar
-  consistentemente donde haya forms con validación server-side.
 - [ ] Investigar / filtrar `ConnectTimeoutError` a
   `api.{mainnet-beta,devnet}.solana.com:443` ("Error getting chain ID from
   genesis hash") que aparece en logs del server al arrancar, incluso con
@@ -114,9 +87,6 @@
 - [ ] Diff threshold del receipt configurable. Hoy el ActualLine de F2.3
   colorea warning si `|diff| ≥ 0.01%` hardcoded. Mover a `/settings` como
   `diffWarningThresholdBps` (o equivalente).
-- [ ] "Test RPC connection" button en `/settings`. Hoy zod valida que sea
-  URL pero no que sea reachable. Un botón que haga un `getHealth` o
-  `getSlot` y muestre latencia + versión.
 - [ ] Live balance polling también en `/wallet` page. Hoy solo aparece en
   el success screen del modal post-Generate. Sería natural mostrarlo
   siempre que la wallet esté unlocked (junto al address, en el unlock
@@ -215,8 +185,6 @@
     en DB. Clampear o rechazar.
   - B-17: `ALLOW_LOOPBACK_RPC` solo acepta literal `"true"` —
     inconsistente con `parseBool` del engine. Unificar o documentar.
-  - B-18: `wallet.balance` no valida que `address` sea base58 válida;
-    cualquier 32+ chars pasa. RPC tira error confuso. Añadir refine.
   - B-20: watcher crash deja la task en `armed` sin watcher real.
     El `.catch` del spawn solo loguea; debería pasar a `error`.
 
@@ -224,6 +192,25 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Sprint de pulido post-bug del balance (2026-05-29)**: 4 commits sobre
+  `main` con 5 items del backlog al hilo del bug de RPC/balance de ayer.
+  (1) B-18 (`wallet.balance` valida base58 de la address — el RPC tiraba
+  un error confuso enmascarando paste cortados o caracteres no-base58;
+  refine con `getBase58Codec` + check 32 bytes). (2) Test RPC button en
+  `/settings` (nuevo endpoint `settings.testRpc` que hace `getVersion`
+  con timeout 5s, pasa por `assertSafeRpcUrl` antes del fetch; UI muestra
+  OK + version + latencia o error legible). (3) Low-balance threshold
+  configurable (nueva key `lowBalanceThresholdLamports` en snapshot,
+  input numérico en SOL en `/settings`, `0` desactiva el callout;
+  `DashboardAlerts` lee del snapshot). (4) `UpdaterPanel` placeholder
+  fuera de Tauri (detección `window.__TAURI_INTERNALS__` post-hidratación;
+  en Docker / pnpm-from-source renderiza copy honesto + link a
+  `INSTALL.md` en vez del toggle no-op). (5) Errores zod legibles (nuevo
+  helper `formatTrpcError` que extrae el primer message del
+  `err.data.zodError`; aplicado en `/settings`, `/wallet`,
+  `ConnectWalletModal`, `/positions/[mint]/configure`). Verificado en
+  vivo con `pnpm dev`. Commits `36c8e74`, `98ac1ce`, `afc154d`, +
+  este (docs).
 - **Rediseño UI mergeado a main (2026-05-28)**: tras 38 commits acumulados
   en `feature/ui-refined-dark`, merge `--no-ff` a `main`. Última sesión
   añadió 7 commits funcionales sobre el rediseño anterior:
