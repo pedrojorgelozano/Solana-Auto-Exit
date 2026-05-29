@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 
 import * as schema from "../db/schema.js";
 import type { Db } from "../db/client.js";
-import { TaskManager } from "./manager.js";
+import { TaskManager, DuplicateActiveTaskError } from "./manager.js";
 import { WalletVault } from "../wallet/vault.js";
 import type { CreateTaskInput } from "./types.js";
 
@@ -24,12 +24,17 @@ function newDb(): Db {
   return db as Db;
 }
 
-function inputFixture(): CreateTaskInput {
+// positionId único por defecto: la regla "un auto-exit activo por posición"
+// (DuplicateActiveTaskError) rechazaría dos creates con el mismo positionId
+// mientras el primero esté en estado ocupante. Los tests que SÍ ejercitan la
+// regla pasan un positionId compartido explícito.
+let positionCounter = 0;
+function inputFixture(overrides: Partial<CreateTaskInput> = {}): CreateTaskInput {
   return {
     protocol: "orca",
     network: "devnet",
     rpcUrl: "https://api.devnet.solana.com",
-    positionId: "PoSiTiOnId11111111111111111111111111111111",
+    positionId: `PoSiTiOn${(positionCounter += 1)}`,
     protocolConfig: { positionMint: "x", decimalsA: 9, decimalsB: 6 },
     takeProfitPrice: 100,
     stopLossPrice: null,
@@ -39,6 +44,7 @@ function inputFixture(): CreateTaskInput {
     pollMs: 10_000,
     dryRun: true,
     exitSwapSlippageBps: 100,
+    ...overrides,
   };
 }
 
@@ -289,5 +295,65 @@ describe("TaskManager.evaluateResumeCandidates (sin red)", () => {
     const done = mgr.createTask(inputFixture()).id;
     setStatus(mgr, done, "done");
     expect(await mgr.evaluateResumeCandidates()).toEqual([]);
+  });
+});
+
+describe("TaskManager.createTask — un auto-exit activo por posición", () => {
+  let mgr: TaskManager;
+  const POS = "SamePositionId1111111111111111111111111111";
+
+  beforeEach(() => {
+    mgr = new TaskManager(newDb(), new WalletVault("/tmp/never-exists-vault"));
+  });
+
+  it("rechaza un segundo auto-exit para una posición ya ocupada", () => {
+    mgr.createTask(inputFixture({ positionId: POS }));
+    expect(() => mgr.createTask(inputFixture({ positionId: POS }))).toThrow(
+      DuplicateActiveTaskError,
+    );
+    expect(mgr.listTasks()).toHaveLength(1); // el segundo no se insertó
+  });
+
+  it.each(["idle", "armed", "triggered", "closing", "paused"] as const)(
+    "el estado ocupante '%s' bloquea crear otro",
+    (status) => {
+      const first = mgr.createTask(inputFixture({ positionId: POS })).id;
+      setStatus(mgr, first, status);
+      expect(() => mgr.createTask(inputFixture({ positionId: POS }))).toThrow(
+        DuplicateActiveTaskError,
+      );
+    },
+  );
+
+  it.each(["done", "stopped", "error"] as const)(
+    "el estado terminal '%s' permite crear uno nuevo",
+    (status) => {
+      const first = mgr.createTask(inputFixture({ positionId: POS })).id;
+      setStatus(mgr, first, status);
+      expect(() =>
+        mgr.createTask(inputFixture({ positionId: POS })),
+      ).not.toThrow();
+      expect(mgr.listTasks()).toHaveLength(2);
+    },
+  );
+
+  it("posiciones distintas no se bloquean entre sí", () => {
+    expect(() => {
+      mgr.createTask(inputFixture({ positionId: "posA" }));
+      mgr.createTask(inputFixture({ positionId: "posB" }));
+    }).not.toThrow();
+    expect(mgr.listTasks()).toHaveLength(2);
+  });
+
+  it("el error nombra el estado de la task que ya ocupa la posición", () => {
+    const first = mgr.createTask(inputFixture({ positionId: POS })).id;
+    setStatus(mgr, first, "armed");
+    try {
+      mgr.createTask(inputFixture({ positionId: POS }));
+      expect.unreachable("debería haber lanzado");
+    } catch (err) {
+      expect(err).toBeInstanceOf(DuplicateActiveTaskError);
+      expect((err as DuplicateActiveTaskError).existingStatus).toBe("armed");
+    }
   });
 });

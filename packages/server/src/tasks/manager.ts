@@ -35,6 +35,37 @@ import {
  */
 const ACTIVE_STATES = ["idle", "armed", "triggered", "closing"] as const;
 
+/**
+ * Estados no-terminales: una task en cualquiera de estos "ocupa" su posición
+ * y bloquea crear un segundo auto-exit para el mismo `positionId`. Incluye
+ * `paused` (a diferencia de ACTIVE_STATES) — una task pausada sigue siendo el
+ * auto-exit de esa posición, solo en espera. Los terminales (done/error/
+ * stopped) no ocupan: tras cerrar/parar puedes crear uno nuevo. Espejo exacto
+ * de la regla del UI (`positions/[mint]` → ExistingWatcher).
+ */
+const POSITION_OCCUPYING_STATES = [
+  "idle",
+  "armed",
+  "triggered",
+  "closing",
+  "paused",
+] as const;
+
+/**
+ * Una posición ya tiene un auto-exit activo (no-terminal). La regla "un
+ * auto-exit por posición" se aplicaba solo en el UI; este guard la hace valer
+ * también en el backend (defense-in-depth contra un cliente tRPC que se salte
+ * la UI). El router la mapea a un `CONFLICT`.
+ */
+export class DuplicateActiveTaskError extends Error {
+  constructor(public readonly existingStatus: string) {
+    super(
+      `This position already has an active auto-exit (status: ${existingStatus}). Stop or delete it before creating another.`,
+    );
+    this.name = "DuplicateActiveTaskError";
+  }
+}
+
 interface RunningEntry {
   controller: AbortController;
   /** Cache del último precio leído (para que la UI lo pinte sin tocar el RPC). */
@@ -108,6 +139,24 @@ export class TaskManager {
   // ===========================================================================
 
   createTask(input: CreateTaskInput): { id: string } {
+    // Regla "un auto-exit activo por posición". createTask es síncrono (sin
+    // await entre el check y el insert) y el server es single-threaded, así
+    // que esta comprobación + el insert son atómicos: no hay ventana para que
+    // dos creates concurrentes pasen ambos el check.
+    const occupying = this.db
+      .select({ status: tasks.status })
+      .from(tasks)
+      .where(
+        and(
+          eq(tasks.positionId, input.positionId),
+          inArray(tasks.status, [...POSITION_OCCUPYING_STATES]),
+        ),
+      )
+      .get();
+    if (occupying) {
+      throw new DuplicateActiveTaskError(occupying.status);
+    }
+
     const id = randomUUID();
     this.db.transaction((tx) => {
       tx.insert(tasks)

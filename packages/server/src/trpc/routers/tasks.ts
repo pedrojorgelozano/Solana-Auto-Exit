@@ -4,6 +4,7 @@ import {
   assertSafeRpcUrl,
   inferNetworkFromRpcUrl,
 } from "../../security/rpc-url.js";
+import { DuplicateActiveTaskError } from "../../tasks/manager.js";
 
 // Time buffer per trigger (ADR-025). Max 7 días en ms. Null/0 = sin buffer.
 const MAX_BUFFER_MS = 7 * 24 * 60 * 60 * 1000;
@@ -96,7 +97,16 @@ export const tasksRouter = router({
           message: err instanceof Error ? err.message : String(err),
         });
       }
-      return ctx.taskManager.createTask(input);
+      try {
+        return ctx.taskManager.createTask(input);
+      } catch (err) {
+        // Regla "un auto-exit activo por posición" (espejo del UI). Otros
+        // errores se propagan tal cual (500), no los enmascaramos como 409.
+        if (err instanceof DuplicateActiveTaskError) {
+          throw new TRPCError({ code: "CONFLICT", message: err.message });
+        }
+        throw err;
+      }
     }),
 
   /**
