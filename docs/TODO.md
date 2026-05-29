@@ -6,22 +6,6 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **P0 — Fix del sidecar zombie durante auto-update**. Verificado en
-  vivo durante la publicación de `v0.2.0` (2026-05-29): el flujo de
-  auto-update arranca correctamente (check a GitHub, diálogo nativo,
-  download, verify firma OK, lanzamiento del NSIS), pero el shell Tauri
-  cierra la ventana sin matar al sidecar `auto-exit-server.exe` antes
-  de ejecutar el installer. Resultado: el NSIS no puede sobrescribir
-  el `.exe` (file in use) y aborta con "Error opening file for writing".
-  Workaround manual: `Stop-Process -Name auto-exit-server -Force` +
-  `Reintentar` en el diálogo NSIS. Causa raíz: `RunEvent::Exit` en
-  `packages/tauri/src/lib.rs` mata el sidecar en el cierre limpio (X de
-  la ventana), pero el plugin updater hace exit por otro camino que se
-  salta ese handler. Fix: registrar un `before_exit` o hook equivalente
-  del plugin tauri-plugin-updater que mate el sidecar explícitamente
-  antes de lanzar el installer. **Bloquea cualquier release futura con
-  auto-update fiable** — cualquier user con opt-in que reciba `v0.2.1`
-  va a chocarse con esto.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
@@ -189,6 +173,16 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Fix P0 del sidecar zombie + bump a 0.2.1-dev (2026-05-29)**: arreglado
+  el bug descubierto durante la verificación de v0.2.0. Hook al callback
+  `on_download_finish` de `download_and_install` en `packages/tauri/src/
+  lib.rs` que mata el sidecar después de la descarga y antes de que el
+  installer NSIS arranque — momento mínimo de exposición a "sin sidecar".
+  Si la instalación falla luego, el siguiente arranque respawnea el
+  sidecar normalmente. `cargo check` OK. Bump de los 6 manifests a
+  `0.2.1-dev` para reflejar que `main` es ya el pre-release path a
+  `v0.2.1`. Entrada al CHANGELOG `[Unreleased] → Fixed`. Commits
+  `ae706fc` (fix) + este (bump + docs).
 - **Release `v0.2.0` publicado + auto-update verificado (2026-05-29)**:
   release firmado con la keypair del updater (`pnpm tauri:release`),
   `.exe` + `.msi` + ambos `.sig` + `latest.json` + `SHA256SUMS.txt`

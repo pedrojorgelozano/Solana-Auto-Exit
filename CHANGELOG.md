@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Sidecar zombie blocking auto-update installer.** Verified end-to-end while shipping v0.2.0: the `tauri-plugin-updater` flow does check GitHub, shows the native dialog, downloads the new `.exe`, verifies the signature against the embedded pubkey, and launches the NSIS installer — but the Tauri shell exits through a path that bypasses the `RunEvent::Exit` handler where the sidecar is killed. Consequence: `auto-exit-server.exe` stays alive and holds an open handle on the file the installer is trying to overwrite, so NSIS aborts with *"Error opening file for writing"*. Any user with auto-update opt-in would hit this on the first real update. Fix: hook the `on_download_finish` callback of `download_and_install` to kill the sidecar after the download completes and before the installer launches — minimum window of "app without sidecar", and if the install fails the next launch respawns the sidecar normally.
+
 ## [0.2.0] — 2026-05-29
 
 The "polished and honest" release. Major UI refresh (refined dark direction with sidebar nav and a visual hub on the dashboard), several real bugs fixed (the silent `0 SOL` callout, RPC/network coherence after switching, hydration mismatch that broke connect buttons after reload), and a sprint of post-release polish (test-RPC button, configurable low-balance threshold, legible zod errors, live wallet balance, three new UI primitives that distinguish buttons from links and internal from external navigation). Two operational notes for self-hosters: the auto-updater toggle now honestly says "manual update only" outside the Tauri desktop app, and `wallet.balance` rejects malformed addresses instead of letting the RPC return a cryptic error.
