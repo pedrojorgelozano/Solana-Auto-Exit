@@ -1,10 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import type { inferRouterOutputs } from "@trpc/server";
-import type { AppRouter } from "@solana-auto-exit/server/api";
 
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -12,8 +10,16 @@ import { HistoryLedger } from "@/components/HistoryLedger";
 import { trpc } from "@/lib/trpc";
 import { useT } from "@/i18n/context";
 
-type TaskRow = inferRouterOutputs<AppRouter>["tasks"]["list"][number];
 type Filter = "completed" | "errors";
+
+const PAGE_SIZE = 50;
+const STATIC_RUNTIME = {
+  isRunning: false,
+  lastPrice: null,
+  lastTickAt: null,
+  tpFirstCrossedAt: null,
+  slFirstCrossedAt: null,
+} as const;
 
 export default function TasksListPage() {
   // useSearchParams requiere Suspense boundary en Next 15 para el static
@@ -27,7 +33,6 @@ export default function TasksListPage() {
 }
 
 function TasksListInner() {
-  const list = trpc.tasks.list.useQuery(undefined, { refetchInterval: 3_000 });
   const searchParams = useSearchParams();
   const [filter, setFilter] = useState<Filter>(() => {
     const fp = searchParams.get("filter");
@@ -43,18 +48,28 @@ function TasksListInner() {
   const { t } = useT();
   const tl = t.tasksList;
 
-  const rows = list.data ?? [];
-  // Ledger histórico: solo tasks cerradas (done/stopped) o erradas. Las
-  // active/paused viven en el dashboard — esta pantalla es el pasado.
-  const historicalRows = useMemo(
-    () => rows.filter((r) => HISTORICAL_STATES.has(r.status)),
-    [rows],
+  // Paginación server-side con cursor. tasks.list cargaba TODO el array
+  // y `/tasks` lo filtraba localmente — escalaba mal con cientos de
+  // tasks históricas. Ahora el server filtra por status y devuelve
+  // hasta PAGE_SIZE rows; "Load more" trae la siguiente página.
+  const list = trpc.tasks.listHistorical.useInfiniteQuery(
+    { limit: PAGE_SIZE, filter },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      refetchInterval: 5_000,
+    },
   );
-  const filtered = useMemo(
-    () => filterRows(historicalRows, filter),
-    [historicalRows, filter],
-  );
-  const counts = useMemo(() => countByFilter(historicalRows), [historicalRows]);
+  const counts = trpc.tasks.historicalCounts.useQuery(undefined, {
+    refetchInterval: 5_000,
+  });
+  const countsData = counts.data ?? { completed: 0, errors: 0 };
+  // HistoryLedger espera el shape de `tasks.list` con `runtime`. Las
+  // históricas no tienen watcher vivo, así que añadimos un runtime
+  // estático para satisfacer el tipo sin enriquecer en backend.
+  const rows = (list.data?.pages.flatMap((p) => p.items) ?? []).map((r) => ({
+    ...r,
+    runtime: STATIC_RUNTIME,
+  }));
 
   return (
     <main className="mr-auto max-w-5xl px-6 pb-32 pt-12 fade-in">
@@ -71,17 +86,30 @@ function TasksListInner() {
         </p>
       ) : list.error ? (
         <p className="t-small text-[var(--color-danger)]">{list.error.message}</p>
-      ) : historicalRows.length === 0 ? (
+      ) : countsData.completed + countsData.errors === 0 ? (
         <EmptyState />
       ) : (
         <>
-          <Filters value={filter} onChange={setFilter} counts={counts} />
-          {filtered.length === 0 ? (
+          <Filters value={filter} onChange={setFilter} counts={countsData} />
+          {rows.length === 0 ? (
             <p className="mt-10 t-small text-[var(--color-text-muted)]">
               {tl.noMatch}
             </p>
           ) : (
-            <HistoryLedger rows={filtered} />
+            <>
+              <HistoryLedger rows={rows} />
+              {list.hasNextPage ? (
+                <div className="mt-8 flex justify-center">
+                  <Button
+                    variant="secondary"
+                    onClick={() => list.fetchNextPage()}
+                    disabled={list.isFetchingNextPage}
+                  >
+                    {list.isFetchingNextPage ? tl.loadingMore : tl.loadMore}
+                  </Button>
+                </div>
+              ) : null}
+            </>
           )}
         </>
       )}
@@ -172,22 +200,3 @@ function Filters({
   );
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
-const COMPLETED_STATES = new Set(["done", "stopped"]);
-const HISTORICAL_STATES = new Set(["done", "stopped", "error"]);
-
-function filterRows(rows: TaskRow[], f: Filter): TaskRow[] {
-  if (f === "completed") return rows.filter((r) => COMPLETED_STATES.has(r.status));
-  if (f === "errors") return rows.filter((r) => r.status === "error");
-  return rows;
-}
-
-function countByFilter(rows: TaskRow[]): Record<Filter, number> {
-  return {
-    completed: rows.filter((r) => COMPLETED_STATES.has(r.status)).length,
-    errors: rows.filter((r) => r.status === "error").length,
-  };
-}

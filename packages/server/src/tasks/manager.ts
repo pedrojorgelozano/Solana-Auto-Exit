@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { eq, inArray, desc } from "drizzle-orm";
+import { eq, inArray, desc, and, lt, count } from "drizzle-orm";
 
 import {
   makeAdapter,
@@ -139,6 +139,61 @@ export class TaskManager {
       .from(tasks)
       .orderBy(desc(tasks.createdAt))
       .all();
+  }
+
+  /**
+   * Tasks históricas (done/stopped/error) paginadas con cursor sobre
+   * `createdAt`. El cursor es el `createdAt` (ms epoch) del último item
+   * devuelto en la página previa; la siguiente página trae items con
+   * `createdAt < cursor`. Cuando no hay más, `nextCursor` es null.
+   *
+   * El filter opcional permite que el server haga el subset por status
+   * en lugar de mandar todo y filtrar en cliente — clave cuando el
+   * usuario tiene cientos de tasks históricas.
+   */
+  listHistoricalTasks(opts: {
+    limit: number;
+    cursor?: number;
+    filter?: "completed" | "errors";
+  }): TaskRow[] {
+    const statuses =
+      opts.filter === "errors"
+        ? (["error"] as const)
+        : opts.filter === "completed"
+          ? (["done", "stopped"] as const)
+          : (["done", "stopped", "error"] as const);
+    const conditions = [inArray(tasks.status, [...statuses])];
+    if (opts.cursor !== undefined) {
+      conditions.push(lt(tasks.createdAt, new Date(opts.cursor)));
+    }
+    return this.db
+      .select()
+      .from(tasks)
+      .where(and(...conditions))
+      .orderBy(desc(tasks.createdAt))
+      .limit(opts.limit)
+      .all();
+  }
+
+  /**
+   * Cuenta por categoría para los tabs del filtro de /tasks. Dos COUNTs
+   * en lugar de cargar todas las rows — eficiente incluso con miles de
+   * histories acumuladas.
+   */
+  historicalCounts(): { completed: number; errors: number } {
+    const completed =
+      this.db
+        .select({ c: count() })
+        .from(tasks)
+        .where(inArray(tasks.status, ["done", "stopped"]))
+        .get()?.c ?? 0;
+    const errors =
+      this.db
+        .select({ c: count() })
+        .from(tasks)
+        .where(eq(tasks.status, "error"))
+        .get()?.c ?? 0;
+    return { completed, errors };
   }
 
   getTask(id: string): TaskRow | null {

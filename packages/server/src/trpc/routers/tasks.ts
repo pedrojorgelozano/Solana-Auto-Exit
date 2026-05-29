@@ -111,6 +111,37 @@ export const tasksRouter = router({
     }));
   }),
 
+  /**
+   * Tasks históricas paginadas con cursor sobre `createdAt`. El cursor
+   * es el `createdAt.getTime()` del último item de la página previa.
+   * Devuelve `nextCursor: null` cuando no hay más. Sin enriquecer con
+   * runtime — las históricas no tienen watcher vivo.
+   */
+  listHistorical: publicProcedure
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(200).default(100),
+        cursor: z.number().int().optional(),
+        filter: z.enum(["completed", "errors"]).optional(),
+      }),
+    )
+    .query(({ ctx, input }) => {
+      const items = ctx.taskManager.listHistoricalTasks(input);
+      const nextCursor =
+        items.length === input.limit
+          ? items[items.length - 1]!.createdAt.getTime()
+          : null;
+      return { items, nextCursor };
+    }),
+
+  /**
+   * Conteo de tasks históricas por categoría — alimenta los tabs del
+   * filtro en /tasks. Dos COUNTs en SQL, eficiente con miles de filas.
+   */
+  historicalCounts: publicProcedure.query(({ ctx }) => {
+    return ctx.taskManager.historicalCounts();
+  }),
+
   get: publicProcedure.input(idInput).query(({ ctx, input }) => {
     const row = ctx.taskManager.getTask(input.id);
     if (!row) {
