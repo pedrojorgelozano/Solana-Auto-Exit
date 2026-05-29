@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm";
 
 import { router, publicProcedure, TRPCError } from "../init.js";
 import { settings } from "../../db/schema.js";
-import { assertSafeRpcUrl } from "../../security/rpc-url.js";
+import {
+  assertSafeRpcUrl,
+  inferNetworkFromRpcUrl,
+} from "../../security/rpc-url.js";
 
 /**
  * Snapshot que la UI usa para pre-llenar el form de configure y el listado
@@ -65,6 +68,18 @@ export interface SettingsSnapshot {
   };
   /** Si el server tiene ALLOW_MAINNET_LIVE=true, la UI ofrece el switch a mainnet con confirmación. */
   mainnetGateAllowed: boolean;
+  /**
+   * Red INFERIDA del `rpcUrl` cuando contradice a la `network` activa; null
+   * si coinciden o si el host es custom/privado y no se puede inferir.
+   *
+   * Motivación: cambiar solo la URL del RPC (p.ej. pegar un endpoint de
+   * QuickNode/Helius de devnet) NO cambia `network`. La discovery entonces
+   * consulta la red equivocada y devuelve "0 posiciones" SIN error — el
+   * usuario cree que no tiene nada. Exponer el mismatch deja que la UI avise
+   * en lugar de dejarlo en silencio. Hosts no reconocidos → null (no damos
+   * la lata al power-user con su nodo propio). Ver inferNetworkFromRpcUrl + B-02.
+   */
+  rpcNetworkMismatch: "mainnet" | "devnet" | null;
 }
 
 /**
@@ -170,13 +185,20 @@ export const settingsRouter = router({
       storedNetwork === "mainnet" || storedNetwork === "devnet"
         ? storedNetwork
         : DEFAULTS.network;
+    // rpcUrl hace fallback a la URL canónica de la red activa, no a
+    // DEFAULTS.rpcUrl (que es siempre mainnet). Importante porque tras un
+    // Reset (que preserva network) el rpcUrl deja de estar stored y debe
+    // poderse derivar coherentemente con la red.
+    const rpcUrl = map.get(KEYS.rpcUrl) ?? DEFAULT_RPC[network];
+    // Coherencia red ↔ rpcUrl (ver campo rpcNetworkMismatch del snapshot).
+    const inferredRpcNetwork = inferNetworkFromRpcUrl(rpcUrl);
+    const rpcNetworkMismatch =
+      inferredRpcNetwork !== null && inferredRpcNetwork !== network
+        ? inferredRpcNetwork
+        : null;
     return {
       network,
-      // rpcUrl ahora hace fallback a la URL canónica de la red activa,
-      // no a DEFAULTS.rpcUrl (que es siempre mainnet). Importante porque
-      // tras un Reset (que preserva network) el rpcUrl deja de estar
-      // stored y debe poderse derivar coherentemente con la red.
-      rpcUrl: map.get(KEYS.rpcUrl) ?? DEFAULT_RPC[network],
+      rpcUrl,
       defaultRpcByNetwork: {
         mainnet: DEFAULT_RPC.mainnet,
         devnet: DEFAULT_RPC.devnet,
@@ -211,6 +233,7 @@ export const settingsRouter = router({
         lowBalanceThresholdLamports: DEFAULTS.lowBalanceThresholdLamports,
       },
       mainnetGateAllowed: gate,
+      rpcNetworkMismatch,
     };
   }),
 

@@ -43,6 +43,11 @@ export function DashboardAlerts({
   // en el callout para que el usuario lo entienda.
   const settings = trpc.settings.get.useQuery();
   const network = settings.data?.network ?? "devnet";
+  // Coherencia red ↔ rpcUrl. Cuando el RPC apunta (por su host) a una red
+  // distinta de la activa, la discovery consulta la red equivocada y devuelve
+  // "0 posiciones" SIN error — el usuario cree que no tiene nada. El server
+  // calcula el mismatch (inferNetworkFromRpcUrl); aquí solo lo mostramos.
+  const rpcNetworkMismatch = settings.data?.rpcNetworkMismatch ?? null;
   // 0 → desactivado (el user pidió no ver el callout nunca). Default
   // server-side es 50_000_000 (0.05 SOL); mientras la settings.get carga,
   // usamos el mismo default como fallback.
@@ -100,6 +105,7 @@ export function DashboardAlerts({
     .length;
 
   if (
+    !rpcNetworkMismatch &&
     !lowBalance &&
     !balanceQueryFailed &&
     errorCount === 0 &&
@@ -123,6 +129,15 @@ export function DashboardAlerts({
 
   return (
     <div className="mt-6 flex flex-col gap-3">
+      {rpcNetworkMismatch ? (
+        <AlertCallout
+          eyebrow={a.rpcMismatchEyebrow}
+          body={a.rpcMismatchBody(rpcNetworkMismatch, network)}
+          ctaLabel={a.rpcMismatchCta}
+          ctaHref="/settings"
+          icon={<NetworkMismatchIcon />}
+        />
+      ) : null}
       {showReview ? (
         <ReviewCallout
           eyebrow={a.resumeReviewEyebrow(toReview.length)}
@@ -457,6 +472,24 @@ function ErrorIcon() {
     >
       <path d="M12 9v4M12 17h.01" />
       <path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0Z" />
+    </svg>
+  );
+}
+
+function NetworkMismatchIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="var(--color-warning)"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[17px] w-[17px]"
+      aria-hidden
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
     </svg>
   );
 }

@@ -214,6 +214,12 @@ export const es: typeof en = {
       dbBloatedBody: (mb: string) =>
         `El archivo SQLite pesa ahora ${mb} MB. El uso normal está muy por debajo — esto puede indicar un append desbocado. Revisa el histórico y considera exportar + limpiar.`,
       dbBloatedCta: "Ver histórico",
+      // rpcMismatch: el host del rpcUrl parece de otra red que la activa.
+      // La discovery consulta la red equivocada → "0 posiciones" sin error.
+      rpcMismatchEyebrow: "RPC y red no coinciden",
+      rpcMismatchBody: (rpcNetwork: string, active: string) =>
+        `Tu URL de RPC parece de ${rpcNetwork} pero la app está en ${active}. La búsqueda consulta la red equivocada y no encuentra posiciones. Corrige la URL del RPC o cambia de red.`,
+      rpcMismatchCta: "Corregir en ajustes",
     },
 
     eyebrow: {

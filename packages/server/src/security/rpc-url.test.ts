@@ -135,6 +135,22 @@ describe("inferNetworkFromRpcUrl (B-02 coherence helper)", () => {
     ).toBe("mainnet");
   });
 
+  it("identifies QuickNode mainnet/devnet endpoint formats", () => {
+    // QuickNode: <name>.solana-mainnet.quiknode.pro/<token>/ — el formato real
+    // que motivó exponer rpcNetworkMismatch (un endpoint devnet pegado con la
+    // app en mainnet → "0 posiciones" sin error). Ver settings.get.
+    expect(
+      inferNetworkFromRpcUrl(
+        "https://wispy-cold-glade.solana-mainnet.quiknode.pro/0123456789abcdef/",
+      ),
+    ).toBe("mainnet");
+    expect(
+      inferNetworkFromRpcUrl(
+        "https://wispy-cold-glade.solana-devnet.quiknode.pro/0123456789abcdef/",
+      ),
+    ).toBe("devnet");
+  });
+
   it("returns null for private / custom / unknown hosts", () => {
     // Power-user: nodo propio, IP de LAN, Tailscale.
     expect(inferNetworkFromRpcUrl("http://192.168.1.50:8899")).toBeNull();

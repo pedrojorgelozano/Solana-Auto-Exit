@@ -238,6 +238,12 @@ export const en = {
       dbBloatedBody: (mb: string) =>
         `The SQLite file is now ${mb} MB. Normal usage is well under that — this may indicate a runaway append. Review historical tasks and consider exporting + cleaning up.`,
       dbBloatedCta: "Open history",
+      // rpcMismatch: el host del rpcUrl parece de otra red que la activa.
+      // La discovery consulta la red equivocada → "0 posiciones" sin error.
+      rpcMismatchEyebrow: "RPC / network mismatch",
+      rpcMismatchBody: (rpcNetwork: string, active: string) =>
+        `Your RPC URL looks like ${rpcNetwork} but the app is set to ${active}. Discovery is querying the wrong network, so it finds no positions. Fix the RPC URL or switch network.`,
+      rpcMismatchCta: "Fix in settings",
     },
 
     hub: {
