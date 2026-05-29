@@ -127,8 +127,19 @@ export function inferNetworkFromRpcUrl(
   return null;
 }
 
+/**
+ * `ALLOW_LOOPBACK_RPC` env var. Antes solo aceptaba literal `"true"`,
+ * mientras `parseBool` del engine (config/env.ts) acepta también `"1"`,
+ * `"yes"`, etc. La inconsistencia llevó a confusión real (un user puso
+ * `ALLOW_LOOPBACK_RPC=1` esperando que funcionara). Misma lista de
+ * keywords aceptables que `parseBool`, pero off por defecto cuando la
+ * env var no está o tiene un valor desconocido — distinto de parseBool
+ * que tira en valores raros, aquí preferimos fail-safe (no permitir
+ * loopback).
+ */
 function allowLoopback(): boolean {
-  return process.env.ALLOW_LOOPBACK_RPC === "true";
+  const raw = process.env.ALLOW_LOOPBACK_RPC?.toLowerCase();
+  return raw === "true" || raw === "1" || raw === "yes" || raw === "on";
 }
 
 function isLoopbackHost(host: string): boolean {

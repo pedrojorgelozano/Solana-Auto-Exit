@@ -48,14 +48,16 @@ describe("assertSafeRpcUrl", () => {
     expectAllowed("http://[::1]:8899");
   });
 
-  it("only honors the literal string 'true' for the escape hatch", () => {
-    // Comportamiento conservador: 1/TRUE/yes no funcionan, intencional para
-    // que el opt-in sea explícito. Documentado en SECURITY.md.
-    process.env.ALLOW_LOOPBACK_RPC = "1";
-    expectBlocked("http://127.0.0.1:8899", /loopback/);
-    process.env.ALLOW_LOOPBACK_RPC = "TRUE";
-    expectBlocked("http://127.0.0.1:8899", /loopback/);
-    process.env.ALLOW_LOOPBACK_RPC = "yes";
+  it("honors the common truthy keywords for the escape hatch (B-17)", () => {
+    // Acepta los mismos keywords que `parseBool` del engine: `1`, `yes`,
+    // `on`, `true` (case-insensitive). Antes solo el literal `"true"`
+    // contaba — inconsistente con el engine y con la intuición de los
+    // usuarios. Valores desconocidos siguen bloqueando (fail-safe).
+    for (const value of ["1", "TRUE", "yes", "on", "True"]) {
+      process.env.ALLOW_LOOPBACK_RPC = value;
+      expectAllowed("http://127.0.0.1:8899");
+    }
+    process.env.ALLOW_LOOPBACK_RPC = "maybe";
     expectBlocked("http://127.0.0.1:8899", /loopback/);
   });
 
