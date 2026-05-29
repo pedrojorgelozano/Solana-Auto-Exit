@@ -6,6 +6,11 @@
 
 ## Próximo (orden sugerido)
 
+- [ ] **Verificar el auto-update real `v0.2.0 → v0.3.0`** (primera vez que se
+  ejercita el fix del sidecar zombie end-to-end). Instalar v0.2.0, activar
+  updates en `/settings`, reiniciar, aceptar el update y confirmar que el
+  NSIS NO aborta con "Error opening file for writing" (que era el síntoma del
+  zombie). Si pasa, el P0 queda verificado en producción; si no, reabrir.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
@@ -98,6 +103,14 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Release v0.3.0 publicado (2026-05-29)**: bump minor (features desde
+  v0.2.0: resume seguro + validación 1-auto-exit-por-posición, no solo el
+  patch del sidecar). Build firmado OK (la poda de `*.test.ts` funcionó:
+  8 ficheros podados del sidecar), install-test pasado, `latest.json` +
+  `SHA256SUMS.txt` generados, `main` pusheado, Release creada con los 4
+  assets. `/releases/latest/download/latest.json` → 200. Commit `1ad2c70`
+  + tag `v0.3.0`. URL:
+  https://github.com/pedrojorgelozano/Solana-Auto-Exit/releases/tag/v0.3.0
 - **Cluster de deuda técnica (2026-05-29)**: dos items del backlog. (1)
   `build-binary.ts` poda ahora recursivamente los `*.test.ts`/`*.spec.ts` del
   `src/` desplegado en `server-app/` (acotado a src/, nunca node_modules) —
