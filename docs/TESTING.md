@@ -2,14 +2,14 @@
 
 ## Estado actual
 
-**Baseline de 53 tests automatizados con Vitest** (cubriendo seguridad y lifecycle del watcher) + typecheck en CI + smoke tests manuales en devnet/mainnet.
+**Baseline de 55 tests automatizados con Vitest** (cubriendo seguridad, lifecycle del watcher, verificación on-chain con LUTs) + typecheck en CI + smoke tests manuales en devnet/mainnet.
 
 1. **Typecheck**: `pnpm typecheck` (= `tsc --noEmit` raíz + web). Verde.
-2. **Tests automatizados**: `pnpm test` (Vitest, ~1.8s, 53/53 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
+2. **Tests automatizados**: `pnpm test` (Vitest, ~1.8s, 55/55 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
 3. **Secret scan**: `gitleaks` en CI vía GitHub Action `gitleaks/gitleaks-action@v2`.
 4. **Smoke tests manuales** en devnet (Orca) y mainnet (Orca + Meteora) — documentados abajo desde F0.
 
-Cobertura aún parcial — ver [backlog](TODO.md) para áreas no cubiertas (vault cripto, adapters Orca/Meteora con SDK mocks, lifecycle completo de TaskManager).
+Cobertura aún parcial — ver [backlog](TODO.md) para áreas no cubiertas (vault cripto, adapters Orca/Meteora con SDK mocks, lifecycle completo de TaskManager, routers tRPC). El **QA audit del 2026-05-29** cerró los 11 hallazgos B-XX originales (algunos añadieron tests, otros eran fixes localizados sin test) — ver [PROGRESS.md](PROGRESS.md) para el detalle.
 
 ## Tests automatizados
 
@@ -21,20 +21,27 @@ pnpm test:watch      # re-corre al guardar
 pnpm test:coverage   # genera coverage v8 (HTML + text)
 ```
 
-### Suites actuales (53 tests · ~1.8s)
+### Suites actuales (55 tests · ~1.8s)
 
 | Suite | Tests | Cubre |
 |---|---:|---|
-| `packages/server/src/security/rpc-url.test.ts` | 14 | URL invalid, schemes no-http(s), credenciales embebidas, loopback default + escape hatch literal, metadata cloud, all-interfaces, IPv6 link-local, LAN privadas permitidas, Tailscale CGNAT, RPCs públicos, case-insensitive, ws(s). Más 7 casos sobre `inferNetworkFromRpcUrl` (B-02). |
+| `packages/server/src/security/rpc-url.test.ts` | 14 | URL invalid, schemes no-http(s), credenciales embebidas, loopback default + escape hatch con keywords truthy (B-17 ampliado a `true\|1\|yes\|on`), metadata cloud, all-interfaces, IPv6 link-local, LAN privadas permitidas, Tailscale CGNAT, RPCs públicos, case-insensitive, ws(s). Más 7 casos sobre `inferNetworkFromRpcUrl` (B-02). |
 | `packages/server/src/security/unlock-limiter.test.ts` | 7 | Sliding window 5 intentos/5min, bloqueo al sexto, expiración por ventana, reset al unlock exitoso, mensaje con segundos restantes, prune parcial. |
 | `packages/server/src/tasks/buffer.test.ts` | 11 | Máquina de estados del time-buffer (ADR-025) — in/out × buffer 0/positivo/negativo × current null/vivo + secuencia arm→reset→re-arm + TP/SL independientes. |
-| `packages/server/src/tasks/verify.test.ts` | 8 | Parsing happy-path de solDelta + tokenDeltas (con exclusión de cuentas no-owned), error paths (meta null, tx fallida on-chain, indexer lento), retry exitoso + retry agotado, AbortSignal pasado al fetch en cada attempt. Fake timers para evitar esperar backoffs reales. |
+| `packages/server/src/tasks/verify.test.ts` | 10 | Parsing happy-path de solDelta + tokenDeltas (con exclusión de cuentas no-owned), **owner via `loadedAddresses.writable` (B-10)**, **owner via `loadedAddresses.readonly` (B-10)**, error paths (meta null, tx fallida on-chain, indexer lento), retry exitoso + retry agotado, AbortSignal pasado al fetch en cada attempt. Fake timers para evitar esperar backoffs reales. |
 | `packages/server/src/tasks/manager.markError.test.ts` | 5+ | Integration test con sqlite `:memory:` + migrations reales — cubre B-01 (mark* respetan estados decididos por usuario). |
 
 ### Bugs reales descubiertos por los tests
 
 - **`assertSafeRpcUrl` no normalizaba corchetes IPv6** que Node 22 deja en `url.hostname` (`[::1]` en vez de `::1`). `http://[::]:7777` y `http://[fe80::1]` PASABAN la validación silenciosamente. Fix con `stripIPv6Brackets`.
 - **`vi.fn().mockResolvedValue(rpcResponse(null))`** reusaba la misma `Response` cuyo body solo puede consumirse una vez. Fix con `mockImplementation(async () => rpcResponse(null))`.
+- **B-10 (LUTs silentes en `verifyTxBalances`)** — descubierto por revisión QA, no por test, pero formalizado con dos tests nuevos al cerrar el audit. `keyAt` solo miraba `accountKeys`; si la bot wallet estaba SOLO en `meta.loadedAddresses.writable`, el index real era `accountKeys.length + i` y `solDelta` quedaba en 0 silenciosamente — el receipt mentía con "cerró sin mover SOL" mientras la tx sí movía SOL real. Los dos tests nuevos (`finds the owner via loadedAddresses.writable` + `... .readonly`) previenen regresiones.
+
+### Bugs reales descubiertos en producción
+
+Cosas que NO descubrieron los tests pero sí la operación real:
+
+- **Sidecar zombie en auto-update (2026-05-29)** — descubierto al verificar el flujo end-to-end del primer update real (`v0.1.1 → v0.2.0` con opt-in activado). El plugin `tauri-plugin-updater` dispara correctamente toda la cadena (check, diálogo, descarga, verify firma) pero el shell Tauri sale por un path que se salta el `RunEvent::Exit` donde matamos al sidecar — `auto-exit-server.exe` sigue vivo bloqueando el `.exe` que NSIS intenta sobrescribir. Fix en `packages/tauri/src/lib.rs` (hook al `on_download_finish` que mata el sidecar antes del install). El fix viaja dentro de v0.2.0+; el siguiente update real `v0.2.0 → v0.2.x` lo verificará. Lección: el smoke test del flujo de auto-update **debe** correrse contra dos versiones reales publicadas, no se sustituye por unit test.
 
 ### Reglas de mocking
 

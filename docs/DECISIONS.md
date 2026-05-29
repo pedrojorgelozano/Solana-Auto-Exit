@@ -1053,3 +1053,41 @@ Componentes nuevos creados: `Sidebar`, `Panel`, `StatStrip`, `TokenBadge`, `Toke
 - **Signing service local aislado en proceso separado**: la key sigue en RAM, solo cambia el proceso. Reduce superficie pero no elimina el problema. Esfuerzo medio (1-2 semanas) sin solucionar la categoría de ataque. Descartada para este sprint.
 - **Pre-signed transactions con delegation de authority** (Ledger firma upfront, key del bot solo cierra posiciones específicas via delegation): la solución más prometedora si el producto crece. Aspiracional V2. Descartada por ahora por coste/beneficio para el perfil actual de usuarios.
 - **Limit orders on-chain (Jupiter / Drift / programa custom)**: la key nunca firma en runtime, el chain ejecuta. Solución ideal en seguridad pero requiere o bien soportar solo swaps simples (no close+swap de LP) o escribir un programa Solana custom (4-8 semanas). Descartada por ahora.
+
+## ADR-040 — Sistema de affordances UI: TextAction / DocsLink / ExternalLink
+
+**Fecha**: 2026-05-29
+**Estado**: Aceptada
+
+**Contexto**: Tras el rediseño "refined minimal dark" (ADR-038), los affordances "tipo texto" — botones que disparan acciones locales (Copy, Test connection, "use default"), links a docs internas (`→ How encryption works`) y links a URLs externas (GitHub INSTALL.md, Meteora, Helius) — habían convergido al mismo estilo CSS: `t-eyebrow text-muted hover:text-accent-bright`. Visualmente indistinguibles. La única pista para los docs links era un `→` que ponía el texto i18n a mano; los links externos tenían **tres estilos distintos** en distintas pages (eyebrow muted, accent-bright + hover:underline, accent + underline + hover:bright) sin ningún indicador visual de "abre nueva pestaña" más allá del `target="_blank"` invisible para el user. Feedback de Pedro al revisar la UI: *"hay un montón de botones que no tienen pinta de botón: simplemente son textos."* Diagnóstico confirmado con grep — ~20 callsites con el patrón.
+
+**Decisión**: Establecer **tres primitives canónicos** en `packages/web/src/components/ui/`. Cualquier nuevo affordance "tipo texto" debe ir como uno de los tres; no se permite reintroducir el patrón viejo de `t-eyebrow muted + hover bright` libre.
+
+1. **`TextAction`** — `<button type="button">` con `underline decoration-dotted` permanente que pasa a sólido en hover. El subrayado punteado es la pista "click pero NO navega". Acepta `onClick`, `disabled`, `className` para extensión.
+2. **`DocsLink`** — `<Link>` (Next) interno que añade **automáticamente** un `→` al inicio. Los strings i18n NO deben llevar flecha (si la llevan, doble flecha). Color muted con hover bright, sin subrayado. Acepta `onClick` opcional para casos como el modal que cierra al navegar.
+3. **`ExternalLink`** — `<a>` que añade **automáticamente** un icono `↗` al final + setea `target="_blank"` + `rel="noopener noreferrer"` por defecto. Color `accent-bright` (no muted) para distinguir del DocsLink interno. El `↗` es convención universal de "abre fuera"; el color refuerza la pista.
+
+**Casos especiales que NO migran** (preservados intencionalmente):
+
+- Botones primarios (Save, Resume, Lock, Delete, Save changes, etc.) siguen usando el componente `<Button>` con sus variants (`primary | secondary | danger | ghost`).
+- Disclaimer links con `hover:danger` (3 sitios — `/wallet`, `/settings`, modal) siguen como `<Link>` directo. La advertencia legal merece el énfasis rojo en hover.
+- Inline links accent dentro de párrafos `t-body` (3 sitios en `/positions/[mint]/configure`) siguen con su estilo inline. DocsLink es `t-eyebrow` (uppercase + tracking), incompatible con inline en texto.
+- Icon-buttons con SVG propio rico (botón explorer en `/tasks/[id]`) — no es text-link.
+- Link Solscan en `AddressDisplay` mantenía un icono SVG custom; en el amend del 2026-05-29 se decidió migrarlo también a `ExternalLink` por consistencia (perdiendo el icono SVG custom — el `↗` del componente lo sustituye).
+
+**Consecuencias**:
+
+- (+) Vocabulario visual coherente en toda la UI: un user puede distinguir a primera vista una acción local, una navegación interna a docs, y un link que abre fuera del app.
+- (+) Reglas duras eliminan la regresión: el `→` automático del `DocsLink` no se puede olvidar (lo pone el componente, no el texto); el `↗` + `target=_blank` + `rel` del `ExternalLink` tampoco.
+- (+) Limpieza de strings i18n: ~15 strings perdieron el `→` o `↗` que llevaban al inicio o final. Más limpios para traductores y para reuso en otros contextos.
+- (+) Cualquier futuro affordance se modela trivial: identificas el tipo (acción local / docs interna / externa) y usas el componente correspondiente.
+- (−) Refactor de ~20 callsites en 7 archivos. Trabajo no trivial; se hizo en una sola sesión gracias a herramientas (Edit + Grep).
+- (−) Los componentes son CSS hardcoded — no aceptan `tone` props todavía. El caso del disclaimer (hover:danger) y el caso de inline links en t-body se gestionan como excepciones documentadas, no como variants. Si surgen más excepciones, considerar añadir `tone="danger"` a `DocsLink`.
+- (−) `DocsLink` con `t-eyebrow` (uppercase + tracking) no encaja inline en párrafos `t-body`. Mantenemos 2 patrones para docs links (eyebrow vs inline accent) — la regla aplica solo al primero.
+
+**Alternativas consideradas**:
+
+- **Un solo componente `<Affordance>` con prop `kind="action|docs|external"`**: más DRY pero peor DX — las props divergen (TextAction necesita `onClick`, los links necesitan `href`, ExternalLink no necesita ni `target` ni `rel`). Tres componentes específicos son más simples de usar y más fáciles de tipar correctamente. Descartado.
+- **Solo migrar los casos más ambiguos y dejar el resto con el patrón viejo**: deja deuda visible y la próxima vez que toquemos UI volveremos a confundirnos. Descartado — la consistencia visual es el objetivo.
+- **Añadir `tone` props complejos** (`muted | bright | danger`, `inline | block`, etc.): overengineering temprano. Esperar a que haya 3+ casos legítimos del mismo tone antes de promocionarlo a variant. Hoy: 3 disclaimer links + 3 inline accent links → suficiente para mantenerlos como excepciones documentadas, no como variants. Descartado por ahora.
+- **Reutilizar el componente `<Button variant="ghost">` para los botones-texto**: visualmente no encaja — `Button` tiene `h-11`, `px-5`, `rounded-xl`. Es un botón de tamaño/peso. TextAction es inline, sin padding sustancial, peso de eyebrow. Descartado.
