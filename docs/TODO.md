@@ -12,6 +12,29 @@
 
 ## Backlog (sin orden)
 
+- [ ] Estudiar soporte para más protocolos de LP: **Raydium** (CLMM/CPMM) y
+  **Kamino** (Liquidity / vaults). Hoy hay 2 adapters (Orca, Meteora DLMM)
+  detrás de la interfaz `ProtocolAdapter` (`listOwnedPositions` /
+  `getPositionSummary` / `getPrice` / `closePosition` / `swapToExit`), así
+  que añadir uno es: nuevo adapter en `packages/engine/src/protocols/<x>/`,
+  registrarlo en `protocols/registry.ts` (`makeAdapter` + `REGISTERED_PROTOCOLS`)
+  y en `packages/web/src/lib/constants.ts` (`PROTOCOLS` + `PROTOCOL_LABELS`),
+  y la UI ya lo agrega en paralelo. A evaluar por protocolo antes de
+  comprometerse:
+  - Calidad/madurez del SDK TS y si su discovery usa `getProgramAccounts`
+    (como Meteora — exige RPC con gPA filtrado, p.ej. Helius; ver más abajo
+    el incidente del 2026-05-29) o `getTokenAccountsByOwner` (como Orca,
+    universal). Documentar el requisito de RPC por protocolo.
+  - Compatibilidad de SDK con la coexistencia actual web3.js v1 (Meteora) +
+    @solana/kit (Orca); aislar en el adapter como en [ADR-024](DECISIONS.md).
+  - Kamino: confirmar que el modelo (vaults / posiciones gestionadas) encaja
+    con el contrato actual de "cerrar una posición concreta del owner"; sus
+    vaults autogestionados pueden no mapear 1:1 a `closePosition`.
+  - Raydium CLMM: posiciones NFT-based como Orca → discovery probablemente
+    vía `getTokenAccountsByOwner` (buen encaje). Verificar el flujo de
+    remove-liquidity + claim + swap de salida.
+  Decisión pendiente: ¿merece la pena el coste de mantenimiento de cada SDK
+  vs. la demanda real? Priorizar según qué protocolos usan Pedro y su círculo.
 - [ ] Documentación en español. Todos los docs públicos del repo
   (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/INSTALL.md`,
   `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/RELEASING.md`,
