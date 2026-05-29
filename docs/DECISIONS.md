@@ -354,6 +354,8 @@ En el primer intento solo configuré funder y el cierre falló con `Payer not se
 - (+) Evita confusiones tipo "¿por qué cerró si dije que el target era 30?" cuando había un segundo watcher con target distinto.
 - (−) Por ahora la regla solo está en UI; un cliente tRPC pirata podría crear dos. Aceptable mientras la UI es el único cliente público.
 
+**Actualización (2026-05-29)**: la regla ya se **enforza también en el backend** (cierra el item de backlog que esta ADR anotaba). `TaskManager.createTask` comprueba, antes de insertar, si hay una task ocupante para el mismo `positionId` (mismo set de estados no-terminales: `idle | armed | triggered | closing | paused`) y lanza `DuplicateActiveTaskError`, que el router `tasks.create` mapea a `409 CONFLICT`. El check + insert son síncronos en un server single-threaded → atómicos, sin race entre dos creates concurrentes. La UI sigue siendo la primera barrera (muestra `ExistingWatcher`); el backend es defense-in-depth contra clientes que se la salten. Commit `717e01b`.
+
 ---
 
 ## ADR-020 — Connect-wallet modal Orca-style es cosmético: la firma sin presencia sigue requiriendo clave en el server
@@ -1091,3 +1093,60 @@ Componentes nuevos creados: `Sidebar`, `Panel`, `StatStrip`, `TokenBadge`, `Toke
 - **Solo migrar los casos más ambiguos y dejar el resto con el patrón viejo**: deja deuda visible y la próxima vez que toquemos UI volveremos a confundirnos. Descartado — la consistencia visual es el objetivo.
 - **Añadir `tone` props complejos** (`muted | bright | danger`, `inline | block`, etc.): overengineering temprano. Esperar a que haya 3+ casos legítimos del mismo tone antes de promocionarlo a variant. Hoy: 3 disclaimer links + 3 inline accent links → suficiente para mantenerlos como excepciones documentadas, no como variants. Descartado por ahora.
 - **Reutilizar el componente `<Button variant="ghost">` para los botones-texto**: visualmente no encaja — `Button` tiene `h-11`, `px-5`, `rounded-xl`. Es un botón de tamaño/peso. TextAction es inline, sin padding sustancial, peso de eyebrow. Descartado.
+
+---
+
+## ADR-041 — Fix del sidecar zombie en dos capas (app-side + installer-side)
+
+**Fecha**: 2026-05-29
+**Estado**: Aceptada (complementa [ADR-032](#adr-032--auto-update-con-tauri-plugin-updater-builds-unsigned))
+
+**Contexto**: El auto-update (ADR-032) fallaba con *"Error opening file for writing"*: al actualizar, el sidecar (`auto-exit-server.exe`) sigue vivo y bloquea el `.exe` que el instalador NSIS intenta sobrescribir. El handler `RunEvent::Exit` que mata el sidecar **no se dispara en el path del updater** — el plugin hace su propio exit que se lo salta. Descubierto verificando el update real `v0.1.1 → v0.2.0`.
+
+**Decisión**: matar el sidecar en **dos puntos**, porque cada uno cubre un lado distinto del proceso de update:
+
+1. **(v0.3.0, lado app)** Hook al callback `on_download_finish` de `download_and_install` en `packages/tauri/src/lib.rs`: saca el child del `SidecarHandle` y lo mata tras la descarga y antes de lanzar el instalador. Corre en la app que **ejecuta** el update — la **vieja**.
+2. **(v0.3.1, lado instalador)** Preinstall hook de NSIS (`packages/tauri/nsis-hooks.nsh`, vía `bundle.windows.nsis.installerHooks`) que hace `taskkill /F /T /IM auto-exit-server.exe` + `Sleep 800` al arrancar la instalación. Viaja en el **instalador nuevo**.
+
+**La lección que motivó la capa 2**: el fix (1) solo ayuda si la app **vieja** lo lleva. Un cliente en v0.2.0 (que predata el fix) no mata su sidecar → el update real `v0.2.0 → v0.3.0` **falló igual** (confirmado en producción). El fix (2) viaja en el instalador, así que protege el update **venga de la versión vieja que venga**, incluidas las que no tienen el fix de Rust.
+
+**Consecuencias**:
+- (+) Auto-update robusto: `v0.3.0 → v0.3.1` verificado end-to-end sin error — primer update real que pasa la cadena entera.
+- (+) La capa NSIS rescata a los clientes en versiones anteriores al fix de Rust (los stragglers en v0.2.0).
+- (+) Redundancia barata: en un update normal actúan los dos; si uno fallara, el otro cubre.
+- (−) `taskkill /IM` mata **todos** los procesos `auto-exit-server.exe` del sistema, no solo el de esta instancia. Aceptable: es la app cerrándose para actualizarse.
+- (−) Ventana mínima de "app sin sidecar" entre el kill y el restart; si el install falla, el siguiente arranque respawnea.
+- (−) Lección de proceso: un fix del flujo de update solo se verifica con **dos releases reales publicadas**, y hay que tener claro **en qué lado del update** (app vieja vs instalador nuevo) corre cada pieza. El primer framing ("v0.2.0→v0.3.0 verifica el fix") era erróneo justo por no distinguir esto.
+
+**Alternativas consideradas**:
+- **Solo el fix de Rust (v0.3.0)**: no cubre clientes que predatan el fix. Insuficiente — se vio en producción.
+- **Solo el hook NSIS**: bastaría funcionalmente, pero el kill de Rust ya estaba hecho y da redundancia útil; se mantienen ambos.
+- **Arreglar `RunEvent::Exit` para que se dispare en el path del updater**: no controlamos el exit del plugin; `on_download_finish` es el hook expuesto.
+
+---
+
+## ADR-042 — Resume seguro: evaluación server-side del cruce de trigger antes de reanudar
+
+**Fecha**: 2026-05-29
+**Estado**: Aceptada
+
+**Contexto**: Al bloquear la wallet (manual o por reinicio), el watcher pausa las tasks activas. El dashboard ofrecía un único botón "Reanudar todos". Problema: si el precio cruzó el TP/SL de una task **mientras estaba pausada**, reanudarla dispara un cierre inmediato (o tras el buffer) que el usuario no eligió — el mercado se movió a sus espaldas. Es el único riesgo de fondos en el camino feliz.
+
+**Decisión**: antes de ofrecer el bulk-resume, el server evalúa cada task paused-por-sistema:
+
+1. **Endpoint `tasks.resumeCandidates`** → `TaskManager.evaluateResumeCandidates()` lee el precio actual on-chain de cada candidata, reusando el **mismo path del watcher** (`init → resolvePosition → getPrice`) en lugar de `positions.getSummary` del UI (que necesitaría reconstruir un `PositionRef` con `poolId` que la task no guarda).
+2. **Lógica pura del cruce** (`evaluateTriggerCross` en `packages/server/src/tasks/resume.ts`, mismas semánticas que el watcher: `price ≥ TP` / `price ≤ SL`, prioridad TP) aislada y testeada sin red.
+3. **El dashboard parte el callout en dos**: "reanudables sin riesgo" (bulk-resume solo de estas) vs "cruzaron su trigger — revisa" (lista con link por task).
+4. **Invariante de seguridad**: una task es "reanudable" SOLO si se leyó un precio real **y** no cruzó. Precio nulo (RPC falló, posición cerrada/transferida) o cruzado → siempre a "revisar". Nunca se reanuda a ciegas.
+5. **Markers de pausa-por-sistema centralizados** en `resume.ts` (antes literales duplicados en `manager.ts` y en el cliente, con un comentario que avisaba del drift); `manager.ts` los importa al escribir `lastError`.
+
+**Consecuencias**:
+- (+) El bulk-resume deja de poder disparar un cierre no querido por el usuario.
+- (+) El precio sale con las mismas semánticas que el cierre real (reusa el path del watcher).
+- (+) Markers centralizados → sin drift entre el server que escribe `lastError` y la heurística que lo detecta.
+- (−) N llamadas RPC (una por candidata) al evaluar; mitigado: solo hay candidatas tras un lock/reinicio (devuelve `[]` barato el resto del tiempo) y el refetch es lento (30s).
+- (−) El camino de lectura de precio (`evaluateResumeCandidates`) no está cubierto por tests todavía (necesita SDK mocks); sí la lógica pura (`evaluateTriggerCross`) + la rama vault-locked.
+
+**Alternativas consideradas**:
+- **Computar el cruce en cliente** reusando `positions.getSummary`: necesita reconstruir el `PositionRef` (`poolId`) vía `listOwnedPositions` + orquestar N queries dinámicas con hooks. Más frágil; descartado.
+- **No tocar nada** (los buffers amortiguan): los buffers solo **retrasan** el cierre, no lo eliminan; el caso sin buffer dispara inmediato. Insuficiente.

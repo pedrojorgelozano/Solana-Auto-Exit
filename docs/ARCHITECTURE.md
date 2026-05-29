@@ -115,6 +115,7 @@ Decisiones de cada pieza:
 - **`output: 'export'` opt-in vía `TAURI_BUILD=1`**: ver [ADR-030](DECISIONS.md). Dev y Docker no se afectan.
 - **Sidecar = runtime `bun` + `pnpm deploy`, no `bun --compile`**: ver [ADR-031](DECISIONS.md). El bundler de Bun no podía empaquetar el WASM de Orca ni el `createRequire` de Meteora; el server viaja desplegado con su `node_modules` real (hoisted, relocatable).
 - **Auto-update**: `tauri-plugin-updater` con keypair propia, hosting en GitHub Releases. Ver [ADR-032](DECISIONS.md) y [RELEASING.md](RELEASING.md).
+- **El sidecar se mata en tres puntos** para no dejarlo huérfano ni bloquear el auto-update: `RunEvent::Exit` (cierre normal de la app), `on_download_finish` del updater (path de update, lado app-vieja), y un **preinstall hook de NSIS** (`nsis-hooks.nsh`, lado instalador-nuevo). Los dos últimos arreglan el bug del "sidecar zombie" que rompía el auto-update (el proceso `auto-exit-server.exe` bloqueaba el `.exe` que el instalador iba a sobrescribir). Cada uno cubre un lado distinto del update. Ver [ADR-041](DECISIONS.md).
 - **Iconos**: PNG fuente generado por `packages/tauri/scripts/generate-icon-source.py` (PIL); set completo (ICO, ICNS, iOS, Android, Windows Store) producido por `pnpm exec tauri icon scripts/source.png`.
 
 ## Flujo de una watch-task
