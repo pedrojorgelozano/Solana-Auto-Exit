@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-29
+
+The "polished and honest" release. Major UI refresh (refined dark direction with sidebar nav and a visual hub on the dashboard), several real bugs fixed (the silent `0 SOL` callout, RPC/network coherence after switching, hydration mismatch that broke connect buttons after reload), and a sprint of post-release polish (test-RPC button, configurable low-balance threshold, legible zod errors, live wallet balance, three new UI primitives that distinguish buttons from links and internal from external navigation). Two operational notes for self-hosters: the auto-updater toggle now honestly says "manual update only" outside the Tauri desktop app, and `wallet.balance` rejects malformed addresses instead of letting the RPC return a cryptic error.
+
 ### Added
 - **Three new UI primitives — `TextAction`, `DocsLink`, `ExternalLink`.** Before this, button-styled-as-text (Copy, Test connection, "use default"), internal docs links (`→ How encryption works`) and external links (GitHub INSTALL.md, Meteora, Helius) all shared the same `t-eyebrow muted + hover bright` styling. A user couldn't tell at a glance whether a string would do something local or take them away — and external links sometimes opened a new tab without any visual cue. The three primitives split the responsibility: `TextAction` carries a dotted underline (turns solid on hover) so it reads as "click but no navigation"; `DocsLink` adds an arrow `→` automatically (i18n strings no longer carry it) and stays muted; `ExternalLink` adds an `↗` icon, uses accent-bright, and sets `target="_blank" + rel="noopener noreferrer"` by default. ~20 call-sites migrated across `/settings`, `/wallet`, `/positions/[mint]`, `/tasks/[id]`, the connect-wallet modal, the home, and `/docs/operational`.
 - **"Test connection" button on `/settings`.** Next to the RPC URL field — sends a `getVersion` JSON-RPC call to the URL currently in the input (not the persisted one, so you can test before saving) with a 5s timeout. Returns `OK · solana-core version · latency ms` in green on success, or a legible error in red. Passes through `assertSafeRpcUrl` first (same SSRF guard as the persist path) so it can't be used as a side-channel to probe internal IPs / cloud metadata endpoints. Fills the gap from the previous session's balance bug — a user configuring a new RPC had no way to confirm reachability before a watcher tried and failed.
@@ -83,6 +87,7 @@ First public release — a self-hosted desktop app that watches Orca and Meteora
 - **Opt-in auto-update** via GitHub Releases — off by default.
 - `SHA256SUMS.txt` published with each release for download integrity verification.
 
-[Unreleased]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/releases/tag/v0.1.0
