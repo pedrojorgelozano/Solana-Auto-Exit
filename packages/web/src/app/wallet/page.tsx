@@ -8,6 +8,7 @@ import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Label, PasswordInput } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
+import { formatTrpcError } from "@/lib/trpcError";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress } from "@/lib/format";
 import { AddressDisplay } from "@/components/AddressDisplay";
@@ -148,7 +149,7 @@ function UnlockSection({
       // haga falta.
       router.push("/");
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
 

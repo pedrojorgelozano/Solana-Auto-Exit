@@ -12,6 +12,7 @@ import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/Segmented";
 import { trpc } from "@/lib/trpc";
+import { formatTrpcError } from "@/lib/trpcError";
 import { taskDetailHref } from "@/lib/routes";
 import { NETWORK, RPC_URL } from "@/lib/constants";
 import {
@@ -640,7 +641,7 @@ function ConfigureForm({
       await start.mutateAsync({ id: task.id });
       router.push(taskDetailHref(task.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input, PasswordInput, Textarea, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { trpc } from "@/lib/trpc";
+import { formatTrpcError } from "@/lib/trpcError";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress, formatTokenAmount } from "@/lib/format";
 import { useT } from "@/i18n/context";
@@ -258,7 +259,7 @@ function GenerateTab({
     try {
       await gen.mutateAsync({ passphrase });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
 
@@ -349,7 +350,7 @@ function ImportTab({
       await utils.wallet.status.invalidate();
       onSuccess();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatTrpcError(err));
     }
   };
 
