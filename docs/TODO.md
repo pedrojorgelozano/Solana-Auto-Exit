@@ -135,30 +135,28 @@
 - [ ] Empaquetar la app desktop para macOS y Linux. El release v0.1.0 es
   solo Windows — `tauri build` no hace cross-compile del instalador, así
   que requiere buildear en cada SO (o un CI con runners macOS/Linux).
-- [ ] **Hallazgos QA audit NO aplicados** (de la auditoría conjunta peer +
-  self review). Documentados con archivo:línea + mecanismo + fix
-  propuesto en la sesión correspondiente. Por orden de impacto:
-  - B-08: `lock` durante un close en flight no cancela la tx (no
-    podemos). Deshabilitar el botón Lock mientras haya tasks en
-    `closing` para evitar confusión UX.
-  - B-09: unlock-limiter cuenta CUALQUIER error de `vault.unlock`
-    como passphrase incorrecta (incluido "vault file corrupted",
-    "address mismatch"). Tipar el error en vault.ts para distinguir.
-  - B-11: Meteora `closePosition` multi-tx no compensa si tx[N+1]
-    falla tras tx[N] éxito — posición queda parcialmente cerrada y
-    `lastSig` apunta a la última exitosa (engaña al receipt).
-  - B-14: `runMigrations` solo `console.warn` si no existe folder.
-    Después las queries fallan en runtime con error críptico.
-    Lanzar en su lugar.
-  - B-15: `parseIntOr` permite valores negativos persistidos directo
-    en DB. Clampear o rechazar.
-  - B-17: `ALLOW_LOOPBACK_RPC` solo acepta literal `"true"` —
-    inconsistente con `parseBool` del engine. Unificar o documentar.
 
 ## Hecho recientemente
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **QA audit cerrado — 6 fixes round 2 (2026-05-29)**: los 6 hallazgos
+  restantes del audit aplicados, cerrando el bloque. (B-14)
+  `assertMigrationsReady` lanza con mensaje accionable en lugar de
+  warn + arranque silencioso. (B-15) `parseIntOr` clampa fuera de
+  rango (default `[0, MAX_SAFE_INTEGER]`). (B-17) `ALLOW_LOOPBACK_RPC`
+  acepta `true|1|yes|on` (case-insensitive), mismo set que el
+  `parseBool` del engine; unknown values siguen bloqueando.
+  (B-09) `WrongPassphraseError` + `VaultCorruptedError` exportadas
+  en vault.ts; el unlock-limiter solo cuenta el primer tipo. (B-08)
+  Botón Lock en /wallet deshabilitado cuando hay tasks en `closing`
+  (derivado de `tasks.list` cacheado, sin endpoint nuevo); tooltip
+  explica que lockear no cancela la tx, solo evita registrar el
+  receipt. (B-11) Meteora `closePosition` trackea `successfulSigs[]`
+  y lanza error explícito cuando una tx[N] falla tras N-1 éxitos —
+  el receipt ya no miente con "closed cleanly" en cierres parciales.
+  Commits `58457c8` (B-14), `d01d281` (B-15), `77ff6bd` (B-17),
+  `527194e` (B-09), `e77fbd8` (B-08), `dc6fda4` (B-11).
 - **QA audit hardening — 5 fixes top-impact (2026-05-29)**: cluster
   de correctness fixes del backlog acumulado. (B-04) atomicidad de
   los 9 pares `update tasks` + `appendHistory` con `db.transaction`
