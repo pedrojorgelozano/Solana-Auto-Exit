@@ -4,6 +4,7 @@ import { eq, inArray, desc } from "drizzle-orm";
 import {
   makeAdapter,
   withRetry,
+  isPermanentSolanaError,
   log,
   logError,
   type BaseConfig,
@@ -69,17 +70,16 @@ export class TaskManager {
     if (stale.length === 0) return;
     log(`[tasks] boot: pausando ${stale.length} task(s) activas tras reinicio`);
     for (const row of stale) {
-      this.db
-        .update(tasks)
-        .set({
-          status: "paused",
-          updatedAt: new Date(),
-          lastError: "Server restarted; resume after unlocking the vault.",
-        })
-        .where(eq(tasks.id, row.id))
-        .run();
-      this.appendHistory(row.id, "paused", {
-        reason: "server-restart",
+      this.db.transaction((tx) => {
+        tx.update(tasks)
+          .set({
+            status: "paused",
+            updatedAt: new Date(),
+            lastError: "Server restarted; resume after unlocking the vault.",
+          })
+          .where(eq(tasks.id, row.id))
+          .run();
+        this.appendHistory(row.id, "paused", { reason: "server-restart" }, tx);
       });
     }
   }
@@ -102,30 +102,33 @@ export class TaskManager {
 
   createTask(input: CreateTaskInput): { id: string } {
     const id = randomUUID();
-    this.db
-      .insert(tasks)
-      .values({
+    this.db.transaction((tx) => {
+      tx.insert(tasks)
+        .values({
+          id,
+          protocol: input.protocol,
+          network: input.network,
+          rpcUrl: input.rpcUrl,
+          positionId: input.positionId,
+          protocolConfig: input.protocolConfig,
+          takeProfitPrice: input.takeProfitPrice ?? null,
+          stopLossPrice: input.stopLossPrice ?? null,
+          takeProfitBufferMs: input.takeProfitBufferMs ?? null,
+          stopLossBufferMs: input.stopLossBufferMs ?? null,
+          slippageBps: input.slippageBps,
+          pollMs: input.pollMs,
+          dryRun: input.dryRun,
+          exitTokenMint: input.exitTokenMint ?? null,
+          exitSwapSlippageBps: input.exitSwapSlippageBps,
+          status: "idle",
+        })
+        .run();
+      this.appendHistory(
         id,
-        protocol: input.protocol,
-        network: input.network,
-        rpcUrl: input.rpcUrl,
-        positionId: input.positionId,
-        protocolConfig: input.protocolConfig,
-        takeProfitPrice: input.takeProfitPrice ?? null,
-        stopLossPrice: input.stopLossPrice ?? null,
-        takeProfitBufferMs: input.takeProfitBufferMs ?? null,
-        stopLossBufferMs: input.stopLossBufferMs ?? null,
-        slippageBps: input.slippageBps,
-        pollMs: input.pollMs,
-        dryRun: input.dryRun,
-        exitTokenMint: input.exitTokenMint ?? null,
-        exitSwapSlippageBps: input.exitSwapSlippageBps,
-        status: "idle",
-      })
-      .run();
-    this.appendHistory(id, "created", {
-      protocol: input.protocol,
-      positionId: input.positionId,
+        "created",
+        { protocol: input.protocol, positionId: input.positionId },
+        tx,
+      );
     });
     return { id };
   }
@@ -208,20 +211,25 @@ export class TaskManager {
     };
     this.running.set(id, entry);
 
-    this.db
-      .update(tasks)
-      .set({ status: "armed", lastError: null, updatedAt: new Date() })
-      .where(eq(tasks.id, id))
-      .run();
-
     const eventName = row.status === "paused" ? "resumed" : "started";
-    this.appendHistory(id, eventName, {});
+    this.db.transaction((tx) => {
+      tx.update(tasks)
+        .set({ status: "armed", lastError: null, updatedAt: new Date() })
+        .where(eq(tasks.id, id))
+        .run();
+      this.appendHistory(id, eventName, {}, tx);
+    });
 
-    // Lanzamos el watcher en segundo plano. Cualquier error se captura aquí
-    // (runWatcher solo debe lanzar si hay un bug, los errores funcionales
-    // los marca él mismo como status="error").
+    // Lanzamos el watcher en segundo plano. Cualquier error que escape de
+    // runWatcher (idealmente nunca: los errores funcionales se marcan dentro
+    // con status="error") es un bug y debe quedar visible para el usuario,
+    // no solo loguearse. Antes este catch solo hacía logError → la task
+    // quedaba en `armed` con this.running.set hecho pero sin loop real,
+    // pareciendo "vigilando" mientras estaba muerta. markError la mueve a
+    // `error` con mensaje, visible en dashboard y /tasks?filter=errors.
     this.runWatcher(row, entry).catch((err) => {
       logError(`[tasks] watcher ${id} crashed`, err);
+      this.markError(id, err);
     });
   }
 
@@ -230,12 +238,13 @@ export class TaskManager {
     const row = this.getTask(id);
     if (!row) throw new Error(`Task ${id} not found.`);
     if (row.status === "done" || row.status === "stopped") return;
-    this.db
-      .update(tasks)
-      .set({ status: "paused", updatedAt: new Date() })
-      .where(eq(tasks.id, id))
-      .run();
-    this.appendHistory(id, "paused", { reason: "user" });
+    this.db.transaction((tx) => {
+      tx.update(tasks)
+        .set({ status: "paused", updatedAt: new Date() })
+        .where(eq(tasks.id, id))
+        .run();
+      this.appendHistory(id, "paused", { reason: "user" }, tx);
+    });
   }
 
   stopTask(id: string): void {
@@ -245,12 +254,13 @@ export class TaskManager {
     if (row.status === "done") {
       throw new Error("Cannot stop a task that is already done.");
     }
-    this.db
-      .update(tasks)
-      .set({ status: "stopped", updatedAt: new Date() })
-      .where(eq(tasks.id, id))
-      .run();
-    this.appendHistory(id, "stopped", {});
+    this.db.transaction((tx) => {
+      tx.update(tasks)
+        .set({ status: "stopped", updatedAt: new Date() })
+        .where(eq(tasks.id, id))
+        .run();
+      this.appendHistory(id, "stopped", {}, tx);
+    });
   }
 
   deleteTask(id: string): void {
@@ -288,16 +298,17 @@ export class TaskManager {
     );
     for (const id of [...this.running.keys()]) {
       this.stopRunning(id);
-      this.db
-        .update(tasks)
-        .set({
-          status: "paused",
-          updatedAt: new Date(),
-          lastError: "Vault was locked while running.",
-        })
-        .where(eq(tasks.id, id))
-        .run();
-      this.appendHistory(id, "paused", { reason: "vault-locked" });
+      this.db.transaction((tx) => {
+        tx.update(tasks)
+          .set({
+            status: "paused",
+            updatedAt: new Date(),
+            lastError: "Vault was locked while running.",
+          })
+          .where(eq(tasks.id, id))
+          .run();
+        this.appendHistory(id, "paused", { reason: "vault-locked" }, tx);
+      });
     }
   }
 
@@ -431,6 +442,11 @@ export class TaskManager {
           maxAttempts: 5,
           baseMs: 1000,
           label: `${row.protocol}.closePosition`,
+          // Slippage / insufficient funds / cuentas inválidas son permanentes:
+          // reintentar 5 veces solo añade latencia y demora el error real al
+          // usuario, que tiene que tomar una decisión (subir slippage, fondear
+          // wallet, revisar la position). Heurística por keyword del mensaje.
+          retryableErrors: (err) => !isPermanentSolanaError(err),
         },
       );
     } catch (err) {
@@ -438,15 +454,21 @@ export class TaskManager {
       return;
     }
 
-    this.db
-      .update(tasks)
-      .set({
-        closeResult: closeResult as unknown as Record<string, unknown>,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, row.id))
-      .run();
-    this.appendHistory(row.id, "closed", closeResult as unknown as Record<string, unknown>);
+    this.db.transaction((tx) => {
+      tx.update(tasks)
+        .set({
+          closeResult: closeResult as unknown as Record<string, unknown>,
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, row.id))
+        .run();
+      this.appendHistory(
+        row.id,
+        "closed",
+        closeResult as unknown as Record<string, unknown>,
+        tx,
+      );
+    });
 
     // Verificación on-chain del close: best-effort, fire-and-forget pero
     // awaited para que el evento `verified` quede registrado antes del swap.
@@ -481,17 +503,24 @@ export class TaskManager {
             maxAttempts: 5,
             baseMs: 1000,
             label: `${row.protocol}.swapToExit`,
+            retryableErrors: (err) => !isPermanentSolanaError(err),
           },
         );
-        this.db
-          .update(tasks)
-          .set({
-            swapResult: swapResult as unknown as Record<string, unknown>,
-            updatedAt: new Date(),
-          })
-          .where(eq(tasks.id, row.id))
-          .run();
-        this.appendHistory(row.id, "swapped", swapResult as unknown as Record<string, unknown>);
+        this.db.transaction((tx) => {
+          tx.update(tasks)
+            .set({
+              swapResult: swapResult as unknown as Record<string, unknown>,
+              updatedAt: new Date(),
+            })
+            .where(eq(tasks.id, row.id))
+            .run();
+          this.appendHistory(
+            row.id,
+            "swapped",
+            swapResult as unknown as Record<string, unknown>,
+            tx,
+          );
+        });
 
         if (
           !row.dryRun &&
@@ -593,17 +622,18 @@ export class TaskManager {
       this.appendHistory(id, "triggered", { triggeredBy, suppressed: true });
       return;
     }
-    this.db
-      .update(tasks)
-      .set({
-        status: "triggered",
-        triggeredBy,
-        triggeredAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, id))
-      .run();
-    this.appendHistory(id, "triggered", { triggeredBy });
+    this.db.transaction((tx) => {
+      tx.update(tasks)
+        .set({
+          status: "triggered",
+          triggeredBy,
+          triggeredAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, id))
+        .run();
+      this.appendHistory(id, "triggered", { triggeredBy }, tx);
+    });
   }
 
   private markClosing(id: string): void {
@@ -634,16 +664,17 @@ export class TaskManager {
       this.appendHistory(id, "error", { message: msg, suppressed: true });
       return;
     }
-    this.db
-      .update(tasks)
-      .set({
-        status: "error",
-        lastError: msg,
-        updatedAt: new Date(),
-      })
-      .where(eq(tasks.id, id))
-      .run();
-    this.appendHistory(id, "error", { message: msg });
+    this.db.transaction((tx) => {
+      tx.update(tasks)
+        .set({
+          status: "error",
+          lastError: msg,
+          updatedAt: new Date(),
+        })
+        .where(eq(tasks.id, id))
+        .run();
+      this.appendHistory(id, "error", { message: msg }, tx);
+    });
   }
 
   /**
@@ -702,13 +733,24 @@ export class TaskManager {
       .all();
   }
 
+  /**
+   * Inserta un evento en la tabla history.
+   *
+   * `tx` opcional: cuando se llama dentro de una `db.transaction()` para
+   * que el update del row y el insert del evento sean atómicos, hay que
+   * pasar el `tx` recibido en el callback (es del mismo tipo que `this.db`,
+   * pero compromete los writes a esa transacción específica). Sin pasarlo,
+   * el insert va por el `this.db` global y queda fuera de la transacción
+   * — bug que dejaba history disociada del estado real si el server moría
+   * entre el update y el insert.
+   */
   private appendHistory(
     taskId: string,
     event: TaskEvent,
     data: Record<string, unknown>,
+    tx: Db = this.db,
   ): void {
-    this.db
-      .insert(history)
+    tx.insert(history)
       .values({
         id: randomUUID(),
         taskId,
