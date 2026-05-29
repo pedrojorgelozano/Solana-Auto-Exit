@@ -23,25 +23,6 @@
   Requiere getSummary o similar para cada paused. No urge — los buffers
   suelen amortiguar el problema, pero merece la pena tras feedback de
   uso real.
-- [ ] Paginación del `/tasks` (Histórico). Hoy `trpc.tasks.list` carga
-  TODAS las filas y el HistoryLedger las renderiza todas a la vez.
-  Para usuarios casuales (1 task/mes) no es problema; para un power
-  user con varios cientos de tasks históricas tras meses de uso el
-  render se vuelve lento y el scroll infinito. Añadir paginación
-  server-side (LIMIT/OFFSET o cursor-based) en `tasks.list` con
-  default 100 + UI tipo "load more" o paginador. Trigger razonable:
-  cuando un usuario tipo "power" empiece a notar lentitud, o
-  preventivamente cuando `historicalRows.length > 100`.
-- [ ] Health check del tamaño del archivo SQLite. Si supera N MB
-  (sugerido 50 MB como threshold inicial — uso normal son <2 MB/año),
-  mostrar callout amber en el dashboard: "Tu DB pesa X MB — esto es
-  inusual para uso normal y puede indicar un bug. [Exportar histórico
-  y limpiar]". Es defensa contra un bug futuro que llene la DB sin
-  querer (e.g. un `appendHistory` en el polling loop). Añadir endpoint
-  `meta.dbSize` que devuelva `statSync(DB_PATH).size`, comparar contra
-  threshold en `DashboardAlerts`. Bonus: exportar histórico a CSV
-  desde `/settings` antes de wipear (`scripts/seed-history.ts
-  --wipe-all` es el wipe pero hoy no hay export).
 - [ ] Documentación en español. Todos los docs públicos del repo
   (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/INSTALL.md`,
   `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/RELEASING.md`,
@@ -75,12 +56,6 @@
 - [ ] Diff threshold del receipt configurable. Hoy el ActualLine de F2.3
   colorea warning si `|diff| ≥ 0.01%` hardcoded. Mover a `/settings` como
   `diffWarningThresholdBps` (o equivalente).
-- [ ] Optimizar `MeteoraAdapter.getPositionSummary`: hoy llama
-  `DLMM.getAllLbPairPositionsByUser` (recorre todas las posiciones del
-  owner) cada vez. Para una wallet con N posiciones DLMM es O(N) por
-  cada `/tasks/[id]` que carga summary. Usar `wrapPosition(program,
-  key, accountInfo)` del SDK con el `AccountInfo` ya fetched para hacer
-  un solo decode dirigido.
 - [ ] Persistir `tokenMintA/B` en `protocolConfig` también para Meteora
   cuando F6.2 abra el flujo de tasks. F2.4 lo hizo para Orca; el receipt
   y la heurística del Dashboard asumen estos campos.
@@ -140,6 +115,21 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Cluster performance + data hygiene (2026-05-29)**: 3 items
+  dejando /tasks listo para uso sostenido. (1) Health check del
+  tamaño SQLite: nuevo router `meta` con `dbSize`, threshold 50 MB
+  (uso normal <2 MB/año), callout amber en el dashboard cuando se
+  supera. (2) Meteora `getPositionSummary` pasa de O(N) a O(1):
+  reemplazado el path
+  `DLMM.getAllLbPairPositionsByUser(owner)` (que recorre todas las
+  posiciones DLMM del owner) por `dlmm.getPosition(positionPk)` que
+  decodea solo la pedida. (3) Paginación server-side del histórico de
+  `/tasks`: nuevos endpoints `tasks.listHistorical({ limit, cursor,
+  filter })` cursor-based + `tasks.historicalCounts` para los tabs.
+  Frontend con `useInfiniteQuery` + botón "Load more"; PAGE_SIZE=50.
+  El dashboard sigue usando `tasks.list` (orthogonal). Commits
+  `3734f5a` (health check), `3044a08` (Meteora perf), `055fd84`
+  (paginación), + este (docs).
 - **QA audit cerrado — 6 fixes round 2 (2026-05-29)**: los 6 hallazgos
   restantes del audit aplicados, cerrando el bloque. (B-14)
   `assertMigrationsReady` lanza con mensaje accionable en lugar de

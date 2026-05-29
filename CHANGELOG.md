@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+- **Health check for the SQLite file size.** New `meta` tRPC router with a `dbSize` query (a thin `statSync` over the DB path); the dashboard polls it every 5 min and shows an amber callout when the file grows past 50 MB. Normal usage is well under 2 MB/year, so the threshold is a sanity check against a future bug (e.g. an accidental `appendHistory` in the polling loop) — not a real disk-space concern. Callout has a CTA to `/tasks` so the user can review and clean up.
+- **Server-side pagination on `/tasks` (history page).** Cursor-based on `createdAt`. New `tasks.listHistorical({ limit, cursor, filter })` returns up to 100 historical tasks per page with the filter applied server-side, plus `tasks.historicalCounts` for the tab counts. `/tasks/page.tsx` switched from `tasks.list` + client-side filtering to `useInfiniteQuery` with a "Load more" button. Power users with hundreds of historical tasks no longer pay the full-list render on every page load. The dashboard's "Recent activity" block still uses `tasks.list` (mixes live + historic, loads only the 8 most recent in normal use) — orthogonal and not a problem today.
+
+### Changed
+- **Meteora `getPositionSummary` is O(1) instead of O(N).** The old path extracted the position owner from the account byte layout and then called `DLMM.getAllLbPairPositionsByUser(conn, owner)`, which iterates every DLMM position the owner has across all lb-pairs. For a wallet with N DLMM positions, every `/tasks/[id]` load did that walk. Replaced with `dlmm.getPosition(positionPk)` which decodes only the requested position; pair metadata (binStep, mints, decimals) comes from the `dlmm` instance directly.
+
 ### Fixed
 - **QA audit hardening, round 2: 6 more fixes (B-08, B-09, B-11, B-14, B-15, B-17).** Closes out the original QA audit list. Mix of UX (B-08), correctness (B-09, B-11), and config consistency (B-14, B-15, B-17).
   - **B-08** — Lock button on `/wallet` disabled while a close is in flight. Locking during `closing` doesn't cancel the transaction (the signature is already at the RPC, we can't pull it from the mempool), but the UI used to let the user click and watch the watcher stop being able to record the receipt. Now derived from `tasks.list` (already cached for the dashboard), the button reads `"Closing in flight…"` with a tooltip explaining why.
