@@ -32,6 +32,25 @@ const sourceSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("jsonArray"), value: z.string().min(5) }),
 ]);
 
+// Una pubkey Solana son 32 bytes en base58 (típicamente 32-44 chars). Sin
+// este refine, `z.string().min(32)` aceptaba cualquier basura y el RPC
+// devolvía un error críptico tipo "Invalid param: WrongSize" enmascarando
+// la causa real (un copy-paste cortado, un espacio metido, etc.).
+const solanaAddress = z.string().refine(
+  (s) => {
+    try {
+      const bytes = getBase58Codec().encode(s.trim()) as Uint8Array;
+      return bytes.length === 32;
+    } catch {
+      return false;
+    }
+  },
+  {
+    message:
+      "Address must be a valid base58-encoded Solana pubkey (32 bytes).",
+  },
+);
+
 export const walletRouter = router({
   /** Estado del vault. Llamable siempre. */
   status: publicProcedure.query(({ ctx }) => ctx.vault.status()),
@@ -162,7 +181,7 @@ export const walletRouter = router({
    * llegado los fondos.
    */
   balance: publicProcedure
-    .input(z.object({ address: z.string().min(32) }))
+    .input(z.object({ address: solanaAddress }))
     .query(async ({ ctx, input }) => {
       const rpcRow = ctx.db
         .select()
