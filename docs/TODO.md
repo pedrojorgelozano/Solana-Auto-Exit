@@ -81,16 +81,9 @@
   GitHub README, mover a `docs/user-guide/*.md` y renderizar con
   `react-markdown` o MDX. Coste de mantenimiento bajo mientras los
   artículos sean pocos y estables.
-- [ ] Renombrar `Recommendation` en `packages/web/src/app/wallet/page.tsx`
-  a algo como `ScopePanel`. Su contenido visible ya es "Scope" tras la
-  pieza 2; sin impacto funcional, solo coherencia de naming.
 - [ ] Diff threshold del receipt configurable. Hoy el ActualLine de F2.3
   colorea warning si `|diff| ≥ 0.01%` hardcoded. Mover a `/settings` como
   `diffWarningThresholdBps` (o equivalente).
-- [ ] Live balance polling también en `/wallet` page. Hoy solo aparece en
-  el success screen del modal post-Generate. Sería natural mostrarlo
-  siempre que la wallet esté unlocked (junto al address, en el unlock
-  section).
 - [ ] Optimizar `MeteoraAdapter.getPositionSummary`: hoy llama
   `DLMM.getAllLbPairPositionsByUser` (recorre todas las posiciones del
   owner) cada vez. Para una wallet con N posiciones DLMM es O(N) por
@@ -192,6 +185,16 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Pulido /wallet pre-release v0.2.0 (2026-05-29)**: dos items rápidos
+  sobre `main`. (1) Live balance polling en `/wallet`: nueva fila
+  `Balance · X.XXXX SOL` debajo del AddressDisplay con la wallet
+  unlocked, refetch cada 60s (alineado con DashboardAlerts). Loading
+  `…`, fallido `—` (sin callout — eso ya vive en el dashboard).
+  (2) Rename `Recommendation` → `ScopePanel` en `wallet/page.tsx` (el
+  eyebrow visible ya era "Scope" tras la pieza 2 del rediseño). Item
+  snapshot-check del bulk-resume descartado de la sesión: requiere
+  endpoint nuevo + queries N + UI partida, y no urge sin feedback real
+  — sigue en backlog. Commit `9d206b9`.
 - **Sprint de pulido post-bug del balance (2026-05-29)**: 4 commits sobre
   `main` con 5 items del backlog al hilo del bug de RPC/balance de ayer.
   (1) B-18 (`wallet.balance` valida base58 de la address — el RPC tiraba
