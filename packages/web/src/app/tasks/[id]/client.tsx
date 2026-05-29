@@ -10,6 +10,7 @@ import { Panel } from "@/components/Panel";
 import { TokenPair } from "@/components/TokenBadge";
 import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { trpc } from "@/lib/trpc";
 import { positionDetailHref } from "@/lib/routes";
 import { statusView, TONE_CLASSES, type BackendStatus } from "@/lib/status";
@@ -1675,14 +1676,9 @@ function Receipt({
 function SolscanLink({ sig, network }: { sig: string; network: string }) {
   const cluster = network === "mainnet" ? "" : "?cluster=devnet";
   return (
-    <Link
-      href={`https://solscan.io/tx/${sig}${cluster}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="t-eyebrow text-[var(--color-accent-bright)] hover:underline"
-    >
-      tx {truncateAddress(sig, 6, 6)} ↗
-    </Link>
+    <ExternalLink href={`https://solscan.io/tx/${sig}${cluster}`}>
+      tx {truncateAddress(sig, 6, 6)}
+    </ExternalLink>
   );
 }
 

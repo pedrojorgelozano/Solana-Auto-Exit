@@ -5,6 +5,9 @@ import Link from "next/link";
 import { PageHeader } from "@/components/PageHeader";
 import { Panel } from "@/components/Panel";
 import { Button } from "@/components/ui/Button";
+import { TextAction } from "@/components/ui/TextAction";
+import { DocsLink } from "@/components/ui/DocsLink";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { Input, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/Segmented";
@@ -263,15 +266,13 @@ function SettingsForm({
               <div className="flex items-baseline gap-4">
                 <TestRpcButton url={rpcUrl} />
                 {rpcUrl !== initial.defaultRpcByNetwork[initial.network] ? (
-                  <button
-                    type="button"
+                  <TextAction
                     onClick={() =>
                       setRpcUrl(initial.defaultRpcByNetwork[initial.network])
                     }
-                    className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
                   >
                     {s.rpc.useDefault(initial.network)}
-                  </button>
+                  </TextAction>
                 ) : null}
               </div>
             </div>
@@ -320,12 +321,9 @@ function SettingsForm({
                 {s.slippage.copy5Rest}
               </p>
               <p className="pt-2">
-                <a
-                  href="/docs/auto-exit#slippage"
-                  className="text-[var(--color-accent-bright)] hover:underline"
-                >
+                <DocsLink href="/docs/auto-exit#slippage">
                   {s.slippage.docsLink}
-                </a>
+                </DocsLink>
               </p>
             </div>
           </div>
@@ -390,12 +388,9 @@ function SettingsForm({
                 {s.poll.copy5min}
               </p>
               <p className="pt-2">
-                <a
-                  href="/docs/auto-exit#polling-interval"
-                  className="text-[var(--color-accent-bright)] hover:underline"
-                >
+                <DocsLink href="/docs/auto-exit#polling-interval">
                   {s.poll.docsLink}
-                </a>
+                </DocsLink>
               </p>
             </div>
           </div>
@@ -529,14 +524,9 @@ function UpdaterPanel({
       <Panel icon={<UpdaterIcon />} title={s.eyebrow} description={s.title}>
         <p className="pt-4 max-w-2xl t-small text-[var(--color-text-muted)]">
           {s.notTauriCopy}{" "}
-          <a
-            href="https://github.com/pedrojorgelozano/Solana-Auto-Exit/blob/main/docs/INSTALL.md"
-            target="_blank"
-            rel="noreferrer"
-            className="text-[var(--color-accent-bright)] hover:underline"
-          >
+          <ExternalLink href="https://github.com/pedrojorgelozano/Solana-Auto-Exit/blob/main/docs/INSTALL.md">
             {s.notTauriLink}
-          </a>
+          </ExternalLink>
         </p>
       </Panel>
     );
@@ -595,14 +585,9 @@ function TestRpcButton({ url }: { url: string }) {
 
   return (
     <div className="flex items-baseline gap-3">
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={test.isPending || !url}
-        className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors disabled:opacity-50"
-      >
+      <TextAction onClick={onClick} disabled={test.isPending || !url}>
         {test.isPending ? s.testing : s.testCta}
-      </button>
+      </TextAction>
       {result?.kind === "ok" ? (
         <span className="t-small text-[var(--color-positive)]">
           {s.testOk(result.version, result.latencyMs)}
@@ -769,12 +754,9 @@ function NetworkPanel({
       {!gateAllowed ? (
         <p className="mt-2 t-small text-[var(--color-text-dim)]">
           {s.realLocked}{" "}
-          <a
-            href="/docs/security#mainnet-gate"
-            className="text-[var(--color-accent-bright)] hover:underline"
-          >
+          <DocsLink href="/docs/security#mainnet-gate">
             {s.realLockedHow}
-          </a>
+          </DocsLink>
         </p>
       ) : null}
       {error ? <FieldError>{error}</FieldError> : null}

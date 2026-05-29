@@ -8,6 +8,9 @@ import { Input, PasswordInput, Textarea, Label } from "@/components/ui/Input";
 import { FieldError } from "@/components/ui/Card";
 import { trpc } from "@/lib/trpc";
 import { formatTrpcError } from "@/lib/trpcError";
+import { TextAction } from "@/components/ui/TextAction";
+import { DocsLink } from "@/components/ui/DocsLink";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { useConnectWallet } from "@/lib/connect-wallet";
 import { truncateAddress, formatTokenAmount } from "@/lib/format";
 import { useT } from "@/i18n/context";
@@ -141,13 +144,9 @@ function Preamble() {
         <span className="text-[var(--color-text)]">{t.modal.notPhantom}</span>
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
-        <Link
-          href="/docs/bot-wallet"
-          onClick={close}
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
+        <DocsLink href="/docs/bot-wallet" onClick={close}>
           {t.home.eyebrow.whatIs}
-        </Link>
+        </DocsLink>
         <Link
           href="/docs/disclaimer"
           onClick={close}
@@ -449,12 +448,7 @@ function ImportWarning() {
       <p className="mt-2 t-small text-[var(--color-text)]">{w.body}</p>
       <p className="mt-3 t-small text-[var(--color-text-muted)]">
         {w.body2}{" "}
-        <Link
-          href="/docs/bot-wallet#blast-radius"
-          className="text-[var(--color-accent-bright)] hover:underline"
-        >
-          {w.readMore}
-        </Link>
+        <DocsLink href="/docs/bot-wallet#blast-radius">{w.readMore}</DocsLink>
       </p>
     </div>
   );
@@ -517,20 +511,12 @@ function GenerateSuccess({
               {su.secretEyebrow}
             </span>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShown(!shown)}
-                className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-text)] transition-colors"
-              >
+              <TextAction onClick={() => setShown(!shown)}>
                 {shown ? su.hide : su.reveal}
-              </button>
-              <button
-                type="button"
-                onClick={() => copy(secretBase58, "secret")}
-                className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-              >
+              </TextAction>
+              <TextAction onClick={() => copy(secretBase58, "secret")}>
                 {copiedSecret ? su.copied : su.copy}
-              </button>
+              </TextAction>
             </div>
           </div>
           <div className="mt-2 t-num break-all text-[var(--color-text)] min-h-[1.5rem]">
@@ -621,13 +607,9 @@ function AddressBlock({
             <span className="t-eyebrow text-[var(--color-text-muted)]">
               {a.label}
             </span>
-            <button
-              type="button"
-              onClick={onCopy}
-              className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-            >
+            <TextAction onClick={onCopy}>
               {copied ? su.copied : su.copy}
-            </button>
+            </TextAction>
           </div>
           <div className="mt-2 t-num break-all text-[var(--color-text)]">
             {address}
@@ -644,14 +626,11 @@ function AddressBlock({
         </div>
 
         {isDevnet ? (
-          <a
+          <ExternalLink
             href={`https://faucet.solana.com/?walletAddress=${address}&amount=1&network=devnet`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-block t-eyebrow text-[var(--color-accent-bright)] hover:underline"
           >
             {a.faucetCta}
-          </a>
+          </ExternalLink>
         ) : null}
       </div>
 

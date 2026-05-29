@@ -172,7 +172,7 @@ export const en = {
       step3Body:
         "For each position, set a take-profit price, a stop-loss price, or both. The bot closes when whichever hits first; optionally swaps the proceeds into a stable.",
       ctaCreateWallet: "Create the bot's wallet →",
-      ctaReadGuide: "Read the full guide →",
+      ctaReadGuide: "Read the full guide",
       stepHint: "Step 1 of 3 · stop and resume at any point.",
       localEyebrow: "Local stack",
       localBody:
@@ -182,7 +182,7 @@ export const en = {
     },
 
     eyebrow: {
-      whatIs: "→ What's a bot wallet",
+      whatIs: "What's a bot wallet",
     },
 
     dashboard: {
@@ -257,9 +257,9 @@ export const en = {
       path2Title: "Transfer an existing position NFT",
       path2Body:
         "From any account that currently owns a Whirlpool or DLMM position, send the position NFT to the address above. Ownership moves to the bot wallet and the position becomes closable from here. Don't forget to leave the bot wallet enough SOL for close + swap fees.",
-      openOrca: "open orca ↗",
-      openMeteora: "open meteora ↗",
-      stepByStep: "→ Step-by-step guide",
+      openOrca: "open orca",
+      openMeteora: "open meteora",
+      stepByStep: "Step-by-step guide",
     },
 
     activity: {
@@ -346,7 +346,7 @@ export const en = {
       readMoreBuffer: "→ Read more",
 
       section2: "2 — What to do with the output",
-      section2Docs: "→ docs",
+      section2Docs: "docs",
       exitKeepBoth: "Keep both tokens",
       exitSell: (sym: string) => `Sell into ${sym}`,
       exitNoneCopy:
@@ -675,7 +675,7 @@ export const en = {
       copy: "When on, the app asks GitHub for a newer version each time it starts. Off by default — that check is a network request that leaves your machine, so it's opt-in.",
       notTauriCopy:
         "Auto-update is only available in the installed desktop app. You're running this server outside Tauri, so updates are manual.",
-      notTauriLink: "→ How to update manually",
+      notTauriLink: "How to update manually",
     },
 
     networkSection: {
@@ -694,7 +694,7 @@ export const en = {
       "Test mode — auto-exits run on Solana devnet. No real funds at risk.",
     realCopy: "Real mode — auto-exits sign on Solana mainnet with real funds.",
     realLocked: "Real mode is locked on this server.",
-    realLockedHow: "→ How to enable it",
+    realLockedHow: "How to enable it",
     realLockedDisabled: "Locked — enable in server environment",
     switchTestPrompt:
       "Switch back to test mode? New auto-exits will run on Solana devnet.",
@@ -748,7 +748,7 @@ export const en = {
       copy5Must: "must",
       copy5Rest:
         " complete. Accepts a high price impact tax in exchange for near-zero revert risk.",
-      docsLink: "→ How slippage affects close transactions",
+      docsLink: "How slippage affects close transactions",
     },
 
     exitSlippage: {
@@ -778,7 +778,7 @@ export const en = {
         " · cheap on RPC. Perfect when you're using time buffers — the hours-long buffer wait dwarfs the polling cadence.",
       copy5min:
         " · only for very long buffers (days) or stable, slow pools. With buffer-less triggers you may miss the cross.",
-      docsLink: "→ Polling interval, RPC cost, and buffers",
+      docsLink: "Polling interval, RPC cost, and buffers",
     },
 
     perTaskNote:
@@ -809,7 +809,7 @@ export const en = {
     pageDescription:
       "The account the bot uses to open and close your auto-exits. It lives encrypted on your machine and only unlocks when you unlock it.",
     backLabel: "Home",
-    encryptionLink: "→ How encryption and key storage work",
+    encryptionLink: "How encryption and key storage work",
     loading: "Loading wallet status…",
     backendError: (msg: string) => `Cannot reach the backend: ${msg}`,
 
@@ -825,7 +825,7 @@ export const en = {
       body:
         "Generate a fresh keypair on this machine, or import the private key of a single Solana account from Phantom, Backpack, or the Solana CLI. The key is encrypted with a passphrase and used only to sign the closes you configure.",
       cta: "Set up bot wallet →",
-      docs: "→ Read about the three paths",
+      docs: "Read about the three paths",
     },
 
     locked: {
@@ -862,8 +862,7 @@ export const en = {
         "Removes the decrypted key from memory. The encrypted file stays on disk — unlocking takes your passphrase again.",
       lockExplainP2:
         "Active auto-exits pause while the wallet is locked and resume when you unlock. Useful if you'll be away for a long stretch and prefer the bot to stop watching.",
-      lockExplainTradeoff:
-        "→ Security notes",
+      lockExplainTradeoff: "Security notes",
       lockButton: "Lock wallet",
       locking: "Locking…",
       // Kept for backwards compat — old call sites can be removed later.
@@ -872,7 +871,7 @@ export const en = {
 
     danger: {
       eyebrow: "Danger zone",
-      docsLink: "→ What deleting actually does",
+      docsLink: "What deleting actually does",
       explainReset:
         "Permanently delete the encrypted wallet file. The wallet on-chain is not affected — only this server's encrypted copy is removed.",
       explainLostPass:
@@ -944,7 +943,7 @@ export const en = {
         "The key is held encrypted at rest on this machine and decrypted in memory only while the wallet is unlocked. If both your passphrase and the encrypted wallet file were compromised at once, the assets at this single address could be moved by the attacker — nothing else in your wallet, no other accounts, no seed-derived addresses.",
       body2:
         "Standard practice is to import an account dedicated to active operations (a \"hot\" account separate from cold holdings), not the account where you store everything.",
-      readMore: "→ Read the precise blast radius",
+      readMore: "Read the precise blast radius",
     },
     success: {
       title: "Save your secret. Now.",
@@ -973,7 +972,7 @@ export const en = {
     address: {
       label: "Address",
       balance: "Balance",
-      faucetCta: "→ Get devnet SOL from the faucet",
+      faucetCta: "Get devnet SOL from the faucet",
       scanHint: "scan to send funds",
     },
   },

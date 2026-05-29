@@ -1,5 +1,6 @@
 import { ArticleHeader } from "../_components/ArticleHeader";
 import { articleBySlug } from "../_components/articles";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 
 const article = articleBySlug("/docs/operational")!;
 
@@ -52,14 +53,7 @@ export default function Operational() {
             <span className="text-[var(--color-text)]">Helius</span> — most
             popular in the Solana ecosystem. Free tier ~100k requests/day,
             no card required.{" "}
-            <a
-              href="https://helius.dev/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[var(--color-accent)] hover:text-[var(--color-accent-bright)] underline"
-            >
-              helius.dev
-            </a>
+            <ExternalLink href="https://helius.dev/">helius.dev</ExternalLink>
             . The mainnet URL looks like{" "}
             <code className="t-num text-[var(--color-text)]">https://mainnet.helius-rpc.com/?api-key=&lt;key&gt;</code>;
             devnet swaps {"\""}mainnet{"\""} for {"\""}devnet{"\""}.

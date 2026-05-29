@@ -6,6 +6,9 @@ import type { inferRouterOutputs } from "@trpc/server";
 import type { AppRouter } from "@solana-auto-exit/server/api";
 
 import { Button } from "@/components/ui/Button";
+import { TextAction } from "@/components/ui/TextAction";
+import { DocsLink } from "@/components/ui/DocsLink";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 import { PageHeader } from "@/components/PageHeader";
 import { trpc } from "@/lib/trpc";
 import { positionDetailHref, taskDetailHref } from "@/lib/routes";
@@ -833,13 +836,9 @@ function EmptyHub({ owner }: { owner: string | null }) {
             <span className="t-num break-all text-[var(--color-text)]">
               {owner}
             </span>
-            <button
-              type="button"
-              onClick={copy}
-              className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-            >
+            <TextAction onClick={copy}>
               {copied ? emptyT.copied : emptyT.copy}
-            </button>
+            </TextAction>
           </div>
         </div>
       ) : null}
@@ -858,28 +857,13 @@ function EmptyHub({ owner }: { owner: string | null }) {
       </ol>
 
       <div className="mt-10 flex flex-wrap items-center gap-4">
-        <a
-          href={`https://www.orca.so/?network=${NETWORK}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
+        <ExternalLink href={`https://www.orca.so/?network=${NETWORK}`}>
           {emptyT.openOrca}
-        </a>
-        <a
-          href="https://app.meteora.ag/dlmm"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
+        </ExternalLink>
+        <ExternalLink href="https://app.meteora.ag/dlmm">
           {emptyT.openMeteora}
-        </a>
-        <Link
-          href="/docs/getting-started"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
-          {emptyT.stepByStep}
-        </Link>
+        </ExternalLink>
+        <DocsLink href="/docs/getting-started">{emptyT.stepByStep}</DocsLink>
       </div>
     </section>
   );
@@ -1001,12 +985,7 @@ function FirstRunHome() {
       <section className="hairline-t mt-12 pt-12">
         <div className="flex flex-wrap items-baseline gap-4">
           <Button onClick={connect.open}>{fr.ctaCreateWallet}</Button>
-          <Link
-            href="/docs/getting-started"
-            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-          >
-            {fr.ctaReadGuide}
-          </Link>
+          <DocsLink href="/docs/getting-started">{fr.ctaReadGuide}</DocsLink>
           <span className="t-small text-[var(--color-text-dim)]">
             {fr.stepHint}
           </span>

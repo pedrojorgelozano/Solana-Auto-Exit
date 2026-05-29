@@ -153,7 +153,7 @@ export const es: typeof en = {
       step3Body:
         "Para cada posición, configura un precio de take-profit, un stop-loss, o ambos. El bot cierra cuando se cumpla cualquiera primero; opcionalmente swappea las ganancias a un stable.",
       ctaCreateWallet: "Crear la wallet del bot →",
-      ctaReadGuide: "Lee la guía completa →",
+      ctaReadGuide: "Lee la guía completa",
       stepHint: "Paso 1 de 3 · puedes parar y reanudar en cualquier momento.",
       localEyebrow: "Stack local",
       localBody:
@@ -203,7 +203,7 @@ export const es: typeof en = {
     },
 
     eyebrow: {
-      whatIs: "→ Qué es una bot wallet",
+      whatIs: "Qué es una bot wallet",
     },
 
     hub: {
@@ -237,9 +237,9 @@ export const es: typeof en = {
       path2Title: "Transfiere un NFT de posición existente",
       path2Body:
         "Desde cualquier cuenta que tenga ahora mismo una posición Whirlpool o DLMM, envía el NFT de la posición a la address de arriba. La propiedad pasa a la bot wallet y la posición queda cerrable desde aquí. Acuérdate de dejar suficiente SOL en la bot wallet para los fees de close + swap.",
-      openOrca: "abrir orca ↗",
-      openMeteora: "abrir meteora ↗",
-      stepByStep: "→ Guía paso a paso",
+      openOrca: "abrir orca",
+      openMeteora: "abrir meteora",
+      stepByStep: "Guía paso a paso",
     },
 
     activity: {
@@ -324,7 +324,7 @@ export const es: typeof en = {
       readMoreBuffer: "→ Leer más",
 
       section2: "2 — Qué hacer con el output",
-      section2Docs: "→ docs",
+      section2Docs: "docs",
       exitKeepBoth: "Mantener ambos tokens",
       exitSell: (sym: string) => `Vender a ${sym}`,
       exitNoneCopy:
@@ -643,7 +643,7 @@ export const es: typeof en = {
       copy: "Si está activo, la app pregunta a GitHub si hay una versión nueva cada vez que arranca. Off por defecto — esa comprobación es una petición de red que sale de tu ordenador, así que es opt-in.",
       notTauriCopy:
         "El auto-update solo está disponible en la app desktop instalada. Estás ejecutando el servidor fuera de Tauri, así que las actualizaciones son manuales.",
-      notTauriLink: "→ Cómo actualizar manualmente",
+      notTauriLink: "Cómo actualizar manualmente",
     },
 
     networkSection: {
@@ -663,7 +663,7 @@ export const es: typeof en = {
     realCopy:
       "Modo real — los auto-exits firman en Solana mainnet con fondos reales.",
     realLocked: "El modo real está bloqueado en este servidor.",
-    realLockedHow: "→ Cómo activarlo",
+    realLockedHow: "Cómo activarlo",
     realLockedDisabled: "Bloqueado — activar en el entorno del servidor",
     switchTestPrompt:
       "¿Volver a modo test? Los nuevos auto-exits correrán en Solana devnet.",
@@ -717,7 +717,7 @@ export const es: typeof en = {
       copy5Must: "tiene que",
       copy5Rest:
         " completarse. Acepta un peaje alto de price impact a cambio de riesgo de reversión casi cero.",
-      docsLink: "→ Cómo afecta el slippage al cierre",
+      docsLink: "Cómo afecta el slippage al cierre",
     },
 
     exitSlippage: {
@@ -746,7 +746,7 @@ export const es: typeof en = {
         " · barato en RPC. Perfecto si usas time buffers — la espera del buffer de horas eclipsa la cadencia del polling.",
       copy5min:
         " · solo para buffers muy largos (días) o pools estables y lentos. Con triggers sin buffer puedes perder el cruce.",
-      docsLink: "→ Intervalo de poll, coste RPC y buffers",
+      docsLink: "Intervalo de poll, coste RPC y buffers",
     },
 
     perTaskNote:
@@ -774,7 +774,7 @@ export const es: typeof en = {
     pageDescription:
       "La cuenta con la que el bot abre y cierra tus auto-exits. Vive cifrada en tu equipo y solo se desbloquea cuando tú la desbloqueas.",
     backLabel: "Inicio",
-    encryptionLink: "→ Cómo funciona el cifrado y el almacenamiento de claves",
+    encryptionLink: "Cómo funciona el cifrado y el almacenamiento de claves",
     loading: "Cargando estado de la wallet…",
     backendError: (msg: string) => `No se puede contactar con el backend: ${msg}`,
 
@@ -790,7 +790,7 @@ export const es: typeof en = {
       body:
         "Genera un keypair nuevo en esta máquina, o importa la clave privada de una única cuenta de Solana desde Phantom, Backpack, o la Solana CLI. La clave se cifra con un passphrase y se usa solo para firmar los cierres que configures.",
       cta: "Configurar bot wallet →",
-      docs: "→ Leer sobre los tres caminos",
+      docs: "Leer sobre los tres caminos",
     },
 
     locked: {
@@ -824,8 +824,7 @@ export const es: typeof en = {
         "Saca la key desencriptada de la memoria. El archivo cifrado se queda en disco — desbloquear te pide la passphrase de nuevo.",
       lockExplainP2:
         "Los auto-exits activos se pausan mientras esté bloqueada y se reanudan al desbloquear. Útil si vas a estar fuera bastante tiempo y prefieres que el bot deje de vigilar.",
-      lockExplainTradeoff:
-        "→ Notas de seguridad",
+      lockExplainTradeoff: "Notas de seguridad",
       lockButton: "Bloquear wallet",
       locking: "Bloqueando…",
       lock: "Bloquear",
@@ -833,7 +832,7 @@ export const es: typeof en = {
 
     danger: {
       eyebrow: "Zona peligrosa",
-      docsLink: "→ Qué hace realmente el borrado",
+      docsLink: "Qué hace realmente el borrado",
       explainReset:
         "Borra permanentemente el archivo de wallet cifrada. La wallet on-chain no se ve afectada — solo se elimina la copia cifrada de este servidor.",
       explainLostPass:
@@ -902,7 +901,7 @@ export const es: typeof en = {
         "La clave se guarda cifrada en disco en esta máquina y se descifra en memoria solo mientras la wallet está desbloqueada. Si tanto tu passphrase como el archivo cifrado de la wallet fueran comprometidos a la vez, los activos en esta única address podrían moverse por el atacante — nada más en tu wallet, ninguna otra cuenta, ninguna address derivada de seed.",
       body2:
         "La práctica habitual es importar una cuenta dedicada a operaciones activas (una cuenta \"caliente\" separada de las cold holdings), no la cuenta donde guardas todo.",
-      readMore: "→ Leer el blast radius preciso",
+      readMore: "Leer el blast radius preciso",
     },
     success: {
       title: "Guarda tu secreto. Ahora.",
@@ -931,7 +930,7 @@ export const es: typeof en = {
     address: {
       label: "Address",
       balance: "Balance",
-      faucetCta: "→ Conseguir SOL de devnet del faucet",
+      faucetCta: "Conseguir SOL de devnet del faucet",
       scanHint: "escanea para enviar fondos",
     },
   },

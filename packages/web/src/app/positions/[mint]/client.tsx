@@ -13,6 +13,7 @@ import { FieldError } from "@/components/ui/Card";
 import { Segmented } from "@/components/ui/Segmented";
 import { trpc } from "@/lib/trpc";
 import { formatTrpcError } from "@/lib/trpcError";
+import { DocsLink } from "@/components/ui/DocsLink";
 import { taskDetailHref } from "@/lib/routes";
 import { NETWORK, RPC_URL } from "@/lib/constants";
 import {
@@ -696,12 +697,7 @@ function ConfigureForm({
       <fieldset className="hairline-t pt-8">
         <div className="mb-4 flex items-baseline justify-between gap-3">
           <legend className="t-eyebrow">{f.section2}</legend>
-          <Link
-            href="/docs/auto-exit#exit-token"
-            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-          >
-            {f.section2Docs}
-          </Link>
+          <DocsLink href="/docs/auto-exit#exit-token">{f.section2Docs}</DocsLink>
         </div>
         <Segmented
           value={exitChoice}
@@ -1027,12 +1023,9 @@ function SimulationToggle({
             ? "No transactions will be sent. The bot logs the close + swap quotes when the target is hit and stops."
             : "Transactions will be signed and broadcast to the chain. Use only when you're confident."}
         </p>
-        <Link
-          href="/docs/auto-exit"
-          className="mt-2 inline-block t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
-          → What simulation actually does
-        </Link>
+        <DocsLink href="/docs/auto-exit" className="mt-2">
+          What simulation actually does
+        </DocsLink>
       </div>
     </div>
   );

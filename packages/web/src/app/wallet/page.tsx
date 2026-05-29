@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
 import { FieldError } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { DocsLink } from "@/components/ui/DocsLink";
 import { Label, PasswordInput } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
 import { formatTrpcError } from "@/lib/trpcError";
@@ -33,12 +33,7 @@ export default function WalletPage() {
       />
 
       <div className="-mt-6 mb-10">
-        <Link
-          href="/docs/security"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
-          {w.encryptionLink}
-        </Link>
+        <DocsLink href="/docs/security">{w.encryptionLink}</DocsLink>
       </div>
 
       {status.isLoading ? (
@@ -91,12 +86,7 @@ function ConnectCta() {
         </p>
         <div className="mt-6 flex flex-wrap items-baseline gap-4">
           <Button onClick={connect.open}>{w.noVault.cta}</Button>
-          <Link
-            href="/docs/bot-wallet"
-            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-          >
-            {w.noVault.docs}
-          </Link>
+          <DocsLink href="/docs/bot-wallet">{w.noVault.docs}</DocsLink>
         </div>
       </section>
     </div>
@@ -259,12 +249,9 @@ function UnlockedSection({
           <p>{u.lockExplainP2}</p>
         </div>
         <div className="mt-6 flex items-baseline justify-between gap-4 flex-wrap">
-          <Link
-            href="/docs/security#hot-wallet-tradeoff"
-            className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-          >
+          <DocsLink href="/docs/security#hot-wallet-tradeoff">
             {u.lockExplainTradeoff}
-          </Link>
+          </DocsLink>
           <Button variant="secondary" onClick={onLock} disabled={lock.isPending}>
             {lock.isPending ? u.locking : u.lockButton}
           </Button>
@@ -305,12 +292,9 @@ function DangerZone({
     <section className="hairline-t pt-8">
       <div className="flex items-baseline justify-between gap-3">
         <div className="t-eyebrow text-[var(--color-danger)]">{d.eyebrow}</div>
-        <Link
-          href="/docs/bot-wallet#deleting-the-wallet"
-          className="t-eyebrow text-[var(--color-text-muted)] hover:text-[var(--color-accent-bright)] transition-colors"
-        >
+        <DocsLink href="/docs/bot-wallet#deleting-the-wallet">
           {d.docsLink}
-        </Link>
+        </DocsLink>
       </div>
       <p className="mt-3 max-w-xl t-body text-[var(--color-text-muted)]">
         {explanation}
