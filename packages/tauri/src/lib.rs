@@ -131,7 +131,27 @@ async fn check_for_updates(app: tauri::AppHandle) {
     if !approved {
         return;
     }
-    match update.download_and_install(|_, _| {}, || {}).await {
+    // Matar el sidecar JUSTO antes de lanzar el installer NSIS. Sin esto,
+    // el .exe del sidecar (que el installer va a sobrescribir) queda
+    // bloqueado por el proceso vivo y NSIS aborta con "Error opening file
+    // for writing" — bug descubierto al verificar el flujo end-to-end del
+    // release de v0.2.0. RunEvent::Exit no se dispara aquí porque el
+    // plugin updater hace su propio exit que se salta el handler.
+    // Lo metemos en `on_download_finish`: descarga ya completa, instalador
+    // a punto de lanzarse, momento mínimo de exposición a "sin sidecar".
+    let app_for_finish = app.clone();
+    let on_download_finish = move || {
+        let handle = app_for_finish.state::<SidecarHandle>();
+        let child = handle.0.lock().unwrap().take();
+        if let Some(child) = child {
+            let _ = child.kill();
+            eprintln!("[updater] sidecar killed before installer launch");
+        }
+    };
+    match update
+        .download_and_install(|_, _| {}, on_download_finish)
+        .await
+    {
         Ok(()) => app.restart(),
         Err(e) => eprintln!("[updater] instalación falló: {e}"),
     }
