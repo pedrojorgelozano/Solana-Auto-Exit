@@ -104,7 +104,7 @@
 - [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar.
 - [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet,
   multi-hop). Hoy solo mismo pool (ADR-008).
-- [ ] Ampliar cobertura de tests (baseline actual: 154 con Vitest). Las
+- [ ] Ampliar cobertura de tests (baseline actual: 163 con Vitest). Las
   prioridades 1–3 (vault cripto, módulos puros del engine, lifecycle de
   TaskManager) se cerraron el 2026-05-29. Pendientes priorizados:
   adapters Orca + Meteora con SDK mocks (el más delicado: los SDKs no
@@ -135,6 +135,16 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Bug de discovery RPC (QuickNode) + guards (2026-05-29)** ([ADR-043](DECISIONS.md)):
+  un usuario en v0.3.1 con QuickNode no encontraba ningún pool (sin error);
+  causa = QuickNode restringe `getProgramAccounts` (el método que usa el
+  discovery de Meteora) devolviendo `[]` con HTTP 200. Fix: `settings.get`
+  expone `rpcNetworkMismatch` (vía `inferNetworkFromRpcUrl`) y el dashboard
+  avisa cuando el host del RPC parece de otra red que la activa;
+  `positions.listOwned` decora errores de Meteora que huelen a gPA restringido;
+  Settings + empty-state recomiendan fuerte un endpoint gratuito de Helius
+  (sin key embebida — el repo es público). Confirmado por el usuario: con
+  Helius ve todos los pools. Commits `955ffb5`, `73b41c0`.
 - **Token registry ampliado + test de invariantes (2026-05-29)**: añadidos 10
   mints mainnet verificados de fuente fiable (CoinGecko/Solscan/Jupiter):
   PYUSD, JLP, jupSOL, INF, JTO, PYTH (tokens/LSTs) + USDe, USDS, EURC, USDY

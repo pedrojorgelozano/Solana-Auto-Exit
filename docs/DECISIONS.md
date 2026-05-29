@@ -1150,3 +1150,25 @@ Componentes nuevos creados: `Sidebar`, `Panel`, `StatStrip`, `TokenBadge`, `Toke
 **Alternativas consideradas**:
 - **Computar el cruce en cliente** reusando `positions.getSummary`: necesita reconstruir el `PositionRef` (`poolId`) vía `listOwnedPositions` + orquestar N queries dinámicas con hooks. Más frágil; descartado.
 - **No tocar nada** (los buffers amortiguan): los buffers solo **retrasan** el cierre, no lo eliminan; el caso sin buffer dispara inmediato. Insuficiente.
+
+## ADR-043 — Descubrimiento dependiente del RPC: aviso de mismatch red↔RPC y recomendación de Helius sin key embebida
+
+**Fecha**: 2026-05-29
+**Estado**: Aceptada
+
+**Contexto**: Un usuario (amigo de Pedro) en v0.3.1 con el RPC público de mainnet encontraba todos sus pools pero el detalle fallaba al final (rate-limit 429 del endpoint compartido); al cambiar a un endpoint de QuickNode dejó de encontrar **ningún** pool, sin error. Causa raíz verificada en el SDK instalado (`@meteora-ag/dlmm@1.9.10`): el descubrimiento de Meteora (`DLMM.getAllLbPairPositionsByUser`) usa `getProgramAccounts` con filtros, método que QuickNode (plan estándar) restringe devolviendo `[]` con HTTP 200 — sin throw. Orca, en cambio, descubre con `getTokenAccountsByOwner` (indexado, universal). Además, cambiar solo la URL del RPC en Settings NO cambia la `network` activa, así que un endpoint de devnet pegado con la app en mainnet también da "0 posiciones sin error".
+
+**Decisión**: Tres mitigaciones, ninguna embebe una API key en el repo público (una key compartida se scrapea y se rate-limita para todos, y rompería el threat model "no egress por defecto"):
+
+1. `settings.get` expone `rpcNetworkMismatch` (vía el helper ya existente `inferNetworkFromRpcUrl`); el dashboard (`DashboardAlerts`) muestra un callout cuando el host del RPC parece de otra red que la activa.
+2. `positions.listOwned` decora los errores de discovery de Meteora que apuntan a `getProgramAccounts` restringido con una pista accionable (cambiar a un proveedor que lo permita).
+3. La UI (Settings + empty-state del dashboard) recomienda fuerte un endpoint **gratuito de Helius** (su free tier permite gPA filtrado), con link al signup, en vez de embeber una key.
+
+**Consecuencias**:
+- (+) El caso "0 posiciones sin error" deja de ser silencioso: el usuario ve el porqué (red equivocada o gPA restringido) y la salida (Helius). Confirmado en producción: el usuario ve todos sus pools tras cambiar a Helius.
+- (+) Cero egress nuevo en runtime; coherente con el threat model. La recomendación es texto + link, no una llamada.
+- (+) Documenta el requisito de RPC **por protocolo** (Meteora=gPA, Orca=gTABO), insumo directo para evaluar Raydium/Kamino (ver TODO).
+- (−) El default arrancable sigue siendo el RPC público (rate-limited); el usuario tiene que dar el paso de pegar su URL de Helius. Aceptado: es la única opción sin key embebida.
+- (−) `inferNetworkFromRpcUrl` es heurístico por hostname; un RPC privado/custom no se clasifica (devuelve null → sin aviso), por diseño para no molestar al power-user con nodo propio.
+
+**Alternativas consideradas**: (a) embeber una key de Helius del maintainer en el default — rechazada (scraping + rate-limit compartido + rompe "no egress por defecto"); (b) cargar la Jupiter token list / montar un proxy de RPC — fuera de alcance y contra el threat model; (c) dejar el fallo silencioso y solo documentarlo — rechazada (es el bug que motivó todo).

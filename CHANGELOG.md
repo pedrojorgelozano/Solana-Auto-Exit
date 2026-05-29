@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Quality and robustness improvements after v0.3.1, driven by a real user hitting a broken-position-discovery bug. No breaking changes, no schema/migration changes, no new permissions or egress. Tests 154 → 163.
+
+### Added
+- **RPC / network mismatch warning on the dashboard.** Changing only the RPC URL in Settings doesn't change the active `network`, so pasting a devnet endpoint (or a provider that restricts `getProgramAccounts`) while the app is on mainnet made discovery query the wrong network and return "0 positions" with no error — the user thought they had nothing. `settings.get` now exposes `rpcNetworkMismatch` (computed via the existing `inferNetworkFromRpcUrl` host heuristic) and the dashboard surfaces a callout when the RPC host looks like a different network than the one selected. Unknown/private hosts return null → no nag for power users running their own node. See ADR-043.
+- **Configurable receipt diff threshold.** The actual-vs-quoted difference on a close/swap receipt (`ActualLine`) was highlighted in warning above a hardcoded `0.01%`. Now a `/settings` field (`diffWarningThresholdBps`, persisted as `diff_warning_threshold_bps`) controls it; default 1 bps (= 0.01%, preserving prior behaviour), 0 flags any non-zero difference. Same pattern as the low-balance threshold; shown in % in the UI.
+- **Token registry expanded (+10 verified mints).** Added PYUSD, JLP, jupSOL, INF, JTO, PYTH plus the top Solana stablecoins USDe, USDS, EURC, USDY — each mint *and* decimals verified one by one against CoinGecko/Solscan/Jupiter/DefiLlama. **USDe is 9 decimals** (not 6 like other stables); assuming 6 would have shown amounts off by 1000×. More pairs now render a symbol instead of a truncated address.
+
+### Changed
+- **Discovery errors for Meteora are now actionable.** `positions.listOwned` decorates errors that point at a restricted/disabled `getProgramAccounts` (the method Meteora discovery relies on, which some providers like QuickNode's standard plan cap) with a hint to switch to a provider that allows it. Confirmed in the wild: the reporting user sees all their pools after switching to Helius.
+- **Settings/empty-state recommend a free Helius mainnet endpoint.** Strongly, with a signup link — without embedding an API key (the repo is public; a shared key would be scraped and rate-limited for everyone, and would break the "no egress by default" posture). See ADR-043.
+
+### Tests
+- **154 → 163.** New `tokens.test.ts` (the first test in the `web` package, 8 tests) asserting token-registry invariants — unique mints/symbols, plausible base58 length (no `0OIl`), decimals 0-18, and the lookup helpers — so a duplicated or mistyped mint can't silently show the wrong symbol on a funded position. Plus a QuickNode endpoint-format case for `inferNetworkFromRpcUrl`.
+
 ## [0.3.1] — 2026-05-29
 
 Patch release. Makes auto-update robust against the sidecar file-lock for clients upgrading from *any* prior version — including the v0.2.0 / v0.1.x builds that predate the Rust-side fix and therefore couldn't auto-update to v0.3.0 — by moving the kill into an NSIS preinstall hook that ships inside the installer itself. No other changes.
