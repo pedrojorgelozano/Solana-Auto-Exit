@@ -216,14 +216,24 @@ export const en = {
       errorsBody:
         "Something went wrong on the last close. Check the details and resume or stop.",
       errorsCta: "View in history",
-      resumeEyebrow: (n: number) =>
+      resumeSafeEyebrow: (n: number) =>
         n === 1
-          ? "1 auto-exit paused when the wallet was locked"
-          : `${n} auto-exits paused when the wallet was locked`,
-      resumeBody:
-        "Resume them when you want to keep watching prices again.",
-      resumeCta: "Resume all",
-      resumeCtaPending: "Resuming…",
+          ? "1 auto-exit ready to resume"
+          : `${n} auto-exits ready to resume`,
+      resumeSafeBody:
+        "Price hasn't crossed their triggers — resuming just keeps watching.",
+      resumeSafeCta: "Resume these",
+      resumeSafeCtaPending: "Resuming…",
+      resumeReviewEyebrow: (n: number) =>
+        n === 1
+          ? "1 auto-exit crossed its trigger while locked"
+          : `${n} auto-exits crossed their trigger while locked`,
+      resumeReviewBody:
+        "Resuming would close them right away (or after the buffer). Open each one to decide.",
+      resumeReviewLink: "Review",
+      resumeCrossedTakeProfit: "Crossed take-profit",
+      resumeCrossedStopLoss: "Crossed stop-loss",
+      resumeUnverified: "Couldn't read price",
       dbBloatedEyebrow: "Database is unusually large",
       dbBloatedBody: (mb: string) =>
         `The SQLite file is now ${mb} MB. Normal usage is well under that — this may indicate a runaway append. Review historical tasks and consider exporting + cleaning up.`,

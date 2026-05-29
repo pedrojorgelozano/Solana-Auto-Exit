@@ -165,6 +165,24 @@ export const tasksRouter = router({
     return ctx.taskManager.listHistory(input.id);
   }),
 
+  /**
+   * Candidatas a "resume seguro": tasks pausadas-por-sistema (vault-lock /
+   * reinicio) con el análisis de si su precio cruzó el trigger mientras
+   * estaban pausadas. Lee precio on-chain por candidata (N RPC). Devuelve []
+   * cuando no hay nada pausado por sistema — barato en el caso común. El
+   * cliente lo usa para partir el callout en "reanudables" vs "revisar".
+   */
+  resumeCandidates: publicProcedure.query(async ({ ctx }) => {
+    try {
+      return await ctx.taskManager.evaluateResumeCandidates();
+    } catch (err) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }),
+
   /** Arma el watcher. Requiere vault unlocked. */
   start: publicProcedure.input(idInput).mutation(({ ctx, input }) => {
     try {

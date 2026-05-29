@@ -19,6 +19,13 @@ import type { WalletVault } from "../wallet/vault.js";
 import type { CreateTaskInput, TaskEvent } from "./types.js";
 import { verifyTxBalances } from "./verify.js";
 import { evalBuffer as evalBufferPure, type TriggerKind } from "./buffer.js";
+import {
+  isSystemPaused,
+  evaluateTriggerCross,
+  VAULT_LOCKED_MESSAGE,
+  SERVER_RESTART_MESSAGE,
+  type ResumeCandidate,
+} from "./resume.js";
 
 /**
  * Estados que el TaskManager considera "activos" — son los que se deberían
@@ -75,7 +82,7 @@ export class TaskManager {
           .set({
             status: "paused",
             updatedAt: new Date(),
-            lastError: "Server restarted; resume after unlocking the vault.",
+            lastError: SERVER_RESTART_MESSAGE,
           })
           .where(eq(tasks.id, row.id))
           .run();
@@ -358,7 +365,7 @@ export class TaskManager {
           .set({
             status: "paused",
             updatedAt: new Date(),
-            lastError: "Vault was locked while running.",
+            lastError: VAULT_LOCKED_MESSAGE,
           })
           .where(eq(tasks.id, id))
           .run();
@@ -373,6 +380,77 @@ export class TaskManager {
       entry.controller.abort();
       this.running.delete(id);
     }
+  }
+
+  /**
+   * Analiza las tasks pausadas-por-sistema para el "resume seguro" del
+   * dashboard. Para cada una lee el precio actual on-chain (mismo camino que
+   * el watcher: init → resolvePosition → getPrice) y comprueba si cruzó su
+   * trigger mientras estaba pausada. El cliente parte el resultado en
+   * "reanudables sin riesgo" (precio leído y NO cruzó) vs "revisar antes"
+   * (cruzó, o no se pudo leer el precio).
+   *
+   * Coste: N llamadas RPC (una por candidata). Solo hay candidatas justo tras
+   * un lock/reinicio, así que en el 95% del tiempo devuelve [] sin tocar red.
+   * Requiere el vault unlocked para `init`; si está locked, todas salen como
+   * "revisar" (priceError) — nunca marcamos algo "seguro" sin precio real.
+   */
+  async evaluateResumeCandidates(): Promise<ResumeCandidate[]> {
+    const paused = this.db
+      .select()
+      .from(tasks)
+      .where(eq(tasks.status, "paused"))
+      .all()
+      .filter((row) => isSystemPaused(row.lastError));
+    if (paused.length === 0) return [];
+
+    const unlocked = this.vault.isUnlocked();
+
+    return Promise.all(
+      paused.map(async (row): Promise<ResumeCandidate> => {
+        const base: ResumeCandidate = {
+          id: row.id,
+          label: row.positionId,
+          currentPrice: null,
+          takeProfitPrice: row.takeProfitPrice,
+          stopLossPrice: row.stopLossPrice,
+          crossed: false,
+          crossedBy: null,
+          priceError: null,
+        };
+        if (!unlocked) {
+          return { ...base, priceError: "Vault is locked." };
+        }
+        try {
+          const adapter = makeAdapter(row.protocol);
+          await adapter.init(
+            this.toBaseConfig(row),
+            row.protocolConfig,
+            this.vault.getKeypair(),
+            this.vault.getRawSecret(),
+          );
+          const position = await adapter.resolvePosition();
+          const price = await adapter.getPrice(position);
+          const { crossed, crossedBy } = evaluateTriggerCross(
+            price,
+            row.takeProfitPrice,
+            row.stopLossPrice,
+          );
+          return {
+            ...base,
+            label: position.poolLabel,
+            currentPrice: price,
+            crossed,
+            crossedBy,
+          };
+        } catch (err) {
+          return {
+            ...base,
+            priceError: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }),
+    );
   }
 
   // ===========================================================================

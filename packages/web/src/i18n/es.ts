@@ -192,14 +192,24 @@ export const es: typeof en = {
       errorsBody:
         "Algo salió mal en el último cierre. Revisa qué pasó y reanuda o detén.",
       errorsCta: "Ver en histórico",
-      resumeEyebrow: (n: number) =>
+      resumeSafeEyebrow: (n: number) =>
         n === 1
-          ? "1 auto-exit pausado al bloquear la wallet"
-          : `${n} auto-exits pausados al bloquear la wallet`,
-      resumeBody:
-        "Reanúdalos cuando quieras seguir vigilando los precios.",
-      resumeCta: "Reanudar todos",
-      resumeCtaPending: "Reanudando…",
+          ? "1 auto-exit listo para reanudar"
+          : `${n} auto-exits listos para reanudar`,
+      resumeSafeBody:
+        "El precio no ha cruzado sus triggers — reanudar solo vuelve a vigilar.",
+      resumeSafeCta: "Reanudar estos",
+      resumeSafeCtaPending: "Reanudando…",
+      resumeReviewEyebrow: (n: number) =>
+        n === 1
+          ? "1 auto-exit cruzó su trigger mientras estaba bloqueado"
+          : `${n} auto-exits cruzaron su trigger mientras estaban bloqueados`,
+      resumeReviewBody:
+        "Reanudarlos los cerraría ya mismo (o tras el buffer). Abre cada uno para decidir.",
+      resumeReviewLink: "Revisar",
+      resumeCrossedTakeProfit: "Cruzó el take-profit",
+      resumeCrossedStopLoss: "Cruzó el stop-loss",
+      resumeUnverified: "No se pudo leer el precio",
       dbBloatedEyebrow: "Base de datos inusualmente grande",
       dbBloatedBody: (mb: string) =>
         `El archivo SQLite pesa ahora ${mb} MB. El uso normal está muy por debajo — esto puede indicar un append desbocado. Revisa el histórico y considera exportar + limpiar.`,

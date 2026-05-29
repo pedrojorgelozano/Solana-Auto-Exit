@@ -251,3 +251,43 @@ describe("TaskManager — paginación e histórico", () => {
     expect(completed.map((r) => r.status).sort()).toEqual(["done", "stopped"]);
   });
 });
+
+describe("TaskManager.evaluateResumeCandidates (sin red)", () => {
+  let mgr: TaskManager;
+
+  beforeEach(() => {
+    // Vault nunca desbloqueado → la rama de lectura de precio no toca red.
+    mgr = new TaskManager(newDb(), new WalletVault("/tmp/never-exists-vault"));
+  });
+
+  function pauseSystem(id: string, lastError: string): void {
+    (mgr as unknown as Internals).db
+      .update(schema.tasks)
+      .set({ status: "paused", lastError })
+      .where(eq(schema.tasks.id, id))
+      .run();
+  }
+
+  it("solo incluye paused-por-sistema; con vault locked salen como priceError", async () => {
+    const sys = mgr.createTask(inputFixture()).id;
+    pauseSystem(sys, "Vault was locked while running.");
+    const userPaused = mgr.createTask(inputFixture()).id;
+    setStatus(mgr, userPaused, "paused"); // lastError null → pausa de usuario
+    const armed = mgr.createTask(inputFixture()).id;
+    setStatus(mgr, armed, "armed");
+
+    const candidates = await mgr.evaluateResumeCandidates();
+
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]!.id).toBe(sys);
+    expect(candidates[0]!.priceError).toMatch(/locked/i);
+    expect(candidates[0]!.currentPrice).toBeNull();
+    expect(candidates[0]!.crossed).toBe(false); // nunca "seguro" sin precio real
+  });
+
+  it("devuelve [] cuando no hay paused-por-sistema", async () => {
+    const done = mgr.createTask(inputFixture()).id;
+    setStatus(mgr, done, "done");
+    expect(await mgr.evaluateResumeCandidates()).toEqual([]);
+  });
+});

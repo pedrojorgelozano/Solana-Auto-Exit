@@ -3,28 +3,13 @@
 import Link from "next/link";
 import { trpc } from "@/lib/trpc";
 import { useT } from "@/i18n/context";
-import { formatTokenAmount } from "@/lib/format";
-
-// Strings literales que el server pone en `lastError` cuando pausa tasks
-// automáticamente (vault-lock o boot tras reinicio). Si el server los
-// cambia, ajustar aquí — son la heurística para distinguir paused-system
-// de paused-user, ya que no hay campo `pausedReason` persistido.
-// Fuente: packages/server/src/tasks/manager.ts `pauseAllOnVaultLock` y
-// `boot`.
-const SYSTEM_PAUSE_MARKERS = [
-  "Vault was locked while running",
-  "Server restarted; resume after unlocking",
-];
+import { formatTokenAmount, formatPrice } from "@/lib/format";
+import { taskDetailHref } from "@/lib/routes";
 
 // 50 MB. Uso normal son <2MB/año (1 task por mes, ~100 history rows
 // por task con payload pequeño). Saltar por encima de esto indica
 // con casi total seguridad un bug que infla la DB.
 const DB_BLOATED_THRESHOLD_BYTES = 50 * 1024 * 1024;
-
-function isSystemPaused(lastError: string | null): boolean {
-  if (!lastError) return false;
-  return SYSTEM_PAUSE_MARKERS.some((m) => lastError.includes(m));
-}
 
 /**
  * Bloque de alertas del dashboard. Solo renderiza algo cuando hay un
@@ -73,6 +58,28 @@ export function DashboardAlerts({
   const dbSizeBytes = dbSizeQuery.data?.bytes ?? 0;
   const dbBloated = dbSizeBytes > DB_BLOATED_THRESHOLD_BYTES;
   const dbSizeMb = (dbSizeBytes / (1024 * 1024)).toFixed(1);
+  // Análisis de "resume seguro": el server lee el precio actual de cada task
+  // pausada-por-sistema y dice si cruzó su trigger. Solo cuando unlocked
+  // (sin unlock no puede resumir y el endpoint necesita la clave para leer
+  // precio). Refetch lento — solo hay candidatas tras un lock/reinicio, y el
+  // precio cambia despacio frente a la decisión de revisar.
+  const resumeCandidates = trpc.tasks.resumeCandidates.useQuery(undefined, {
+    enabled: unlocked,
+    refetchInterval: 30_000,
+  });
+  const candidates = resumeCandidates.data ?? [];
+  // Invariante de seguridad: algo es "reanudable" SOLO si leímos un precio
+  // real y NO cruzó. Precio nulo (RPC falló, posición cerrada) o cruzado →
+  // siempre a "revisar". Nunca reanudamos a ciegas.
+  const safeToResume = candidates.filter(
+    (c) => c.currentPrice !== null && !c.crossed,
+  );
+  const toReview = candidates.filter(
+    (c) => c.currentPrice === null || c.crossed,
+  );
+  const showSafeResume = unlocked && safeToResume.length > 0;
+  const showReview = unlocked && toReview.length > 0;
+
   const start = trpc.tasks.start.useMutation();
   const utils = trpc.useUtils();
 
@@ -92,38 +99,59 @@ export function DashboardAlerts({
   const errorCount = (tasks.data ?? []).filter((t) => t.status === "error")
     .length;
 
-  // Candidatas a bulk-resume: solo cuando la wallet ya está unlocked
-  // (sin unlock no puede resumir). Las pausas user no se incluyen — el
-  // user las pausó a propósito.
-  const systemPaused = (tasks.data ?? []).filter(
-    (t) => t.status === "paused" && isSystemPaused(t.lastError),
-  );
-  const showResumeCallout = unlocked && systemPaused.length > 0;
-
   if (
     !lowBalance &&
     !balanceQueryFailed &&
     errorCount === 0 &&
-    !showResumeCallout &&
+    !showSafeResume &&
+    !showReview &&
     !dbBloated
   )
     return null;
 
-  const handleResumeAll = async () => {
+  // Solo reanudamos las que el server marcó seguras. Las "revisar" se
+  // quedan pausadas hasta que el usuario decida task por task.
+  const handleResumeSafe = async () => {
     await Promise.allSettled(
-      systemPaused.map((task) => start.mutateAsync({ id: task.id })),
+      safeToResume.map((c) => start.mutateAsync({ id: c.id })),
     );
-    await utils.tasks.list.invalidate();
+    await Promise.all([
+      utils.tasks.list.invalidate(),
+      utils.tasks.resumeCandidates.invalidate(),
+    ]);
   };
 
   return (
     <div className="mt-6 flex flex-col gap-3">
-      {showResumeCallout ? (
+      {showReview ? (
+        <ReviewCallout
+          eyebrow={a.resumeReviewEyebrow(toReview.length)}
+          body={a.resumeReviewBody}
+          linkLabel={a.resumeReviewLink}
+          items={toReview.map((c) => ({
+            id: c.id,
+            label: c.label,
+            reason:
+              c.currentPrice === null
+                ? a.resumeUnverified
+                : c.crossedBy === "stop_loss"
+                  ? a.resumeCrossedStopLoss
+                  : a.resumeCrossedTakeProfit,
+            detail:
+              c.currentPrice === null
+                ? null
+                : c.crossedBy === "stop_loss"
+                  ? `${formatPrice(c.currentPrice)} ≤ ${formatPrice(c.stopLossPrice ?? 0)}`
+                  : `${formatPrice(c.currentPrice)} ≥ ${formatPrice(c.takeProfitPrice ?? 0)}`,
+          }))}
+        />
+      ) : null}
+      {showSafeResume ? (
         <AlertCallout
-          eyebrow={a.resumeEyebrow(systemPaused.length)}
-          body={a.resumeBody}
-          ctaLabel={start.isPending ? a.resumeCtaPending : a.resumeCta}
-          ctaOnClick={handleResumeAll}
+          eyebrow={a.resumeSafeEyebrow(safeToResume.length)}
+          body={a.resumeSafeBody}
+          ctaLabel={start.isPending ? a.resumeSafeCtaPending : a.resumeSafeCta}
+          ctaOnClick={handleResumeSafe}
           ctaDisabled={start.isPending}
           icon={<ResumeIcon />}
         />
@@ -251,6 +279,112 @@ function AlertCallout({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Callout de "revisar antes de reanudar": lista las tasks cuyo precio cruzó
+ * el trigger mientras estaban pausadas (o no se pudo verificar). No tiene
+ * bulk-action — cada una se revisa por separado, porque reanudarlas dispararía
+ * un cierre. Cada fila enlaza al detalle de la task.
+ */
+function ReviewCallout({
+  eyebrow,
+  body,
+  linkLabel,
+  items,
+}: {
+  eyebrow: string;
+  body: string;
+  linkLabel: string;
+  items: Array<{
+    id: string;
+    label: string;
+    reason: string;
+    detail: string | null;
+  }>;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className="
+        rounded-[10px] border border-[var(--color-hairline)]
+        border-l-[3px] border-l-[var(--color-warning)]
+        bg-[var(--color-bg-elevated)]
+        px-5 py-4
+      "
+    >
+      <div className="flex items-center gap-4">
+        <span
+          className="
+            inline-flex h-9 w-9 flex-none items-center justify-center
+            rounded-full bg-[var(--color-warning)]/12
+          "
+          aria-hidden
+        >
+          <ReviewIcon />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="text-[12px] font-semibold uppercase tracking-[0.2em] text-[var(--color-warning)]">
+            {eyebrow}
+          </div>
+          <p className="mt-1 text-[15px] text-[var(--color-text)]">{body}</p>
+        </div>
+      </div>
+      <ul className="mt-3 flex flex-col">
+        {items.map((it) => (
+          <li
+            key={it.id}
+            className="
+              flex items-center gap-3 py-2.5
+              border-t border-[var(--color-hairline)]
+            "
+          >
+            <span className="min-w-0 flex-1 truncate text-[14px] text-[var(--color-text)]">
+              {it.label}
+            </span>
+            <span className="flex-none text-[12px] text-[var(--color-text-muted)]">
+              {it.reason}
+              {it.detail ? (
+                <span className="ml-1.5 font-mono text-[var(--color-text-dim)]">
+                  {it.detail}
+                </span>
+              ) : null}
+            </span>
+            <Link
+              href={taskDetailHref(it.id)}
+              className="
+                flex-none inline-flex items-center gap-1
+                text-[12px] font-semibold uppercase tracking-[0.16em]
+                text-[var(--color-warning)] hover:underline
+              "
+            >
+              {linkLabel}
+              <span aria-hidden>→</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function ReviewIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="var(--color-warning)"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[17px] w-[17px]"
+      aria-hidden
+    >
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-3.6-3.6" />
+    </svg>
   );
 }
 
