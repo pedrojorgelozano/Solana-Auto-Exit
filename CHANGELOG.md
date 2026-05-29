@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+- **Sidecar-zombie fix, now also on the installer side (NSIS preinstall hook).** v0.3.0 fixed the auto-update file-lock from the *Rust* side (`on_download_finish` kills the sidecar before the installer runs), but that only helps when the build *performing* the update already carries it — so updating *from* v0.2.0 or earlier still aborted with *"Error opening file for writing"* (confirmed in the wild on the v0.2.0 → v0.3.0 hop). A new NSIS `NSIS_HOOK_PREINSTALL` (`packages/tauri/nsis-hooks.nsh`, wired via `bundle.windows.nsis.installerHooks`) runs `taskkill /F /T /IM auto-exit-server.exe` at the start of installation. Because it travels in the *new* installer, it protects the update regardless of which (possibly fix-less) version is being upgraded from — so v0.2.0 stragglers can finally auto-update to this release. Belt-and-suspenders with the Rust-side kill.
+
 ## [0.3.0] — 2026-05-29
 
 The hardening release. Ships the P0 fix for the sidecar-zombie bug that broke auto-update. **Important:** the fix runs in the app *performing* the update (it kills the sidecar before the installer overwrites it), so it only takes effect for updates done *by* a build that already carries it — i.e. from v0.3.0 onward (v0.3.0 → v0.3.1+). Updating *to* v0.3.0 from v0.2.0 or earlier still hits the bug, because those builds predate the fix; install v0.3.0 manually instead (fully quit Auto-Exit first, then run the installer). Two safety/correctness fixes on top: resuming auto-exits after the wallet was locked now holds back any task whose price crossed its trigger while paused (instead of bulk-resuming it into an immediate close), and the "one active auto-exit per position" rule is now enforced on the backend, not just in the UI. Plus a large jump in automated test coverage (55 → 154) and some build hygiene. No breaking changes; no new permissions or egress.
