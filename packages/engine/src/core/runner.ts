@@ -2,7 +2,7 @@ import type { KeyPairSigner } from "@solana/kit";
 import type { BaseConfig, ProtocolAdapter } from "../protocols/types.js";
 import { log } from "./logger.js";
 import { loop } from "./loop.js";
-import { withRetry } from "./retry.js";
+import { withRetry, isPermanentSolanaError } from "./retry.js";
 
 export interface RunnerOptions {
   adapter: ProtocolAdapter;
@@ -41,7 +41,12 @@ export async function runRunner(opts: RunnerOptions): Promise<void> {
       log("Trigger alcanzado. Cerrando posición...");
       const result = await withRetry(
         () => adapter.closePosition(position, base.slippageBps, base.dryRun),
-        { maxAttempts: 5, baseMs: 1000, label: `${adapter.name}.closePosition` },
+        {
+          maxAttempts: 5,
+          baseMs: 1000,
+          label: `${adapter.name}.closePosition`,
+          retryableErrors: (err) => !isPermanentSolanaError(err),
+        },
       );
 
       log(
@@ -73,6 +78,7 @@ export async function runRunner(opts: RunnerOptions): Promise<void> {
             maxAttempts: 5,
             baseMs: 1000,
             label: `${adapter.name}.swapToExit`,
+            retryableErrors: (err) => !isPermanentSolanaError(err),
           },
         );
 
