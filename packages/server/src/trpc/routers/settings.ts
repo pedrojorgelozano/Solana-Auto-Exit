@@ -381,8 +381,26 @@ export const settingsRouter = router({
   }),
 });
 
-function parseIntOr(raw: string | undefined, fallback: number): number {
+/**
+ * Parsea un entero persistido en DB con clamp opcional. Antes era
+ * `Number.isFinite ? n : fallback`, lo que dejaba pasar negativos
+ * (`defaultSlippageBps = -100` se persistía sin protesta y causaba
+ * comportamiento silencioso). Ahora rechaza los valores fuera de rango
+ * y devuelve el fallback — el caller no necesita validar otra vez.
+ * Las keys aplicables del settings router son todas no-negativas, y
+ * el `updateInput` zod ya impone los upper bounds en escritura; este
+ * clamp es defensa en lectura para datos que pudieron escribirse antes
+ * del refuerzo o por una migración manual.
+ */
+function parseIntOr(
+  raw: string | undefined,
+  fallback: number,
+  min = 0,
+  max = Number.MAX_SAFE_INTEGER,
+): number {
   if (!raw) return fallback;
   const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) ? n : fallback;
+  if (!Number.isFinite(n)) return fallback;
+  if (n < min || n > max) return fallback;
+  return n;
 }
