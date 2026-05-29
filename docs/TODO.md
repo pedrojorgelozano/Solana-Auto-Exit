@@ -35,14 +35,31 @@
     remove-liquidity + claim + swap de salida.
   Decisión pendiente: ¿merece la pena el coste de mantenimiento de cada SDK
   vs. la demanda real? Priorizar según qué protocolos usan Pedro y su círculo.
-- [ ] Documentación en español. Todos los docs públicos del repo
-  (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/INSTALL.md`,
+- [ ] Traducir a español las páginas `/docs` del frontoffice (in-app).
+  **Importante / corrección**: el copy de los artículos de `/docs` NO está
+  i18n-izado — está hardcoded en inglés en los TSX
+  (`packages/web/src/app/docs/{slug}/page.tsx` + `_components/articles.ts`),
+  sin pasar por `useT()`. (El resto de la UI — settings, dashboard, forms —
+  sí es bilingüe; los artículos largos de docs se quedaron fuera). Incoherencia
+  visible: con la app en español, `/docs` aparece en inglés. Dos enfoques
+  evaluados (2026-05-29):
+  - **Componente por idioma**: cada `page.tsx` elige variante EN/ES según el
+    lang activo. Preserva el JSX inline, cero refactor de infra, rápido. Coste:
+    duplica el JSX por artículo + sincronización manual.
+  - **Migrar a Markdown/MDX** (cierra de paso el item de abajo "migrar /docs a
+    markdown single-source"): `faq.en.md`/`faq.es.md` renderizados con
+    react-markdown/MDX. Más limpio para prosa larga y reusable desde GitHub.
+    Coste: refactor de loader + sidebar + routing ANTES de traducir nada.
+  NO meter la prosa en `en.ts`/`es.ts` como funciones-string: son ~3000
+  palabras con markup inline (links, `<code>`, `<em>`), partirlo en claves es
+  insufrible y frágil. Decisión aplazada: features (Raydium/Kamino) primero.
+- [ ] Documentación en español de los docs del repo (GitHub, NO frontoffice).
+  `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/INSTALL.md`,
   `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/RELEASING.md`,
-  `docs/SECURITY-AUDIT.md`, `docs/TESTING.md`, `docs/TODO.md`) están
-  en inglés. La app interna sí es bilingüe EN/ES (i18n completo en
-  `/docs/*` y toda la UI), pero un usuario hispanohablante que aterriza
-  en el repo se topa con instalación / seguridad / arquitectura en
-  inglés. Plan razonable cuando se aborde:
+  `docs/SECURITY-AUDIT.md`, `docs/TESTING.md`, `docs/TODO.md` están
+  en inglés. Un usuario hispanohablante que aterriza en el repo se topa
+  con instalación / seguridad / arquitectura en inglés. Plan razonable
+  cuando se aborde:
   - Priorizar los que toca el usuario final (`README.md`, `INSTALL.md`,
     `SECURITY.md`). Los técnicos profundos (`ARCHITECTURE.md`,
     `DECISIONS.md`, `SECURITY-AUDIT.md`) son audiencia developer
