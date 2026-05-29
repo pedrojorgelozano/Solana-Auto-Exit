@@ -10,7 +10,7 @@ import { Label, PasswordInput } from "@/components/ui/Input";
 import { trpc } from "@/lib/trpc";
 import { formatTrpcError } from "@/lib/trpcError";
 import { useConnectWallet } from "@/lib/connect-wallet";
-import { truncateAddress } from "@/lib/format";
+import { formatTokenAmount, truncateAddress } from "@/lib/format";
 import { AddressDisplay } from "@/components/AddressDisplay";
 import { useT } from "@/i18n/context";
 import { NETWORK } from "@/lib/constants";
@@ -79,7 +79,7 @@ function ConnectCta() {
   const w = t.wallet;
   return (
     <div className="space-y-10">
-      <Recommendation />
+      <ScopePanel />
 
       <section className="hairline-t pt-10">
         <div className="t-eyebrow text-[var(--color-text-muted)]">
@@ -103,7 +103,7 @@ function ConnectCta() {
   );
 }
 
-function Recommendation() {
+function ScopePanel() {
   const { t } = useT();
   return (
     <aside className="border-l-2 border-[var(--color-accent)] pl-5">
@@ -206,11 +206,25 @@ function UnlockedSection({
   const lock = trpc.wallet.lock.useMutation();
   const settings = trpc.settings.get.useQuery();
   const network = settings.data?.network ?? NETWORK;
+  // Polling cada 60s, alineado con DashboardAlerts. No bajamos a 5s (que es
+  // lo del modal post-Generate, justificado allí porque el user espera que
+  // entren fondos) porque /wallet es una página de consulta general — 60s
+  // es suficiente para que el saldo se sienta vivo sin gastar cuota RPC.
+  const balance = trpc.wallet.balance.useQuery(
+    { address },
+    { refetchInterval: 60_000 },
+  );
 
   const onLock = async () => {
     await lock.mutateAsync();
     refresh();
   };
+
+  const balanceText = balance.isLoading
+    ? u.balanceLoading
+    : balance.isError || balance.data === undefined
+      ? u.balanceUnavailable
+      : `${formatTokenAmount(String(balance.data.lamports), 9, 4)} SOL`;
 
   return (
     <div className="space-y-12">
@@ -220,6 +234,12 @@ function UnlockedSection({
         </div>
         <div className="mt-4">
           <AddressDisplay address={address} network={network} size="md" />
+        </div>
+        <div className="mt-4 flex items-baseline justify-between gap-3 hairline-t pt-3 max-w-md">
+          <span className="t-eyebrow text-[var(--color-text-muted)]">
+            {u.balanceLabel}
+          </span>
+          <span className="t-num text-[var(--color-text)]">{balanceText}</span>
         </div>
         <p className="mt-5 max-w-xl t-body text-[var(--color-text-muted)]">
           {u.body}

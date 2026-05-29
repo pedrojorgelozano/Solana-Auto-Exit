@@ -848,6 +848,9 @@ export const en = {
         showTruncated: "Show truncated",
         viewOnExplorer: "View on Solscan",
       },
+      balanceLabel: "Balance",
+      balanceLoading: "…",
+      balanceUnavailable: "—",
       body:
         "The keypair is in memory. It will be used to sign close and swap transactions for armed auto-exits.",
       // Lock panel — visible solo cuando la wallet está unlocked. Explica

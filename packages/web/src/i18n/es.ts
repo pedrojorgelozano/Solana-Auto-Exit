@@ -813,6 +813,9 @@ export const es: typeof en = {
         showTruncated: "Mostrar truncada",
         viewOnExplorer: "Ver en Solscan",
       },
+      balanceLabel: "Saldo",
+      balanceLoading: "…",
+      balanceUnavailable: "—",
       body:
         "El keypair está en memoria. Se usará para firmar las transacciones de cierre y swap de los auto-exits armados.",
       lockEyebrow: "Bloquear",
