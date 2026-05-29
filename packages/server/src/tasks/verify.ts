@@ -36,6 +36,13 @@ interface RawTokenBalance {
   uiTokenAmount: { amount: string; decimals: number };
 }
 
+interface RawLoadedAddresses {
+  /** Lookup-table keys writable, indexadas después de accountKeys. */
+  writable?: string[];
+  /** Lookup-table keys readonly, indexadas después de writable. */
+  readonly?: string[];
+}
+
 interface RawTxMeta {
   err: unknown;
   fee: number;
@@ -43,6 +50,13 @@ interface RawTxMeta {
   postBalances: number[];
   preTokenBalances?: RawTokenBalance[];
   postTokenBalances?: RawTokenBalance[];
+  /**
+   * Cuando la tx usa Address Lookup Tables (LUTs), las pubkeys cargadas
+   * vía la tabla vienen aquí — NO en `message.accountKeys`. Sin parsearlas,
+   * una bot wallet que aparece SOLO en una LUT no encaja con ningún
+   * `accountKeys[i]` y el solDelta computa 0 silenciosamente (bug B-10).
+   */
+  loadedAddresses?: RawLoadedAddresses;
 }
 
 interface RawTransaction {
@@ -115,10 +129,29 @@ async function fetchTransaction(
   );
 }
 
-function keyAt(tx: RawTransaction, index: number): string | null {
-  const k = tx.transaction.message.accountKeys[index];
-  if (!k) return null;
-  return typeof k === "string" ? k : k.pubkey;
+/**
+ * Lista completa de account keys del tx en el ORDEN GLOBAL:
+ * [staticKeys, loadedWritable, loadedReadonly].
+ *
+ * El "index" que usan `preBalances` / `postBalances` apunta a esta lista
+ * concatenada, no solo a `message.accountKeys`. Si una tx carga keys vía
+ * LUT (Address Lookup Table), el balance del owner correspondiente a la
+ * key cargada vive en `preBalances[accountKeys.length + i]`. Mirar solo
+ * `accountKeys` era el bug B-10: si la bot wallet aparecía solo en una
+ * LUT, el solDelta computaba 0 silenciosamente.
+ */
+function allKeys(tx: RawTransaction): string[] {
+  const keys: string[] = [];
+  for (const k of tx.transaction.message.accountKeys) {
+    keys.push(typeof k === "string" ? k : k.pubkey);
+  }
+  for (const k of tx.meta?.loadedAddresses?.writable ?? []) {
+    keys.push(k);
+  }
+  for (const k of tx.meta?.loadedAddresses?.readonly ?? []) {
+    keys.push(k);
+  }
+  return keys;
 }
 
 /**
@@ -145,10 +178,12 @@ export async function verifyTxBalances(
   const { fee, preBalances, postBalances, preTokenBalances, postTokenBalances } =
     tx.meta;
 
-  // SOL delta: encontrar el índice del owner en accountKeys
+  // SOL delta: encontrar el índice del owner en la lista global de keys
+  // (accountKeys + LUTs cargadas). Ver `allKeys` para el orden exacto.
+  const keys = allKeys(tx);
   let solDelta = 0n;
   for (let i = 0; i < preBalances.length; i++) {
-    if (keyAt(tx, i) === owner) {
+    if (keys[i] === owner) {
       solDelta = BigInt(postBalances[i] ?? 0) - BigInt(preBalances[i] ?? 0);
       break;
     }

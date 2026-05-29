@@ -253,12 +253,20 @@ export class WalletVault {
   /**
    * Los 64 bytes del secret. Solo para adapters que necesiten construir
    * un `Keypair` de web3.js v1 (ADR-024). Lanza si está locked.
+   *
+   * Devuelve una **copia** del buffer interno. Sin esto, dos riesgos:
+   *  - el consumidor podía mutar el buffer (Uint8Array es mutable) y
+   *    corromper el state del vault.
+   *  - si `lock()` se llamaba mientras un adapter tenía la referencia,
+   *    el fill(0) del lock zeroaba el mismo buffer que el adapter estaba
+   *    usando in-flight (race condition). Con la copia, lock() y el
+   *    consumidor operan sobre buffers independientes.
    */
   getRawSecret(): Uint8Array {
     if (!this.unlockedSecret) {
       throw new Error("Vault is locked. Unlock it first.");
     }
-    return this.unlockedSecret;
+    return new Uint8Array(this.unlockedSecret);
   }
 
   /** Borra el vault en disco. Operación irreversible. */

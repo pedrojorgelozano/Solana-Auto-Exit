@@ -123,6 +123,60 @@ describe("verifyTxBalances — happy path parsing", () => {
     expect(r.solDelta).toBe(0n);
     expect(r.tokenDeltas).toEqual({});
   });
+
+  it("finds the owner via loadedAddresses.writable (B-10)", async () => {
+    // Caso real: tx que usa una Address Lookup Table. El owner NO aparece
+    // en accountKeys (solo un dummy + el program), sino en
+    // meta.loadedAddresses.writable[0]. El index global del owner es 2:
+    // accountKeys.length (=2) + writable position (=0).
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        rpcResponse({
+          transaction: {
+            message: { accountKeys: ["Dummy", "ProgramId"] },
+          },
+          meta: {
+            err: null,
+            fee: 5000,
+            preBalances: [0, 0, 1_000_000_000],
+            postBalances: [0, 0, 999_500_000],
+            preTokenBalances: [],
+            postTokenBalances: [],
+            loadedAddresses: { writable: [OWNER], readonly: [] },
+          },
+        }),
+      ),
+    );
+    const r = await verifyTxBalances("http://ok", "sig", OWNER);
+    // Antes del fix B-10 esto era 0 silenciosamente; ahora -500_000.
+    expect(r.solDelta).toBe(-500_000n);
+  });
+
+  it("finds the owner via loadedAddresses.readonly (B-10)", async () => {
+    // Variante: owner en readonly. Orden global: accountKeys, writable,
+    // readonly. Si writable está vacío, el index del owner es
+    // accountKeys.length + 0 = 1.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(
+        rpcResponse({
+          transaction: { message: { accountKeys: ["Dummy"] } },
+          meta: {
+            err: null,
+            fee: 5000,
+            preBalances: [0, 2_000_000_000],
+            postBalances: [0, 2_000_000_000], // readonly = sin cambio
+            preTokenBalances: [],
+            postTokenBalances: [],
+            loadedAddresses: { writable: [], readonly: [OWNER] },
+          },
+        }),
+      ),
+    );
+    const r = await verifyTxBalances("http://ok", "sig", OWNER);
+    expect(r.solDelta).toBe(0n);
+  });
 });
 
 describe("verifyTxBalances — error paths", () => {
