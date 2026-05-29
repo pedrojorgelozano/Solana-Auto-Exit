@@ -20,6 +20,28 @@ import {
  *  - Plaintext: los 64 bytes del secret key (32 seed + 32 public) de ed25519.
  *  - Address pública guardada en claro como sanity-check legible.
  */
+/**
+ * Errores tipados para distinguir fallos de auth (passphrase) de los de
+ * integridad (archivo corrupto / tampering / format mismatch). El
+ * unlock-limiter solo debe contar los primeros — si el archivo está
+ * roto, ningún passphrase del mundo lo va a desbloquear, y un user que
+ * recibe lockout por intentar abrir un vault corrupted no entiende qué
+ * pasa. Ver B-09.
+ */
+export class WrongPassphraseError extends Error {
+  constructor() {
+    super("Bad passphrase, or the vault file has been tampered.");
+    this.name = "WrongPassphraseError";
+  }
+}
+
+export class VaultCorruptedError extends Error {
+  constructor(detail: string) {
+    super(`Vault file appears corrupted: ${detail}`);
+    this.name = "VaultCorruptedError";
+  }
+}
+
 interface VaultFileV1 {
   version: 1;
   kdf: "scrypt";
@@ -195,12 +217,17 @@ export class WalletVault {
         decipher.final(),
       ]);
     } catch {
-      throw new Error("Bad passphrase, or the vault file has been tampered.");
+      // GCM auth tag mismatch. No podemos distinguir entre passphrase
+      // mala y vault tampered — pero el caso más común con diferencia
+      // es passphrase mala, así que lo clasificamos como tal para el
+      // limiter. Un attacker que haya alterado el archivo además de no
+      // saber la passphrase es muy poco probable.
+      throw new WrongPassphraseError();
     }
 
     if (decrypted.length !== SECRET_KEY_LENGTH) {
-      throw new Error(
-        `Decrypted payload has unexpected length ${decrypted.length} (expected ${SECRET_KEY_LENGTH}).`,
+      throw new VaultCorruptedError(
+        `decrypted payload has unexpected length ${decrypted.length} (expected ${SECRET_KEY_LENGTH}).`,
       );
     }
 
@@ -208,8 +235,8 @@ export class WalletVault {
     try {
       signer = await createKeyPairSignerFromBytes(new Uint8Array(decrypted));
     } catch {
-      throw new Error(
-        "The vault contents are not a valid key — the file may be corrupted.",
+      throw new VaultCorruptedError(
+        "decrypted bytes are not a valid ed25519 keypair.",
       );
     }
     const derivedAddr = String(signer.address);
@@ -221,7 +248,9 @@ export class WalletVault {
         Buffer.from(file.address),
       )
     ) {
-      throw new Error("Vault address mismatch after decryption.");
+      throw new VaultCorruptedError(
+        "address derived from the decrypted key does not match the address stored in the vault file.",
+      );
     }
 
     this.unlockedKeypair = signer;

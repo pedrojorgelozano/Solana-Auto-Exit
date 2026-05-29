@@ -8,6 +8,7 @@ import {
   bytesFromBase58,
   bytesFromJsonArray,
 } from "../../wallet/import.js";
+import { WrongPassphraseError } from "../../wallet/vault.js";
 import { settings as settingsTable } from "../../db/schema.js";
 import {
   assertUnlockAllowed,
@@ -146,10 +147,14 @@ export const walletRouter = router({
         recordUnlockSuccess();
         return result;
       } catch (err) {
-        // Cualquier fallo del unlock (passphrase incorrecta, vault corrupt,
-        // tag mismatch del GCM, etc.) cuenta como intento. Le re-lanzamos
-        // el error original para que el cliente vea la causa.
-        recordUnlockFailure();
+        // Solo contamos los fallos por passphrase incorrecta como intento
+        // del limiter. Los errores de archivo corrupto (`VaultCorruptedError`)
+        // son condiciones fijas — ningún passphrase los va a desbloquear, y
+        // si los contásemos un user que recibe un vault corrupted se quedaría
+        // lockeado tras 5 intentos sin entender por qué. Ver B-09.
+        if (err instanceof WrongPassphraseError) {
+          recordUnlockFailure();
+        }
         throw err;
       }
     }),
