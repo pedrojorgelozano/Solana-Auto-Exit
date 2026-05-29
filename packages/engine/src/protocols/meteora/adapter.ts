@@ -199,38 +199,27 @@ export class MeteoraAdapter implements ProtocolAdapter {
     const lbPairKey = new PublicKey(ref.poolId);
     const dlmm = await DLMM.create(conn, lbPairKey);
 
-    // Self-sufficient: no exige attachWallet. Extraemos el owner del
-    // byte layout de la posición y desde ahí entramos al path del SDK
-    // que da el PositionInfo completo. Esto permite que la procedure
-    // positions.getSummary del backend trabaje sin tener que firmar.
+    // `dlmm.getPosition(pk)` decodea solo la position pedida — es O(1) en
+    // RPC. La versión anterior usaba `DLMM.getAllLbPairPositionsByUser(
+    // conn, owner)`, que recorre TODAS las posiciones del owner para
+    // todos sus lb-pairs. Para una wallet con N posiciones DLMM, cada
+    // carga de `/tasks/[id]` hacía ese trabajo y daba O(N). El owner ya
+    // no se extrae aquí — los metadatos del par vienen del propio `dlmm`
+    // (post DLMM.create) que ya conoce `lbPair`, `tokenX`, `tokenY`.
     const positionPk = new PublicKey(ref.id);
-    const positionAccount = await conn.getAccountInfo(positionPk);
-    if (!positionAccount) {
+    let position;
+    try {
+      position = await dlmm.getPosition(positionPk);
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
       throw new Error(
-        `MeteoraAdapter.getPositionSummary: position ${ref.id} no existe on-chain.`,
-      );
-    }
-    const owner = new PublicKey(positionAccount.data.subarray(40, 72));
-
-    const all = await DLMM.getAllLbPairPositionsByUser(conn, owner);
-    const info = all.get(ref.poolId);
-    if (!info) {
-      throw new Error(
-        `MeteoraAdapter.getPositionSummary: el wallet ${owner.toBase58()} no tiene posiciones en ${ref.poolId}.`,
-      );
-    }
-    const position = info.lbPairPositionsData.find(
-      (p) => p.publicKey.toBase58() === ref.id,
-    );
-    if (!position) {
-      throw new Error(
-        `MeteoraAdapter.getPositionSummary: posición ${ref.id} no encontrada en ${ref.poolId}.`,
+        `MeteoraAdapter.getPositionSummary: position ${ref.id} could not be loaded from ${ref.poolId} (${detail}).`,
       );
     }
 
     const activeBin = await dlmm.getActiveBin();
     const currentPrice = Number.parseFloat(activeBin.pricePerToken);
-    const binStep = info.lbPair.binStep;
+    const binStep = dlmm.lbPair.binStep;
     const lowerPrice = Number.parseFloat(
       dlmm.fromPricePerLamport(
         getPriceOfBinByBinId(position.positionData.lowerBinId, binStep).toNumber(),
@@ -243,12 +232,12 @@ export class MeteoraAdapter implements ProtocolAdapter {
     );
 
     const tokenA: TokenInfo = {
-      mint: info.lbPair.tokenXMint.toBase58(),
-      decimals: info.tokenX.mint.decimals,
+      mint: dlmm.lbPair.tokenXMint.toBase58(),
+      decimals: dlmm.tokenX.mint.decimals,
     };
     const tokenB: TokenInfo = {
-      mint: info.lbPair.tokenYMint.toBase58(),
-      decimals: info.tokenY.mint.decimals,
+      mint: dlmm.lbPair.tokenYMint.toBase58(),
+      decimals: dlmm.tokenY.mint.decimals,
     };
 
     return {
