@@ -6,21 +6,14 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **Fix robusto del sidecar zombie en el lado del INSTALLER (NSIS hook)**.
-  El fix de v0.3.0 (`ae706fc`) corre en `on_download_finish`, o sea en la app
-  que actualiza (la vieja) — solo ayuda si la vieja ya lo lleva (v0.3.0→v0.3.x).
-  Los que están en v0.2.0/v0.1.x **no pueden** auto-actualizar a v0.3.0: la app
-  vieja no mata el sidecar y NSIS aborta con "Error opening file for writing"
-  (verificado: el update v0.2.0→v0.3.0 del 29 falló igual). Fix superior:
-  añadir un preinstall hook al template NSIS que mate `auto-exit-server.exe`
-  al arrancar la instalación. Viaja en el INSTALADOR nuevo → funciona sea cual
-  sea la versión vieja, incluida la que no tiene el fix de Rust. Tauri permite
-  customizar el NSIS via `installerHooks`/template. Cubriría a los stragglers
-  en v0.2.0 cuando salga v0.3.1.
-- [ ] **Verificar el auto-update real `v0.3.0 → v0.3.1`** cuando salga v0.3.1
-  (primer hop en que la app vieja YA lleva el fix de Rust). Confirmar que el
-  NSIS no aborta. Es la verificación real del P0 — v0.2.0→v0.3.0 no servía
-  porque v0.2.0 predata el fix.
+- [ ] **Verificar el auto-update real `v0.3.0 → v0.3.1`** (YA publicable —
+  v0.3.1 está live). En una máquina con v0.3.0 + opt-in: aceptar el update a
+  v0.3.1 y confirmar que el NSIS no aborta con "Error opening file for writing".
+  Es la verificación end-to-end del P0 del sidecar (la ejercitan a la vez el
+  kill de Rust de v0.3.0 y el preinstall hook NSIS de v0.3.1). Bonus: probar
+  `v0.2.0 → v0.3.1` demostraría que el hook NSIS salva a clientes sin el fix
+  de Rust (v0.2.0→v0.3.0 sí fallaba). Mientras no se verifique, el P0 sigue
+  abierto formalmente aunque el código esté en producción.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
@@ -113,6 +106,17 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Release v0.3.1 + fix NSIS del sidecar (2026-05-29)**: el auto-update real
+  `v0.2.0 → v0.3.0` falló igual ("Error opening file for writing") — esperado:
+  el fix de Rust de v0.3.0 corre en la app que actualiza (la vieja), y v0.2.0
+  predata el fix. Fix robusto: preinstall hook de NSIS
+  (`packages/tauri/nsis-hooks.nsh` vía `bundle.windows.nsis.installerHooks`)
+  que hace `taskkill /F /T /IM auto-exit-server.exe` al instalar. Viaja en el
+  instalador nuevo → protege el update venga de la versión vieja que venga.
+  v0.3.1 publicada con el hook; build OK (makensis corrió con el hook sin
+  error), `/latest/download/latest.json` sirve 0.3.1. Commits `2f093ff` (fix)
+  + `d4485cf` (release). Docs corregidos: el framing previo de "v0.2.0→v0.3.0
+  verifica el fix" era erróneo. Pendiente: verificar el hop real v0.3.0→v0.3.1.
 - **Release v0.3.0 publicado (2026-05-29)**: bump minor (features desde
   v0.2.0: resume seguro + validación 1-auto-exit-por-posición, no solo el
   patch del sidecar). Build firmado OK (la poda de `*.test.ts` funcionó:
