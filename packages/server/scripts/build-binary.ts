@@ -110,6 +110,26 @@ function run(exe: string, args: string[], cwd: string): void {
   }
 }
 
+/**
+ * Borra recursivamente los `*.test.ts` / `*.spec.ts` bajo `dir`. Solo se usan
+ * en CI/dev (Vitest); en el sidecar son peso muerto. Scope acotado al `src/`
+ * desplegado — nunca node_modules (las suites de terceros son otra historia y
+ * borrarlas sería un barrido mayor y más arriesgado). Devuelve cuántos borró.
+ */
+function pruneTestFiles(dir: string): number {
+  let count = 0;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      count += pruneTestFiles(full);
+    } else if (/\.(test|spec)\.ts$/.test(entry.name)) {
+      fs.rmSync(full, { force: true });
+      count += 1;
+    }
+  }
+  return count;
+}
+
 function main(): void {
   const key = `${process.platform}-${process.arch}`;
   const spec = PLATFORMS[key];
@@ -171,6 +191,15 @@ function main(): void {
     if (fs.existsSync(target)) {
       fs.rmSync(target, { recursive: true, force: true });
       console.log(`[build-binary] pruned node_modules/${dep} from deploy`);
+    }
+  }
+  // Los *.test.ts del código fuente desplegado: Vitest los corre en CI/dev,
+  // nunca el runtime. Acotado a src/ (no node_modules).
+  const srcDir = path.join(serverAppDir, "src");
+  if (fs.existsSync(srcDir)) {
+    const pruned = pruneTestFiles(srcDir);
+    if (pruned > 0) {
+      console.log(`[build-binary] pruned ${pruned} *.test.ts file(s) from src`);
     }
   }
 

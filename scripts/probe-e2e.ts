@@ -75,7 +75,12 @@ async function startServer(): Promise<void> {
   if (fs.existsSync(PROBE_VAULT)) fs.unlinkSync(PROBE_VAULT);
 
   log("Starting server with probe vault...");
-  server = spawn("pnpm", ["start:server"], {
+  // Comando como string único (sin array de args) con shell:true. Pasar un
+  // array CON shell:true es lo que dispara DEP0190 (Node no escapa los args
+  // al ir por shell); el string único va directo a `shell -c "..."`. El
+  // comando es fijo (sin input dinámico), así que no hay riesgo de inyección.
+  // shell:true sigue siendo necesario para resolver `pnpm` (pnpm.cmd en Win).
+  server = spawn("pnpm start:server", {
     stdio: ["ignore", "pipe", "pipe"],
     shell: true,
     env: {
