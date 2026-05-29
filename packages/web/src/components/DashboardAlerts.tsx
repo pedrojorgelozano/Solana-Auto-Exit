@@ -16,6 +16,11 @@ const SYSTEM_PAUSE_MARKERS = [
   "Server restarted; resume after unlocking",
 ];
 
+// 50 MB. Uso normal son <2MB/año (1 task por mes, ~100 history rows
+// por task con payload pequeño). Saltar por encima de esto indica
+// con casi total seguridad un bug que infla la DB.
+const DB_BLOATED_THRESHOLD_BYTES = 50 * 1024 * 1024;
+
 function isSystemPaused(lastError: string | null): boolean {
   if (!lastError) return false;
   return SYSTEM_PAUSE_MARKERS.some((m) => lastError.includes(m));
@@ -58,6 +63,16 @@ export function DashboardAlerts({
   // usamos el mismo default como fallback.
   const lowBalanceThreshold =
     settings.data?.lowBalanceThresholdLamports ?? 50_000_000;
+  // Health check del tamaño SQLite. Uso normal son <2MB/año; un salto
+  // por encima de 50MB indica con casi total seguridad un bug futuro
+  // (un appendHistory en el polling loop, etc.). Refetch cada 5 min —
+  // el size cambia lento, no hace falta polling agresivo.
+  const dbSizeQuery = trpc.meta.dbSize.useQuery(undefined, {
+    refetchInterval: 5 * 60_000,
+  });
+  const dbSizeBytes = dbSizeQuery.data?.bytes ?? 0;
+  const dbBloated = dbSizeBytes > DB_BLOATED_THRESHOLD_BYTES;
+  const dbSizeMb = (dbSizeBytes / (1024 * 1024)).toFixed(1);
   const start = trpc.tasks.start.useMutation();
   const utils = trpc.useUtils();
 
@@ -89,7 +104,8 @@ export function DashboardAlerts({
     !lowBalance &&
     !balanceQueryFailed &&
     errorCount === 0 &&
-    !showResumeCallout
+    !showResumeCallout &&
+    !dbBloated
   )
     return null;
 
@@ -137,6 +153,15 @@ export function DashboardAlerts({
           ctaLabel={a.lowBalanceCta}
           ctaHref="/wallet"
           icon={<LowBalanceIcon />}
+        />
+      ) : null}
+      {dbBloated ? (
+        <AlertCallout
+          eyebrow={a.dbBloatedEyebrow}
+          body={a.dbBloatedBody(dbSizeMb)}
+          ctaLabel={a.dbBloatedCta}
+          ctaHref="/tasks"
+          icon={<DbIcon />}
         />
       ) : null}
     </div>
@@ -261,6 +286,25 @@ function LowBalanceIcon() {
     >
       <rect x="3" y="6" width="18" height="13" rx="2.5" />
       <path d="M3 10h18M16 14.5h2" />
+    </svg>
+  );
+}
+
+function DbIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="var(--color-warning)"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="h-[17px] w-[17px]"
+      aria-hidden
+    >
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+      <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
     </svg>
   );
 }

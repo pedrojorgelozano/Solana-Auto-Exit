@@ -3,6 +3,7 @@ import { walletRouter } from "./routers/wallet.js";
 import { positionsRouter } from "./routers/positions.js";
 import { tasksRouter } from "./routers/tasks.js";
 import { settingsRouter } from "./routers/settings.js";
+import { metaRouter } from "./routers/meta.js";
 
 export const appRouter = router({
   health: publicProcedure.query(() => ({
@@ -14,6 +15,7 @@ export const appRouter = router({
   positions: positionsRouter,
   tasks: tasksRouter,
   settings: settingsRouter,
+  meta: metaRouter,
 });
 
 export type AppRouter = typeof appRouter;

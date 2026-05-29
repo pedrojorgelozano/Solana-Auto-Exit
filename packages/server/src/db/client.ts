@@ -86,4 +86,4 @@ if (typeof process.versions.bun === "string") {
   closeDb = () => sqlite.close();
 }
 
-export { db, runMigrations, closeDb };
+export { db, runMigrations, closeDb, DB_PATH };

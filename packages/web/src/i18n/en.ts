@@ -224,6 +224,10 @@ export const en = {
         "Resume them when you want to keep watching prices again.",
       resumeCta: "Resume all",
       resumeCtaPending: "Resuming…",
+      dbBloatedEyebrow: "Database is unusually large",
+      dbBloatedBody: (mb: string) =>
+        `The SQLite file is now ${mb} MB. Normal usage is well under that — this may indicate a runaway append. Review historical tasks and consider exporting + cleaning up.`,
+      dbBloatedCta: "Open history",
     },
 
     hub: {
@@ -639,6 +643,8 @@ export const en = {
       "Closes and errors from past auto-exits. Live ones live in the dashboard.",
     backLabel: "Home",
     noMatch: "No auto-exits match this filter.",
+    loadMore: "Load more",
+    loadingMore: "Loading…",
     emptyEyebrow: "Empty",
     emptyTitle: "No closes or errors yet.",
     emptyBody:

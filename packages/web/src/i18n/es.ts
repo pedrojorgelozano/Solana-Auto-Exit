@@ -200,6 +200,10 @@ export const es: typeof en = {
         "Reanúdalos cuando quieras seguir vigilando los precios.",
       resumeCta: "Reanudar todos",
       resumeCtaPending: "Reanudando…",
+      dbBloatedEyebrow: "Base de datos inusualmente grande",
+      dbBloatedBody: (mb: string) =>
+        `El archivo SQLite pesa ahora ${mb} MB. El uso normal está muy por debajo — esto puede indicar un append desbocado. Revisa el histórico y considera exportar + limpiar.`,
+      dbBloatedCta: "Ver histórico",
     },
 
     eyebrow: {
@@ -610,6 +614,8 @@ export const es: typeof en = {
       "Cierres y errores de auto-exits pasados. Los activos viven en el dashboard.",
     backLabel: "Inicio",
     noMatch: "Ningún auto-exit coincide con este filtro.",
+    loadMore: "Cargar más",
+    loadingMore: "Cargando…",
     emptyEyebrow: "Vacío",
     emptyTitle: "Aún no hay cierres ni errores.",
     emptyBody:
