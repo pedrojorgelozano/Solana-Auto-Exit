@@ -82,9 +82,6 @@
   GitHub README, mover a `docs/user-guide/*.md` y renderizar con
   `react-markdown` o MDX. Coste de mantenimiento bajo mientras los
   artículos sean pocos y estables.
-- [ ] Diff threshold del receipt configurable. Hoy el ActualLine de F2.3
-  colorea warning si `|diff| ≥ 0.01%` hardcoded. Mover a `/settings` como
-  `diffWarningThresholdBps` (o equivalente).
 - [ ] Persistir `tokenMintA/B` en `protocolConfig` también para Meteora
   cuando F6.2 abra el flujo de tasks. F2.4 lo hizo para Orca; el receipt
   y la heurística del Dashboard asumen estos campos.
@@ -137,6 +134,15 @@
 ## Hecho recientemente
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
+
+- **Diff threshold del receipt configurable (2026-05-29)**: el umbral antes
+  hardcoded (`|diff| < 0.01%` en `ActualLine`) pasa a `/settings` como
+  `diffWarningThresholdBps` (key SQLite `diff_warning_threshold_bps`), default
+  1 bps (= 0.01%, preserva el comportamiento). Mismo patrón que
+  `lowBalanceThreshold`: campo en el snapshot + factoryDefaults, zod
+  `min(0).max(10_000)`, input en % en /settings (helpers `bpsToPctString`/
+  `pctStringToBps`), `ActualLine` lee el snapshot vía `trpc.settings.get`.
+  typecheck + 155 tests verde.
 
 - **Release v0.3.1 + fix NSIS del sidecar (2026-05-29)**: el auto-update real
   `v0.2.0 → v0.3.0` falló igual ("Error opening file for writing") — esperado:

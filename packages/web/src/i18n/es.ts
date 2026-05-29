@@ -796,6 +796,14 @@ export const es: typeof en = {
         "Introduce un número entre 0 y 5 SOL.",
     },
 
+    diffThreshold: {
+      label: "Resaltar el diff del receipt cuando supere",
+      unit: "%",
+      copy:
+        "En el receipt de un cierre/swap, la diferencia real-vs-estimado se muestra atenuada si está dentro de esta tolerancia y en warning si la supera. Default 0.01%. Pon 0 para marcar cualquier diferencia no nula.",
+      invalid: "Introduce un porcentaje entre 0 y 100.",
+    },
+
     resetPrompt:
       "¿Resetear URL del RPC, slippage e intervalo de poll a sus defaults?\n\nTu elección de red (TEST / REAL) se mantiene — cámbiala desde el toggle de arriba si lo necesitas.",
     resetCta: "Resetear a defaults",

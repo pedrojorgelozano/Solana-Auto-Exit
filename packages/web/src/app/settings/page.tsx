@@ -80,6 +80,7 @@ function SettingsForm({
     defaultExitSlippageBps: number;
     defaultPollMs: number;
     lowBalanceThresholdLamports: number;
+    diffWarningThresholdBps: number;
     updaterAutoCheck: boolean;
     factoryDefaults: {
       network: "devnet" | "mainnet";
@@ -88,6 +89,7 @@ function SettingsForm({
       exitSlippageBps: number;
       pollMs: number;
       lowBalanceThresholdLamports: number;
+      diffWarningThresholdBps: number;
     };
     mainnetGateAllowed: boolean;
   };
@@ -108,6 +110,11 @@ function SettingsForm({
   const [lowBalanceSol, setLowBalanceSol] = useState<string>(
     lamportsToSolString(initial.lowBalanceThresholdLamports),
   );
+  // El threshold del receipt se persiste en bps pero al usuario le mostramos
+  // % (más intuitivo: "0.01", "0.5"). String para tolerar typing intermedio.
+  const [diffPct, setDiffPct] = useState<string>(
+    bpsToPctString(initial.diffWarningThresholdBps),
+  );
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
@@ -121,12 +128,14 @@ function SettingsForm({
     setExitSlippageBps(initial.defaultExitSlippageBps);
     setPollMs(initial.defaultPollMs);
     setLowBalanceSol(lamportsToSolString(initial.lowBalanceThresholdLamports));
+    setDiffPct(bpsToPctString(initial.diffWarningThresholdBps));
   }, [
     initial.rpcUrl,
     initial.defaultSlippageBps,
     initial.defaultExitSlippageBps,
     initial.defaultPollMs,
     initial.lowBalanceThresholdLamports,
+    initial.diffWarningThresholdBps,
   ]);
 
   const update = trpc.settings.update.useMutation();
@@ -138,13 +147,18 @@ function SettingsForm({
     parsedLowBalanceLamports >= 0 &&
     parsedLowBalanceLamports <= 5_000_000_000;
 
+  const parsedDiffBps = pctStringToBps(diffPct);
+  const diffValid =
+    parsedDiffBps !== null && parsedDiffBps >= 0 && parsedDiffBps <= 10_000;
+
   const dirty =
     rpcUrl !== initial.rpcUrl ||
     slippageBps !== initial.defaultSlippageBps ||
     exitSlippageBps !== initial.defaultExitSlippageBps ||
     pollMs !== initial.defaultPollMs ||
     (lowBalanceValid &&
-      parsedLowBalanceLamports !== initial.lowBalanceThresholdLamports);
+      parsedLowBalanceLamports !== initial.lowBalanceThresholdLamports) ||
+    (diffValid && parsedDiffBps !== initial.diffWarningThresholdBps);
 
   const onSave = async () => {
     setError(null);
@@ -179,6 +193,14 @@ function SettingsForm({
           update.mutateAsync({
             key: "lowBalanceThresholdLamports",
             value: parsedLowBalanceLamports,
+          }),
+        );
+      }
+      if (diffValid && parsedDiffBps !== initial.diffWarningThresholdBps) {
+        ops.push(
+          update.mutateAsync({
+            key: "diffWarningThresholdBps",
+            value: parsedDiffBps,
           }),
         );
       }
@@ -219,6 +241,7 @@ function SettingsForm({
       setLowBalanceSol(
         lamportsToSolString(initial.factoryDefaults.lowBalanceThresholdLamports),
       );
+      setDiffPct(bpsToPctString(initial.factoryDefaults.diffWarningThresholdBps));
       await refresh();
       setSavedAt(Date.now());
       window.setTimeout(() => setSavedAt(null), 2500);
@@ -443,6 +466,32 @@ function SettingsForm({
             {t.settings.lowBalance.copy}
           </p>
         </div>
+
+        <div className="hairline-t mt-8 pt-8">
+          <Label htmlFor="diffThreshold">{t.settings.diffThreshold.label}</Label>
+          <div className="flex items-baseline gap-3">
+            <Input
+              id="diffThreshold"
+              value={diffPct}
+              onChange={(e) => setDiffPct(e.target.value)}
+              placeholder="0.01"
+              spellCheck={false}
+              inputMode="decimal"
+              className="t-num max-w-[160px]"
+            />
+            <span className="t-small text-[var(--color-text-muted)]">
+              {t.settings.diffThreshold.unit}
+            </span>
+          </div>
+          {!diffValid && diffPct.trim() !== "" ? (
+            <p className="mt-2 t-small text-[var(--color-warning)]">
+              {t.settings.diffThreshold.invalid}
+            </p>
+          ) : null}
+          <p className="mt-3 max-w-2xl t-small text-[var(--color-text-muted)]">
+            {t.settings.diffThreshold.copy}
+          </p>
+        </div>
       </Panel>
 
       <UpdaterPanel enabled={initial.updaterAutoCheck} refresh={refresh} />
@@ -473,7 +522,7 @@ function SettingsForm({
           </Button>
           <Button
             onClick={onSave}
-            disabled={!dirty || update.isPending || !lowBalanceValid}
+            disabled={!dirty || update.isPending || !lowBalanceValid || !diffValid}
           >
             {update.isPending ? t.common.saving : t.common.saveChanges}
           </Button>
@@ -671,6 +720,21 @@ function solStringToLamports(raw: string): number | null {
   if (!Number.isFinite(n) || n < 0) return null;
   // Math.round es importante — `0.05 * 1e9 = 50000000.00000001` en JS.
   return Math.round(n * 1_000_000_000);
+}
+
+// % ↔ bps para el input del diff threshold del receipt. 1 bps = 0.01%, así
+// que pct × 100 = bps. Mismo patrón string-tolerante que SOL↔lamports.
+function bpsToPctString(bps: number): string {
+  if (!Number.isFinite(bps) || bps < 0) return "0";
+  return (bps / 100).toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function pctStringToBps(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
 }
 
 // ============================================================================

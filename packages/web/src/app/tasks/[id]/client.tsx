@@ -1888,6 +1888,11 @@ function ActualLine({
   showDiff?: boolean;
 }) {
   const { t } = useT();
+  // Umbral configurable del receipt (bps en settings; diff.value es %, así
+  // que /100). Default 1 bps = 0.01% preserva el comportamiento previo.
+  // Mientras carga el snapshot caemos al mismo default, sin parpadeo.
+  const settings = trpc.settings.get.useQuery();
+  const thresholdPct = (settings.data?.diffWarningThresholdBps ?? 1) / 100;
   if (rawActual === null || rawActual === "0") return null;
   const sign = rawActual.startsWith("-") ? "" : "+";
   const display = `${sign}${formatTokenAmount(rawActual, decimals, 6)} ${tokenSymbol(mint)}`;
@@ -1899,7 +1904,7 @@ function ActualLine({
       {diff !== null ? (
         <span
           className={`ml-2 ${
-            Math.abs(diff.value) < 0.01
+            Math.abs(diff.value) < thresholdPct
               ? "text-[var(--color-text-dim)]"
               : "text-[var(--color-warning)]"
           }`}

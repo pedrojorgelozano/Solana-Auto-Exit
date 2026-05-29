@@ -828,6 +828,14 @@ export const en = {
         "Enter a number between 0 and 5 SOL.",
     },
 
+    diffThreshold: {
+      label: "Highlight receipt diff when above",
+      unit: "%",
+      copy:
+        "On a close/swap receipt, the actual-vs-quoted difference is shown muted when within this tolerance and in warning otherwise. Default 0.01%. Set to 0 to flag any non-zero difference.",
+      invalid: "Enter a percentage between 0 and 100.",
+    },
+
     resetPrompt:
       "Reset RPC URL, slippage and poll interval to defaults?\n\nYour network choice (TEST / REAL) is preserved — switch it from the toggle above if you need to.",
     resetCta: "Reset to defaults",

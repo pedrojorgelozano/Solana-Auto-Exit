@@ -46,6 +46,14 @@ export interface SettingsSnapshot {
    */
   lowBalanceThresholdLamports: number;
   /**
+   * Umbral en bps del |diff| actual-vs-quoted en el receipt (ActualLine):
+   * por debajo se pinta atenuado (dentro de lo esperado), por encima en
+   * warning. Default 1 bps (0.01%) — preserva el comportamiento previo
+   * hardcoded. 0 = todo diff no-cero se resalta (modo estricto); subirlo
+   * silencia desviaciones pequeñas para quien opera con slippage alto.
+   */
+  diffWarningThresholdBps: number;
+  /**
    * Si la app desktop comprueba actualizaciones al arrancar. Off por
    * defecto: el check hace un fetch a GitHub, así que es opt-in (auditoría
    * de egress de red). Ver ADR-032.
@@ -65,6 +73,7 @@ export interface SettingsSnapshot {
     exitSlippageBps: number;
     pollMs: number;
     lowBalanceThresholdLamports: number;
+    diffWarningThresholdBps: number;
   };
   /** Si el server tiene ALLOW_MAINNET_LIVE=true, la UI ofrece el switch a mainnet con confirmación. */
   mainnetGateAllowed: boolean;
@@ -107,6 +116,9 @@ const DEFAULTS = {
   // 0.05 SOL. Razonado para ~10 cierres + ATA creation. El frontend del
   // dashboard muestra "low balance" si el saldo cae por debajo.
   lowBalanceThresholdLamports: 50_000_000,
+  // 1 bps = 0.01%. Preserva el umbral antes hardcoded en ActualLine: solo
+  // diffs por encima de esto se pintan en warning.
+  diffWarningThresholdBps: 1,
   // Auditoría de egress: el check de updates pinga GitHub, así que es opt-in.
   updaterAutoCheck: false,
 };
@@ -131,6 +143,7 @@ const KEYS = {
   defaultExitSlippageBps: "default_exit_slippage_bps",
   defaultPollMs: "default_poll_ms",
   lowBalanceThresholdLamports: "low_balance_threshold_lamports",
+  diffWarningThresholdBps: "diff_warning_threshold_bps",
   updaterAutoCheck: "updater_auto_check",
 } as const;
 
@@ -160,6 +173,13 @@ const updateInput = z.discriminatedUnion("key", [
     // 0 desactiva el callout (caso "no me molestes nunca"). Tope 5 SOL —
     // un threshold mayor no aporta señal (5 SOL son ~200 cierres de margen).
     value: z.number().int().min(0).max(5_000_000_000),
+  }),
+  z.object({
+    key: z.literal("diffWarningThresholdBps"),
+    // 0 = modo estricto (cualquier diff no-cero en warning). Tope 10_000
+    // (100%), coherente con los otros campos en bps; en la práctica nadie
+    // sube tanto, pero no hay razón para un cap más fino.
+    value: z.number().int().min(0).max(10_000),
   }),
   z.object({
     key: z.literal("updaterAutoCheck"),
@@ -219,6 +239,12 @@ export const settingsRouter = router({
         map.get(KEYS.lowBalanceThresholdLamports),
         DEFAULTS.lowBalanceThresholdLamports,
       ),
+      diffWarningThresholdBps: parseIntOr(
+        map.get(KEYS.diffWarningThresholdBps),
+        DEFAULTS.diffWarningThresholdBps,
+        0,
+        10_000,
+      ),
       // Boolean persistido como texto; cualquier cosa que no sea "true" → off.
       updaterAutoCheck: map.get(KEYS.updaterAutoCheck) === "true",
       // factoryDefaults representa "lo que devolvería el snapshot tras un
@@ -231,6 +257,7 @@ export const settingsRouter = router({
         exitSlippageBps: DEFAULTS.defaultExitSlippageBps,
         pollMs: DEFAULTS.defaultPollMs,
         lowBalanceThresholdLamports: DEFAULTS.lowBalanceThresholdLamports,
+        diffWarningThresholdBps: DEFAULTS.diffWarningThresholdBps,
       },
       mainnetGateAllowed: gate,
       rpcNetworkMismatch,
