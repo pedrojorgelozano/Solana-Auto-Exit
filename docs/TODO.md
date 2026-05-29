@@ -67,7 +67,7 @@
 - [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar.
 - [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet,
   multi-hop). Hoy solo mismo pool (ADR-008).
-- [ ] Ampliar cobertura de tests (baseline actual: 143 con Vitest). Las
+- [ ] Ampliar cobertura de tests (baseline actual: 154 con Vitest). Las
   prioridades 1–3 (vault cripto, módulos puros del engine, lifecycle de
   TaskManager) se cerraron el 2026-05-29. Pendientes priorizados:
   adapters Orca + Meteora con SDK mocks (el más delicado: los SDKs no
@@ -83,9 +83,6 @@
   invocación directa de `node + tsx` para evitar DEP0190.
 - [ ] Cifrado opcional del SQLite del server (SQLCipher) para entornos donde
   el disco no esté full-disk-encrypted.
-- [ ] Validación en backend de "un auto-exit activo por posición" (hoy solo
-  en UI). Es espejo de la regla — añadir refine en `tasks.create` o
-  check explícito en `TaskManager.createTask`.
 - [ ] Manejo explícito de buffer de fees al swapear SOL nativo (hoy delegamos
   al `nativeMintWrappingStrategy` del SDK).
 - [ ] Métricas / observabilidad: logs estructurados (JSON), opción de
@@ -106,6 +103,15 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Validación backend "1 auto-exit por posición" (2026-05-29)**: la regla
+  solo se aplicaba en UI (el configure muestra ExistingWatcher en vez del
+  form); un cliente tRPC que se la saltara podía crear N watchers para la
+  misma posición. `TaskManager.createTask` comprueba ahora si ya hay una task
+  ocupante (estados no-terminales idle/armed/triggered/closing/paused — espejo
+  exacto del UI; done/error/stopped no ocupan) antes de insertar, y lanza
+  `DuplicateActiveTaskError` (tipada) que el router mapea a `409 CONFLICT`.
+  Check + insert síncronos en server single-threaded → atómico, sin race.
+  +11 tests (143 → 154). Commit `717e01b` + este (docs).
 - **Resume seguro tras desbloquear (2026-05-29)**: el callout "reanudar
   todos" reanudaba todas las tasks pausadas-al-bloquear sin mirar si su
   precio cruzó el trigger durante el lockdown — un resume podía disparar un

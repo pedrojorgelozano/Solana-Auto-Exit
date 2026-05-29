@@ -2,10 +2,10 @@
 
 ## Estado actual
 
-**Baseline de 143 tests automatizados con Vitest** (cubriendo seguridad, cripto del vault, módulos puros del engine, lifecycle completo del watcher, resume seguro, verificación on-chain con LUTs) + typecheck en CI + smoke tests manuales en devnet/mainnet.
+**Baseline de 154 tests automatizados con Vitest** (cubriendo seguridad, cripto del vault, módulos puros del engine, lifecycle completo del watcher, resume seguro, regla 1-auto-exit-por-posición, verificación on-chain con LUTs) + typecheck en CI + smoke tests manuales en devnet/mainnet.
 
 1. **Typecheck**: `pnpm typecheck` (= `tsc --noEmit` raíz + web). Verde.
-2. **Tests automatizados**: `pnpm test` (Vitest, ~3s, 143/143 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
+2. **Tests automatizados**: `pnpm test` (Vitest, ~3s, 154/154 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
 3. **Secret scan**: `gitleaks` en CI vía GitHub Action `gitleaks/gitleaks-action@v2`.
 4. **Smoke tests manuales** en devnet (Orca) y mainnet (Orca + Meteora) — documentados abajo desde F0.
 
@@ -21,20 +21,20 @@ pnpm test:watch      # re-corre al guardar
 pnpm test:coverage   # genera coverage v8 (HTML + text)
 ```
 
-### Suites actuales (143 tests · ~3s)
+### Suites actuales (154 tests · ~3s)
 
 | Suite | Tests | Cubre |
 |---|---:|---|
-| `packages/server/src/security/rpc-url.test.ts` | 14 | URL invalid, schemes no-http(s), credenciales embebidas, loopback default + escape hatch con keywords truthy (B-17 ampliado a `true\|1\|yes\|on`), metadata cloud, all-interfaces, IPv6 link-local, LAN privadas permitidas, Tailscale CGNAT, RPCs públicos, case-insensitive, ws(s). Más 7 casos sobre `inferNetworkFromRpcUrl` (B-02). |
+| `packages/server/src/security/rpc-url.test.ts` | 21 | URL invalid, schemes no-http(s), credenciales embebidas, loopback default + escape hatch con keywords truthy (B-17 ampliado a `true\|1\|yes\|on`), metadata cloud, all-interfaces, IPv6 link-local, LAN privadas permitidas, Tailscale CGNAT, RPCs públicos, case-insensitive, ws(s). Más 7 casos sobre `inferNetworkFromRpcUrl` (B-02). |
 | `packages/server/src/security/unlock-limiter.test.ts` | 7 | Sliding window 5 intentos/5min, bloqueo al sexto, expiración por ventana, reset al unlock exitoso, mensaje con segundos restantes, prune parcial. |
-| `packages/server/src/wallet/vault.test.ts` | 18 | **Cripto roundtrip + clasificación B-09.** create→unlock devuelve misma address y mismos 64 bytes; validación de inputs (passphrase <8, secret de longitud/keypair incoherente, vault duplicado); `WrongPassphraseError` (passphrase mala + ciphertext manipulado/GCM fail) vs `VaultCorruptedError` (address alterada, payload de longitud rara, bytes no-keypair — vía forge de un vault con tag GCM válido pero contenido inválido); versión no soportada; `getRawSecret` copia independiente; `lock`/`delete` olvidan la clave. Keypairs ed25519 generadas con `node:crypto` (sin dependencia de web3.js en el server). |
+| `packages/server/src/wallet/vault.test.ts` | 19 | **Cripto roundtrip + clasificación B-09.** create→unlock devuelve misma address y mismos 64 bytes; validación de inputs (passphrase <8, secret de longitud/keypair incoherente, vault duplicado); `WrongPassphraseError` (passphrase mala + ciphertext manipulado/GCM fail) vs `VaultCorruptedError` (address alterada, payload de longitud rara, bytes no-keypair — vía forge de un vault con tag GCM válido pero contenido inválido); versión no soportada; `getRawSecret` copia independiente; `lock`/`delete` olvidan la clave. Keypairs ed25519 generadas con `node:crypto` (sin dependencia de web3.js en el server). |
 | `packages/engine/src/core/retry.test.ts` | 20 | `isPermanentSolanaError` (keyword heuristic permanente/transitorio, case-insensitive, inputs no-Error) + `withRetry` (éxito al primer intento, retry-hasta-éxito, agota maxAttempts y lanza el último error, relanza inmediato cuando `retryableErrors`=false, backoff exponencial verificado con cota inferior real-timer). |
 | `packages/engine/src/core/loop.test.ts` | 3 | Control flow del tick (`continue`/`stop`) + un tick que lanza se traga y el loop continúa. |
-| `packages/engine/src/config/env.test.ts` | 19 | `loadBaseConfig`: required vars, bounds de network/direction/price/slippage/poll, `parseBool` (keywords truthy/falsy + inválido), defaults (DRY_RUN, exit swap), gate de mainnet (ADR-026). `vi.stubEnv` con baseline aislada. |
-| `packages/server/src/tasks/buffer.test.ts` | 11 | Máquina de estados del time-buffer (ADR-025) — in/out × buffer 0/positivo/negativo × current null/vivo + secuencia arm→reset→re-arm + TP/SL independientes. |
+| `packages/engine/src/config/env.test.ts` | 21 | `loadBaseConfig`: required vars, bounds de network/direction/price/slippage/poll, `parseBool` (keywords truthy/falsy + inválido), defaults (DRY_RUN, exit swap), gate de mainnet (ADR-026). `vi.stubEnv` con baseline aislada. |
+| `packages/server/src/tasks/buffer.test.ts` | 12 | Máquina de estados del time-buffer (ADR-025) — in/out × buffer 0/positivo/negativo × current null/vivo + secuencia arm→reset→re-arm + TP/SL independientes. |
 | `packages/server/src/tasks/verify.test.ts` | 10 | Parsing happy-path de solDelta + tokenDeltas (con exclusión de cuentas no-owned), **owner via `loadedAddresses.writable` (B-10)**, **owner via `loadedAddresses.readonly` (B-10)**, error paths (meta null, tx fallida on-chain, indexer lento), retry exitoso + retry agotado, AbortSignal pasado al fetch en cada attempt. Fake timers para evitar esperar backoffs reales. |
 | `packages/server/src/tasks/manager.markError.test.ts` | 5 | Integration test con sqlite `:memory:` + migrations reales — cubre B-01 (mark* respetan estados decididos por usuario). |
-| `packages/server/src/tasks/manager.lifecycle.test.ts` | 15 | **Lifecycle completo.** `boot()` re-pausa idle/armed/triggered/closing con history `server-restart` y no toca terminales; `pauseAllOnVaultLock` pausa+aborta controllers+registra `vault-locked`; **atomicidad B-04** (forzar throw en `appendHistory` hace rollback del insert de `createTask`); cascada FK de history al borrar; `deleteAllTasks`; paginación cursor + `historicalCounts`; `evaluateResumeCandidates` sin red (filtro paused-por-sistema + rama vault-locked). Mismo harness sqlite `:memory:`. |
+| `packages/server/src/tasks/manager.lifecycle.test.ts` | 25 | **Lifecycle completo.** `boot()` re-pausa idle/armed/triggered/closing con history `server-restart` y no toca terminales; `pauseAllOnVaultLock` pausa+aborta controllers+registra `vault-locked`; **atomicidad B-04** (forzar throw en `appendHistory` hace rollback del insert de `createTask`); cascada FK de history al borrar; `deleteAllTasks`; paginación cursor + `historicalCounts`; `evaluateResumeCandidates` sin red (filtro paused-por-sistema + rama vault-locked); **regla 1-auto-exit-por-posición** (`DuplicateActiveTaskError`: los 5 estados ocupantes bloquean, los 3 terminales permiten, posiciones distintas no colisionan). Mismo harness sqlite `:memory:`. |
 | `packages/server/src/tasks/resume.test.ts` | 11 | **Resume seguro (puro).** `evaluateTriggerCross` (price ≥ TP / ≤ SL, dentro de rango no cruza, prioridad TP, precio null/no-finito, sin triggers) + `isSystemPaused` (markers vault-lock/reinicio, substring, null = pausa de usuario, error no relacionado). |
 
 ### Bugs reales descubiertos por los tests
