@@ -44,6 +44,38 @@ const KNOWN: TokenMeta[] = [
     decimals: 6,
     color: "#26A17B",
   },
+  // USDe — Ethena synthetic dollar. OJO: 9 decimals (no 6 como otras stables).
+  {
+    mint: "DEkqHyPN7GMRJ5cArtQFAWefqbZb33Hyf6s5iCwjEonT",
+    symbol: "USDe",
+    name: "Ethena USDe",
+    decimals: 9,
+    color: "#1A1A1A",
+  },
+  // USDS — Sky Dollar (antes DAI/Maker → Sky)
+  {
+    mint: "USDSwr9ApdHk5bvJKMjzff41FfuX8bSxdKcR81vTwcA",
+    symbol: "USDS",
+    name: "Sky Dollar",
+    decimals: 6,
+    color: "#1AAB9B",
+  },
+  // EURC — Circle euro stablecoin
+  {
+    mint: "HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr",
+    symbol: "EURC",
+    name: "Euro Coin",
+    decimals: 6,
+    color: "#1A4FCA",
+  },
+  // USDY — Ondo US Dollar Yield (tokenized T-bills)
+  {
+    mint: "A1KLoBrKBde8Ty9qtNQUtq3C2ortoC3u7twggz7sEto6",
+    symbol: "USDY",
+    name: "Ondo US Dollar Yield",
+    decimals: 6,
+    color: "#5A4FE0",
+  },
   // devUSDC del pool Orca devnet
   {
     mint: "BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k",

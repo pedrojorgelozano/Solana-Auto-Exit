@@ -135,11 +135,14 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
-- **Token registry ampliado + test de invariantes (2026-05-29)**: añadidos 6
+- **Token registry ampliado + test de invariantes (2026-05-29)**: añadidos 10
   mints mainnet verificados de fuente fiable (CoinGecko/Solscan/Jupiter):
-  PYUSD, JLP, jupSOL, INF, JTO, PYTH. Nuevo `tokens.test.ts` (8 tests, primer
-  test del paquete web) con invariantes: mints/símbolos únicos, longitud
-  base58 plausible (32-44, sin `0OIl`), decimals 0-18, y lookups
+  PYUSD, JLP, jupSOL, INF, JTO, PYTH (tokens/LSTs) + USDe, USDS, EURC, USDY
+  (stablecoins top de Solana por circulación, vía DefiLlama). Decimals
+  verificados uno a uno — **USDe es 9 decimals**, no 6 como las demás stables;
+  asumirlo habría mostrado cantidades 1000× mal. Nuevo `tokens.test.ts` (8
+  tests, primer test del paquete web) con invariantes: mints/símbolos únicos,
+  longitud base58 plausible (32-44, sin `0OIl`), decimals 0-18, y lookups
   (`tokenSymbol`/`tokenMeta`/`isKnownToken`). Protege contra copy-paste de un
   mint duplicado/mal en una app de dinero real. typecheck + 163 tests verde.
 
