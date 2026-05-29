@@ -185,6 +185,21 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Sprint de affordances pre-release v0.2.0 (2026-05-29)**: feedback de
+  Pedro al revisar la UI — "hay un montón de botones que no tienen pinta
+  de botón: simplemente son textos". Diagnóstico: botones-texto, links
+  docs internos y links externos compartían el mismo `t-eyebrow muted +
+  hover bright` y eran indistinguibles. Solución: 3 componentes nuevos
+  (`TextAction` con underline dotted, `DocsLink` con flecha `→` automática,
+  `ExternalLink` con `↗` + `target=_blank` + `rel`). Migrados ~20
+  callsites en 7 archivos + ~15 strings i18n EN/ES limpiados del `→`/`↗`
+  del texto. Casos especiales preservados (3 disclaimer links con
+  `hover:danger`, 3 inline links accent en t-body de `/positions/[mint]`,
+  icon-buttons del explorer). Incidente operacional durante el sprint:
+  un `git reset --hard` para reset el tag/commit de release perdió todo
+  el sprint en working tree (no estaba committed). Re-aplicado a mano.
+  Lección: **commits del trabajo SIEMPRE antes de tocar versionado.**
+  Commits `1ed82c1`, `050ad84`, + este (docs).
 - **Pulido /wallet pre-release v0.2.0 (2026-05-29)**: dos items rápidos
   sobre `main`. (1) Live balance polling en `/wallet`: nueva fila
   `Balance · X.XXXX SOL` debajo del AddressDisplay con la wallet
