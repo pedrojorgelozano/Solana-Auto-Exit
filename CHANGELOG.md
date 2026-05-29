@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-05-29
+
+Patch release. Makes auto-update robust against the sidecar file-lock for clients upgrading from *any* prior version — including the v0.2.0 / v0.1.x builds that predate the Rust-side fix and therefore couldn't auto-update to v0.3.0 — by moving the kill into an NSIS preinstall hook that ships inside the installer itself. No other changes.
+
 ### Fixed
 - **Sidecar-zombie fix, now also on the installer side (NSIS preinstall hook).** v0.3.0 fixed the auto-update file-lock from the *Rust* side (`on_download_finish` kills the sidecar before the installer runs), but that only helps when the build *performing* the update already carries it — so updating *from* v0.2.0 or earlier still aborted with *"Error opening file for writing"* (confirmed in the wild on the v0.2.0 → v0.3.0 hop). A new NSIS `NSIS_HOOK_PREINSTALL` (`packages/tauri/nsis-hooks.nsh`, wired via `bundle.windows.nsis.installerHooks`) runs `taskkill /F /T /IM auto-exit-server.exe` at the start of installation. Because it travels in the *new* installer, it protects the update regardless of which (possibly fix-less) version is being upgraded from — so v0.2.0 stragglers can finally auto-update to this release. Belt-and-suspenders with the Rust-side kill.
 
@@ -127,7 +131,8 @@ First public release — a self-hosted desktop app that watches Orca and Meteora
 - **Opt-in auto-update** via GitHub Releases — off by default.
 - `SHA256SUMS.txt` published with each release for download integrity verification.
 
-[Unreleased]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/pedrojorgelozano/Solana-Auto-Exit/compare/v0.1.0...v0.1.1
