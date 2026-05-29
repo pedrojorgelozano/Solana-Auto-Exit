@@ -79,8 +79,6 @@
   Detalle en [TESTING.md](TESTING.md).
 - [ ] Auto-lock del wallet por inactividad (configurable; default 30 min sin
   operaciones). Hoy no hay timeout.
-- [ ] Sustituir el spawn `shell: true` del probe-e2e por `cross-spawn` o
-  invocación directa de `node + tsx` para evitar DEP0190.
 - [ ] Cifrado opcional del SQLite del server (SQLCipher) para entornos donde
   el disco no esté full-disk-encrypted.
 - [ ] Manejo explícito de buffer de fees al swapear SOL nativo (hoy delegamos
@@ -92,9 +90,6 @@
   `plugin:dialog|confirm`, que esa versión ya no registra. Mitigado en
   local con `confirm_fix_plugin` ([ADR-034](DECISIONS.md)); si upstream
   lo arregla, retirar el workaround.
-- [ ] `build-binary.ts` no poda los `*.test.ts` del `server-app/`
-  desplegado — peso muerto en el bundle del instalador. Añadirlos a la
-  poda (junto a `data/`, `scripts/`, `drizzle.config.ts`).
 - [ ] Empaquetar la app desktop para macOS y Linux. El release v0.1.0 es
   solo Windows — `tauri build` no hace cross-compile del instalador, así
   que requiere buildear en cada SO (o un CI con runners macOS/Linux).
@@ -103,6 +98,14 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Cluster de deuda técnica (2026-05-29)**: dos items del backlog. (1)
+  `build-binary.ts` poda ahora recursivamente los `*.test.ts`/`*.spec.ts` del
+  `src/` desplegado en `server-app/` (acotado a src/, nunca node_modules) —
+  eran 11 ficheros de test como peso muerto en el instalador. (2) `probe-e2e.ts`
+  pasaba un array de args con `shell:true` (combo que dispara DEP0190);
+  cambiado a comando string único (`pnpm start:server`), mismo patrón que el
+  `run()` de build-binary. Walk de pruning verificado contra árbol temporal.
+  Commit `6196410` + este (docs).
 - **Validación backend "1 auto-exit por posición" (2026-05-29)**: la regla
   solo se aplicaba en UI (el configure muestra ExistingWatcher en vez del
   form); un cliente tRPC que se la saltara podía crear N watchers para la
