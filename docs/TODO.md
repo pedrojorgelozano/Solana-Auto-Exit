@@ -6,18 +6,25 @@
 
 ## Próximo (orden sugerido)
 
+- [ ] **P0 — Fix del sidecar zombie durante auto-update**. Verificado en
+  vivo durante la publicación de `v0.2.0` (2026-05-29): el flujo de
+  auto-update arranca correctamente (check a GitHub, diálogo nativo,
+  download, verify firma OK, lanzamiento del NSIS), pero el shell Tauri
+  cierra la ventana sin matar al sidecar `auto-exit-server.exe` antes
+  de ejecutar el installer. Resultado: el NSIS no puede sobrescribir
+  el `.exe` (file in use) y aborta con "Error opening file for writing".
+  Workaround manual: `Stop-Process -Name auto-exit-server -Force` +
+  `Reintentar` en el diálogo NSIS. Causa raíz: `RunEvent::Exit` en
+  `packages/tauri/src/lib.rs` mata el sidecar en el cierre limpio (X de
+  la ventana), pero el plugin updater hace exit por otro camino que se
+  salta ese handler. Fix: registrar un `before_exit` o hook equivalente
+  del plugin tauri-plugin-updater que mate el sidecar explícitamente
+  antes de lanzar el installer. **Bloquea cualquier release futura con
+  auto-update fiable** — cualquier user con opt-in que reciba `v0.2.1`
+  va a chocarse con esto.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
-- [ ] **Publicar release `v0.2.0`** — el rediseño UI está mergeado a
-  `main` y pusheado. Cambio visual mayor (paleta dark + sidebar +
-  hub visual + alerts contextuales + bulk-resume + /tasks como
-  histórico + wallet polish + etc.) → semver minor bump. Seguir
-  [docs/RELEASING.md](RELEASING.md) para el proceso (keypair de
-  firma, `pnpm tauri:release`, artefactos `.exe`/`.msi`/`latest.json`/
-  `SHA256SUMS.txt`, crear GitHub Release). La sección `[Unreleased]`
-  del CHANGELOG ya tiene todas las entries para arrastrar al
-  `## [0.2.0]`.
 
 ## Backlog (sin orden)
 
@@ -144,9 +151,6 @@
 - [ ] Empaquetar la app desktop para macOS y Linux. El release v0.1.0 es
   solo Windows — `tauri build` no hace cross-compile del instalador, así
   que requiere buildear en cada SO (o un CI con runners macOS/Linux).
-- [ ] Verificar el flujo real de auto-update: descargar e instalar una
-  versión nueva vía el updater. Solo se puede probar con una v0.1.x
-  posterior publicada, con el opt-in activado.
 - [ ] **Hallazgos QA audit NO aplicados** (de la auditoría conjunta peer +
   self review). Documentados con archivo:línea + mecanismo + fix
   propuesto en la sesión correspondiente. Por orden de impacto:
@@ -185,6 +189,19 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Release `v0.2.0` publicado + auto-update verificado (2026-05-29)**:
+  release firmado con la keypair del updater (`pnpm tauri:release`),
+  `.exe` + `.msi` + ambos `.sig` + `latest.json` + `SHA256SUMS.txt`
+  subidos al GitHub Release. Push de `main` + tag `v0.2.0` a remoto.
+  Install-test del NSIS en local: la app arranca, sidebar muestra
+  `v0.2.0`, sidecar conecta, wallet desbloquea, balance polling, Test
+  RPC button, navegación a todas las páginas — todo OK. Verificado el
+  flujo end-to-end de auto-update desde una instalación previa de
+  `v0.1.1` (toggle opt-in activado, reinicio, plugin pinga GitHub,
+  diálogo nativo, descarga + verify firma + lanzamiento del NSIS),
+  pero apareció el bug del sidecar zombie — apuntado como P0 arriba.
+  Commit del release: `5f2db72`. URL:
+  https://github.com/pedrojorgelozano/Solana-Auto-Exit/releases/tag/v0.2.0
 - **Sprint de affordances pre-release v0.2.0 (2026-05-29)**: feedback de
   Pedro al revisar la UI — "hay un montón de botones que no tienen pinta
   de botón: simplemente son textos". Diagnóstico: botones-texto, links
