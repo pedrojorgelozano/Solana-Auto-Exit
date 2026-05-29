@@ -93,11 +93,11 @@
   desde local (sin egress externo, alineado con el threat model). Después
   `TokenBadge` puede priorizar `/tokens/<symbol>.svg` y caer al placeholder
   solo si no hay archivo. Apuntado al rediseño UI (feature/ui-refined-dark).
-- [ ] Expandir el token registry de `packages/web/src/lib/tokens.ts` con
-  más mints conocidos (devnet Orca pools varios, otros stables de mainnet,
-  LSTs adicionales, memes populares). Posiblemente cargar de Jupiter token
-  list en background — trade-off con la política "no external assets" del
-  threat model.
+- [ ] (Opcional) Cargar la Jupiter token list en background para cubrir mints
+  arbitrarios sin hardcodear — trade-off con la política "no external assets"
+  del threat model. El registry hardcoded ya cubre los tokens comunes
+  (ampliado 2026-05-29, ver abajo); esto solo haría falta si aparecen muchos
+  pares con tokens fuera de la lista.
 - [ ] Cierre + swap atómico en una sola tx (combinar `closePositionInstructions`
   + `swapInstructions` + `buildAndSendTransaction` de `@orca-so/tx-sender`).
   Elimina el riesgo de slippage entre las dos tx.
@@ -134,6 +134,14 @@
 ## Hecho recientemente
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
+
+- **Token registry ampliado + test de invariantes (2026-05-29)**: añadidos 6
+  mints mainnet verificados de fuente fiable (CoinGecko/Solscan/Jupiter):
+  PYUSD, JLP, jupSOL, INF, JTO, PYTH. Nuevo `tokens.test.ts` (8 tests, primer
+  test del paquete web) con invariantes: mints/símbolos únicos, longitud
+  base58 plausible (32-44, sin `0OIl`), decimals 0-18, y lookups
+  (`tokenSymbol`/`tokenMeta`/`isKnownToken`). Protege contra copy-paste de un
+  mint duplicado/mal en una app de dinero real. typecheck + 163 tests verde.
 
 - **Diff threshold del receipt configurable (2026-05-29)**: el umbral antes
   hardcoded (`|diff| < 0.01%` en `ActualLine`) pasa a `/settings` como

@@ -116,6 +116,54 @@ const KNOWN: TokenMeta[] = [
     decimals: 6,
     color: "#E87D6E",
   },
+  // PYUSD — PayPal USD (Token-2022). Mint oficial publicado por PayPal.
+  {
+    mint: "2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo",
+    symbol: "PYUSD",
+    name: "PayPal USD",
+    decimals: 6,
+    color: "#0070BA",
+  },
+  // JLP — Jupiter Perps LP token
+  {
+    mint: "27G8MtK7VtTcCHkpASjSDdkWWYfoqT6ggEuKidVJidD4",
+    symbol: "JLP",
+    name: "Jupiter Perps LP",
+    decimals: 6,
+    color: "#22CCEE",
+  },
+  // jupSOL — Jupiter liquid staking token
+  {
+    mint: "jupSoLaHXQiZZTSfEWMTRRgpnyFm8f6sZdosWBjx93v",
+    symbol: "jupSOL",
+    name: "Jupiter Staked SOL",
+    decimals: 9,
+    color: "#C7F284",
+  },
+  // INF — Sanctum Infinity (LST pool token)
+  {
+    mint: "5oVNBeEEQvYi1cX3ir8Dx5n1P7pdxydbGF2X4TxVusJm",
+    symbol: "INF",
+    name: "Sanctum Infinity",
+    decimals: 9,
+    color: "#7C5CFF",
+  },
+  // JTO — Jito governance token
+  {
+    mint: "jtojtomepa8beP8AuQc6eXt5FriJwfFMwQx2v2f9mCL",
+    symbol: "JTO",
+    name: "Jito",
+    decimals: 9,
+    color: "#2FD9B5",
+  },
+  // PYTH — Pyth Network
+  {
+    mint: "HZ1JovNiVvGrGNiiYvEozEVgZ58xaU3RKwX8eACQBCt3",
+    symbol: "PYTH",
+    name: "Pyth Network",
+    decimals: 6,
+    color: "#7142CF",
+  },
 ];
 
 const BY_MINT = new Map(KNOWN.map((t) => [t.mint, t]));
