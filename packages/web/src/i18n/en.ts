@@ -865,6 +865,13 @@ export const en = {
       lockExplainTradeoff: "Security notes",
       lockButton: "Lock wallet",
       locking: "Locking…",
+      // B-08: el botón se deshabilita mientras haya tasks en `closing` para
+      // evitar que el usuario crea que el lock va a cancelar la tx en vuelo
+      // (no podemos sacarla del mempool; lo único que conseguiría es que el
+      // watcher no pueda registrar el receipt post-cierre).
+      lockBlocked: "Closing in flight…",
+      lockBlockedTooltip:
+        "A close transaction is in flight. Wait for it to finish before locking — locking now won't cancel it, only stop the watcher from recording the receipt.",
       // Kept for backwards compat — old call sites can be removed later.
       lock: "Lock",
     },

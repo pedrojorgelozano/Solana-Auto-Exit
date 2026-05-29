@@ -204,6 +204,17 @@ function UnlockedSection({
     { address },
     { refetchInterval: 60_000 },
   );
+  // Lock durante un cierre en vuelo no cancela la tx (la firma ya está
+  // en el RPC; no podemos sacarla del mempool). Pero la app sí descarga
+  // la key de memoria, y el watcher quedaba sin poder verificar la tx
+  // y registrar el receipt. Deshabilitamos el botón para que el user
+  // espere los segundos que tarde el cierre. Ver B-08.
+  const tasks = trpc.tasks.list.useQuery(undefined, {
+    refetchInterval: 5_000,
+  });
+  const hasClosingInFlight = (tasks.data ?? []).some(
+    (t) => t.status === "closing",
+  );
 
   const onLock = async () => {
     await lock.mutateAsync();
@@ -252,8 +263,17 @@ function UnlockedSection({
           <DocsLink href="/docs/security#hot-wallet-tradeoff">
             {u.lockExplainTradeoff}
           </DocsLink>
-          <Button variant="secondary" onClick={onLock} disabled={lock.isPending}>
-            {lock.isPending ? u.locking : u.lockButton}
+          <Button
+            variant="secondary"
+            onClick={onLock}
+            disabled={lock.isPending || hasClosingInFlight}
+            title={hasClosingInFlight ? u.lockBlockedTooltip : undefined}
+          >
+            {lock.isPending
+              ? u.locking
+              : hasClosingInFlight
+                ? u.lockBlocked
+                : u.lockButton}
           </Button>
         </div>
       </section>

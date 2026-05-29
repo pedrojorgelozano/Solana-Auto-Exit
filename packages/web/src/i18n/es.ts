@@ -827,6 +827,9 @@ export const es: typeof en = {
       lockExplainTradeoff: "Notas de seguridad",
       lockButton: "Bloquear wallet",
       locking: "Bloqueando…",
+      lockBlocked: "Cierre en vuelo…",
+      lockBlockedTooltip:
+        "Hay una transacción de cierre en vuelo. Espera a que termine antes de bloquear — bloquear ahora no la cancela, solo impide que el watcher registre el receipt.",
       lock: "Bloquear",
     },
 
