@@ -865,6 +865,17 @@ function EmptyHub({ owner }: { owner: string | null }) {
         </ExternalLink>
         <DocsLink href="/docs/getting-started">{emptyT.stepByStep}</DocsLink>
       </div>
+
+      <p className="mt-8 max-w-xl t-small text-[var(--color-text-dim)]">
+        {emptyT.rpcHintPrefix}
+        <Link
+          href="/settings"
+          className="font-semibold text-[var(--color-accent-bright)] underline decoration-[var(--color-accent-bright)]/40 underline-offset-2 transition-colors hover:decoration-[var(--color-accent-bright)]"
+        >
+          {emptyT.rpcHintLink}
+        </Link>
+        {emptyT.rpcHintSuffix}
+      </p>
     </section>
   );
 }

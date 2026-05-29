@@ -280,6 +280,11 @@ export const en = {
       openOrca: "open orca",
       openMeteora: "open meteora",
       stepByStep: "Step-by-step guide",
+      // El caso "0 posiciones sin error" suele ser un RPC que capa
+      // getProgramAccounts (discovery de Meteora). Hint suave hacia Helius.
+      rpcHintPrefix: "Sure you hold positions but they're not showing? Some RPC providers restrict discovery — ",
+      rpcHintLink: "switch to a Helius endpoint",
+      rpcHintSuffix: " in settings.",
     },
 
     activity: {
@@ -743,7 +748,7 @@ export const en = {
       label: "RPC URL",
       hint: "any Solana JSON-RPC endpoint",
       mainnetWarning:
-        "The public mainnet-beta endpoint is heavily rate-limited and not reliable for a watcher. Use Helius, QuickNode, Triton, or a node you run.",
+        "The public mainnet-beta endpoint is heavily rate-limited, and some providers (e.g. QuickNode's standard plan) restrict getProgramAccounts — the method Meteora discovery relies on, so positions silently fail to show. A free Helius mainnet endpoint avoids both.",
       devnetWarning:
         "The public devnet endpoint is rate-limited. For sustained use swap to Helius, QuickNode, Triton, or a node you run.",
       useDefault: (network: string) => `use ${network} default`,
@@ -752,6 +757,12 @@ export const en = {
       testOk: (version: string, latencyMs: number) =>
         `OK · ${version} · ${latencyMs} ms`,
       testFailPrefix: "RPC test failed: ",
+      // Recomendación fuerte de Helius. Sin key incrustada: el repo es
+      // público y una key compartida se scrapearía / rate-limitaría para todos.
+      recommendPrefix: "Recommended: ",
+      recommendLink: "get a free Helius key",
+      recommendSuffix:
+        " and paste your mainnet URL (https://mainnet.helius-rpc.com/?api-key=…).",
     },
 
     slippage: {

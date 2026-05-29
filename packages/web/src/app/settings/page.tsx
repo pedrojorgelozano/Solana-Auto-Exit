@@ -258,11 +258,22 @@ function SettingsForm({
               className="t-num"
             />
             <div className="mt-2 flex flex-wrap items-baseline justify-between gap-3">
-              <p className="t-small text-[var(--color-text-dim)] max-w-xl">
-                {initial.network === "mainnet"
-                  ? s.rpc.mainnetWarning
-                  : s.rpc.devnetWarning}
-              </p>
+              <div className="max-w-xl space-y-1.5">
+                <p className="t-small text-[var(--color-text-dim)]">
+                  {initial.network === "mainnet"
+                    ? s.rpc.mainnetWarning
+                    : s.rpc.devnetWarning}
+                </p>
+                {initial.network === "mainnet" ? (
+                  <p className="t-small text-[var(--color-text-muted)]">
+                    {s.rpc.recommendPrefix}
+                    <ExternalLink href="https://dashboard.helius.dev/">
+                      {s.rpc.recommendLink}
+                    </ExternalLink>
+                    {s.rpc.recommendSuffix}
+                  </p>
+                ) : null}
+              </div>
               <div className="flex items-baseline gap-4">
                 <TestRpcButton url={rpcUrl} />
                 {rpcUrl !== initial.defaultRpcByNetwork[initial.network] ? (

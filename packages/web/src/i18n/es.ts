@@ -260,6 +260,11 @@ export const es: typeof en = {
       openOrca: "abrir orca",
       openMeteora: "abrir meteora",
       stepByStep: "Guía paso a paso",
+      // El caso "0 posiciones sin error" suele ser un RPC que capa
+      // getProgramAccounts (discovery de Meteora). Hint suave hacia Helius.
+      rpcHintPrefix: "¿Seguro que tienes posiciones pero no aparecen? Algunos proveedores de RPC limitan el descubrimiento — ",
+      rpcHintLink: "cambia a un endpoint de Helius",
+      rpcHintSuffix: " en ajustes.",
     },
 
     activity: {
@@ -712,7 +717,7 @@ export const es: typeof en = {
       label: "URL del RPC",
       hint: "cualquier endpoint Solana JSON-RPC",
       mainnetWarning:
-        "El endpoint público de mainnet-beta tiene rate-limits muy estrictos y no es fiable para un watcher. Usa Helius, QuickNode, Triton, o un nodo propio.",
+        "El endpoint público de mainnet-beta tiene rate-limits muy estrictos, y algunos proveedores (p.ej. el plan estándar de QuickNode) restringen getProgramAccounts — el método del que depende el descubrimiento de Meteora, así que las posiciones no aparecen sin dar error. Un endpoint gratuito de Helius (mainnet) evita ambos problemas.",
       devnetWarning:
         "El endpoint público de devnet tiene rate-limits. Para uso sostenido cambia a Helius, QuickNode, Triton, o un nodo propio.",
       useDefault: (network: string) => `usar default ${network}`,
@@ -721,6 +726,12 @@ export const es: typeof en = {
       testOk: (version: string, latencyMs: number) =>
         `OK · ${version} · ${latencyMs} ms`,
       testFailPrefix: "Fallo al probar el RPC: ",
+      // Recomendación fuerte de Helius. Sin key incrustada: el repo es
+      // público y una key compartida se scrapearía / rate-limitaría para todos.
+      recommendPrefix: "Recomendado: ",
+      recommendLink: "consigue una key gratuita de Helius",
+      recommendSuffix:
+        " y pega tu URL de mainnet (https://mainnet.helius-rpc.com/?api-key=…).",
     },
 
     slippage: {
