@@ -138,24 +138,12 @@
 - [ ] **Hallazgos QA audit NO aplicados** (de la auditoría conjunta peer +
   self review). Documentados con archivo:línea + mecanismo + fix
   propuesto en la sesión correspondiente. Por orden de impacto:
-  - B-04: `update tasks` + `appendHistory` no atomicos (sin
-    transacción). Si el server crashea en medio, history queda
-    inconsistente. Wrap pares en `db.transaction()`.
-  - B-05: `withRetry` reintenta CUALQUIER error 5 veces, incluidos
-    permanentes (SlippageExceeded, InsufficientFunds, validaciones
-    del adapter). Añadir `retryableErrors?: (err) => boolean` opcional.
-  - B-07: `WalletVault.getRawSecret()` devuelve referencia mutable al
-    buffer interno. Quien la reciba (Meteora adapter) puede mutarla;
-    `lock()` zeroa el mismo buffer in-flight. Devolver copia.
   - B-08: `lock` durante un close en flight no cancela la tx (no
     podemos). Deshabilitar el botón Lock mientras haya tasks en
     `closing` para evitar confusión UX.
   - B-09: unlock-limiter cuenta CUALQUIER error de `vault.unlock`
     como passphrase incorrecta (incluido "vault file corrupted",
     "address mismatch"). Tipar el error en vault.ts para distinguir.
-  - B-10: `verifyTxBalances` solo lee `accountKeys` del message;
-    ignora `meta.loadedAddresses`. Si la wallet aparece solo en una
-    LUT, `solDelta` será 0 silenciosamente.
   - B-11: Meteora `closePosition` multi-tx no compensa si tx[N+1]
     falla tras tx[N] éxito — posición queda parcialmente cerrada y
     `lastSig` apunta a la última exitosa (engaña al receipt).
@@ -166,13 +154,29 @@
     en DB. Clampear o rechazar.
   - B-17: `ALLOW_LOOPBACK_RPC` solo acepta literal `"true"` —
     inconsistente con `parseBool` del engine. Unificar o documentar.
-  - B-20: watcher crash deja la task en `armed` sin watcher real.
-    El `.catch` del spawn solo loguea; debería pasar a `error`.
 
 ## Hecho recientemente
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **QA audit hardening — 5 fixes top-impact (2026-05-29)**: cluster
+  de correctness fixes del backlog acumulado. (B-04) atomicidad de
+  los 9 pares `update tasks` + `appendHistory` con `db.transaction`
+  + parámetro opcional `tx` en `appendHistory` para que respete la
+  transacción del caller. (B-05) `withRetry` acepta predicado
+  `retryableErrors`; helper `isPermanentSolanaError` exportado
+  (heurística por keyword: slippage, insufficient, invalid mint/
+  pool/position, account not found). Callsites de close + swap
+  (manager + runner) actualizados. (B-07) `WalletVault.getRawSecret`
+  devuelve `new Uint8Array(secret)` — evita mutación por consumidor
+  y race con `lock()`. (B-10) `verifyTxBalances` usa nuevo helper
+  `allKeys(tx)` que concatena accountKeys + loadedAddresses.writable
+  + readonly en orden global; 2 tests nuevos cubren writable y
+  readonly (suite 53→55 tests). (B-20) catch del spawn del watcher
+  llama `markError` para que la task pase a `error` cuando el loop
+  crashea, en lugar de quedar en `armed` muerta. Commits `fc478c2`,
+  `c175b8b`, `0f6c966`. 6 items QA audit pendientes para próxima
+  sesión (B-08, B-09, B-11, B-14, B-15, B-17).
 - **Fix P0 del sidecar zombie + bump a 0.2.1-dev (2026-05-29)**: arreglado
   el bug descubierto durante la verificación de v0.2.0. Hook al callback
   `on_download_finish` de `download_and_install` en `packages/tauri/src/
