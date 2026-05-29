@@ -2,10 +2,10 @@
 
 ## Estado actual
 
-**Baseline de 130 tests automatizados con Vitest** (cubriendo seguridad, cripto del vault, módulos puros del engine, lifecycle completo del watcher, verificación on-chain con LUTs) + typecheck en CI + smoke tests manuales en devnet/mainnet.
+**Baseline de 143 tests automatizados con Vitest** (cubriendo seguridad, cripto del vault, módulos puros del engine, lifecycle completo del watcher, resume seguro, verificación on-chain con LUTs) + typecheck en CI + smoke tests manuales en devnet/mainnet.
 
 1. **Typecheck**: `pnpm typecheck` (= `tsc --noEmit` raíz + web). Verde.
-2. **Tests automatizados**: `pnpm test` (Vitest, ~3s, 130/130 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
+2. **Tests automatizados**: `pnpm test` (Vitest, ~3s, 143/143 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
 3. **Secret scan**: `gitleaks` en CI vía GitHub Action `gitleaks/gitleaks-action@v2`.
 4. **Smoke tests manuales** en devnet (Orca) y mainnet (Orca + Meteora) — documentados abajo desde F0.
 
@@ -21,7 +21,7 @@ pnpm test:watch      # re-corre al guardar
 pnpm test:coverage   # genera coverage v8 (HTML + text)
 ```
 
-### Suites actuales (130 tests · ~3s)
+### Suites actuales (143 tests · ~3s)
 
 | Suite | Tests | Cubre |
 |---|---:|---|
@@ -34,7 +34,8 @@ pnpm test:coverage   # genera coverage v8 (HTML + text)
 | `packages/server/src/tasks/buffer.test.ts` | 11 | Máquina de estados del time-buffer (ADR-025) — in/out × buffer 0/positivo/negativo × current null/vivo + secuencia arm→reset→re-arm + TP/SL independientes. |
 | `packages/server/src/tasks/verify.test.ts` | 10 | Parsing happy-path de solDelta + tokenDeltas (con exclusión de cuentas no-owned), **owner via `loadedAddresses.writable` (B-10)**, **owner via `loadedAddresses.readonly` (B-10)**, error paths (meta null, tx fallida on-chain, indexer lento), retry exitoso + retry agotado, AbortSignal pasado al fetch en cada attempt. Fake timers para evitar esperar backoffs reales. |
 | `packages/server/src/tasks/manager.markError.test.ts` | 5 | Integration test con sqlite `:memory:` + migrations reales — cubre B-01 (mark* respetan estados decididos por usuario). |
-| `packages/server/src/tasks/manager.lifecycle.test.ts` | 13 | **Lifecycle completo.** `boot()` re-pausa idle/armed/triggered/closing con history `server-restart` y no toca terminales; `pauseAllOnVaultLock` pausa+aborta controllers+registra `vault-locked`; **atomicidad B-04** (forzar throw en `appendHistory` hace rollback del insert de `createTask`); cascada FK de history al borrar; `deleteAllTasks`; paginación cursor + `historicalCounts`. Mismo harness sqlite `:memory:`. |
+| `packages/server/src/tasks/manager.lifecycle.test.ts` | 15 | **Lifecycle completo.** `boot()` re-pausa idle/armed/triggered/closing con history `server-restart` y no toca terminales; `pauseAllOnVaultLock` pausa+aborta controllers+registra `vault-locked`; **atomicidad B-04** (forzar throw en `appendHistory` hace rollback del insert de `createTask`); cascada FK de history al borrar; `deleteAllTasks`; paginación cursor + `historicalCounts`; `evaluateResumeCandidates` sin red (filtro paused-por-sistema + rama vault-locked). Mismo harness sqlite `:memory:`. |
+| `packages/server/src/tasks/resume.test.ts` | 11 | **Resume seguro (puro).** `evaluateTriggerCross` (price ≥ TP / ≤ SL, dentro de rango no cruza, prioridad TP, precio null/no-finito, sin triggers) + `isSystemPaused` (markers vault-lock/reinicio, substring, null = pausa de usuario, error no relacionado). |
 
 ### Bugs reales descubiertos por los tests
 
@@ -58,8 +59,8 @@ Cosas que NO descubrieron los tests pero sí la operación real:
 
 Las prioridades 1–3 originales (vault cripto, módulos puros del engine, lifecycle de TaskManager) se cerraron el **2026-05-29** — ver tabla de suites arriba. Quedan:
 
-1. Adapters Orca + Meteora con SDK mocks — cuando se decida el approach del mock (golden fixtures vs interfaces stub). El más delicado: los SDKs no exponen interfaces limpias para stubbear y los fixtures golden envejecen.
-2. Routers tRPC con `appRouter.createCaller(ctx)` — integration tests con DB en memoria (espejo del harness sqlite `:memory:` que ya usan los tests de manager). Cubriría las validaciones zod de `tasks.create`, el gate de mainnet, el unlock-limiter end-to-end, y los nuevos endpoints `meta.dbSize` / `tasks.listHistorical`.
+1. Adapters Orca + Meteora con SDK mocks — cuando se decida el approach del mock (golden fixtures vs interfaces stub). El más delicado: los SDKs no exponen interfaces limpias para stubbear y los fixtures golden envejecen. Desbloquearía también el camino de lectura de precio de `TaskManager.evaluateResumeCandidates` (hoy solo testeada la rama sin red).
+2. Routers tRPC con `appRouter.createCaller(ctx)` — integration tests con DB en memoria (espejo del harness sqlite `:memory:` que ya usan los tests de manager). Cubriría las validaciones zod de `tasks.create`, el gate de mainnet, el unlock-limiter end-to-end, y los endpoints `meta.dbSize` / `tasks.listHistorical` / `tasks.resumeCandidates`.
 3. `executeClose` del watcher con un adapter fake — el camino close→verify→swap→done y sus ramas de error (fallo en swap preserva closeResult, pausa entre close y swap salta el swap). Hoy se cubre indirectamente; un adapter inyectable lo haría directo sin red.
 
 ## CI

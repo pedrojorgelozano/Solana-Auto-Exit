@@ -12,17 +12,6 @@
 
 ## Backlog (sin orden)
 
-- [ ] **Snapshot-check del bulk-resume tras desbloquear**. Hoy el callout
-  `N AUTO-EXITS PAUSADOS AL BLOQUEAR LA WALLET` + botón `REANUDAR
-  TODOS` reanuda **todas** las tasks paused-por-sistema sin distinguir
-  cuáles cruzaron trigger durante el lockdown. Si una posición cruzó
-  TP/SL mientras la wallet estaba bloqueada, el resume disparará un
-  cierre inmediato. Mejora: comparar `currentPrice` contra triggers de
-  cada candidata; partir el callout en dos: `M REANUDABLES SIN RIESGO
-  [REANUDAR ESTOS]` + `K CRUZARON TRIGGER — REVISA ANTES [VER TASK →]`.
-  Requiere getSummary o similar para cada paused. No urge — los buffers
-  suelen amortiguar el problema, pero merece la pena tras feedback de
-  uso real.
 - [ ] Documentación en español. Todos los docs públicos del repo
   (`README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `docs/INSTALL.md`,
   `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/RELEASING.md`,
@@ -78,7 +67,7 @@
 - [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar.
 - [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet,
   multi-hop). Hoy solo mismo pool (ADR-008).
-- [ ] Ampliar cobertura de tests (baseline actual: 130 con Vitest). Las
+- [ ] Ampliar cobertura de tests (baseline actual: 143 con Vitest). Las
   prioridades 1–3 (vault cripto, módulos puros del engine, lifecycle de
   TaskManager) se cerraron el 2026-05-29. Pendientes priorizados:
   adapters Orca + Meteora con SDK mocks (el más delicado: los SDKs no
@@ -117,6 +106,18 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Resume seguro tras desbloquear (2026-05-29)**: el callout "reanudar
+  todos" reanudaba todas las tasks pausadas-al-bloquear sin mirar si su
+  precio cruzó el trigger durante el lockdown — un resume podía disparar un
+  cierre inmediato no elegido. Ahora el server (`tasks.resumeCandidates`)
+  lee el precio actual de cada candidata (mismo camino que el watcher) y el
+  dashboard parte el callout en "reanudables sin riesgo" (precio leído y NO
+  cruzó → bulk-resume) vs "cruzaron su trigger — revisa" (lista con link por
+  task). Invariante: solo "seguro" con precio real y sin cruce; nulo/cruzado
+  → revisar. Markers de pausa-por-sistema centralizados en `tasks/resume.ts`
+  (antes duplicados como literales en manager.ts y cliente). Helper puro
+  `evaluateTriggerCross` testeado + `evaluateResumeCandidates` sin red. +13
+  tests (130 → 143). Commit `4afcb1c` + este (docs).
 - **Sprint de cobertura de tests (2026-05-29)**: cerradas las prioridades
   1–3 del backlog de tests (55 → 130, +75). (1) `vault.test.ts`: roundtrip
   cripto create/unlock + clasificación B-09 (`WrongPassphraseError` vs
