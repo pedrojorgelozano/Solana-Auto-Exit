@@ -409,21 +409,43 @@ export class MeteoraAdapter implements ProtocolAdapter {
       };
     }
 
-    let lastSig = "";
+    // Ejecutar las txs en serie y trackear las que confirman. Si una falla
+    // tras N éxitos previos, la posición queda en estado intermedio (parte
+    // de la liquidez retirada, parte no, fees parcialmente reclamadas o
+    // PDA aún sin cerrar). El error de abajo deja claro qué se hizo y qué
+    // no — el watcher lo eleva a `error` y el user ve la situación real
+    // en lugar de un "Closed cleanly" mentiroso. Ver B-11.
+    const successfulSigs: string[] = [];
     for (let i = 0; i < txs.length; i++) {
       const tx = txs[i]!;
       const recent = await conn.getLatestBlockhash("confirmed");
       tx.recentBlockhash = recent.blockhash;
       tx.lastValidBlockHeight = recent.lastValidBlockHeight;
       tx.feePayer = this.signingKeypair.publicKey;
-      lastSig = await sendAndConfirmTransaction(
-        conn,
-        tx,
-        [this.signingKeypair],
-        { commitment: "confirmed" },
-      );
+      try {
+        const sig = await sendAndConfirmTransaction(
+          conn,
+          tx,
+          [this.signingKeypair],
+          { commitment: "confirmed" },
+        );
+        successfulSigs.push(sig);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        if (successfulSigs.length === 0) {
+          // Sin nada confirmado: re-tirar como error normal — la posición
+          // sigue intacta, withRetry puede reintentar.
+          throw err;
+        }
+        throw new Error(
+          `Meteora closePosition partial failure: ${successfulSigs.length}/${txs.length} ` +
+            `transactions confirmed before tx[${i}] failed (${detail}). ` +
+            `Position is in an intermediate state. Successful sigs: ${successfulSigs.join(", ")}.`,
+        );
+      }
     }
 
+    const lastSig = successfulSigs[successfulSigs.length - 1]!;
     return {
       dryRun: false,
       txId: lastSig,
