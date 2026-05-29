@@ -6,14 +6,6 @@
 
 ## Próximo (orden sugerido)
 
-- [ ] **Verificar el auto-update real `v0.3.0 → v0.3.1`** (YA publicable —
-  v0.3.1 está live). En una máquina con v0.3.0 + opt-in: aceptar el update a
-  v0.3.1 y confirmar que el NSIS no aborta con "Error opening file for writing".
-  Es la verificación end-to-end del P0 del sidecar (la ejercitan a la vez el
-  kill de Rust de v0.3.0 y el preinstall hook NSIS de v0.3.1). Bonus: probar
-  `v0.2.0 → v0.3.1` demostraría que el hook NSIS salva a clientes sin el fix
-  de Rust (v0.2.0→v0.3.0 sí fallaba). Mientras no se verifique, el P0 sigue
-  abierto formalmente aunque el código esté en producción.
 - [ ] **F5** — LAN access opcional (token de pareja) + service-of-OS sidecar
   (launchd / systemd / Windows Service) para 24/7 sin Tauri abierto.
   Notificaciones Telegram opcional.
@@ -116,7 +108,10 @@ Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
   v0.3.1 publicada con el hook; build OK (makensis corrió con el hook sin
   error), `/latest/download/latest.json` sirve 0.3.1. Commits `2f093ff` (fix)
   + `d4485cf` (release). Docs corregidos: el framing previo de "v0.2.0→v0.3.0
-  verifica el fix" era erróneo. Pendiente: verificar el hop real v0.3.0→v0.3.1.
+  verifica el fix" era erróneo. **VERIFICADO**: el auto-update real
+  `v0.3.0 → v0.3.1` con opt-in completó sin error → **P0 del sidecar zombie
+  cerrado en producción** (lo ejercitaron a la vez el kill de Rust de v0.3.0 y
+  el hook NSIS de v0.3.1).
 - **Release v0.3.0 publicado (2026-05-29)**: bump minor (features desde
   v0.2.0: resume seguro + validación 1-auto-exit-por-posición, no solo el
   patch del sidecar). Build firmado OK (la poda de `*.test.ts` funcionó:
