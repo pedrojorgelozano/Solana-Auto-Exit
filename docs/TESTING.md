@@ -2,10 +2,10 @@
 
 ## Estado actual
 
-**Baseline de 163 tests automatizados con Vitest** (cubriendo seguridad, cripto del vault, módulos puros del engine, lifecycle completo del watcher, resume seguro, regla 1-auto-exit-por-posición, verificación on-chain con LUTs, invariantes del token registry) + typecheck en CI + smoke tests manuales en devnet/mainnet.
+**Baseline de 169 tests automatizados con Vitest** (cubriendo seguridad — incl. defensa SSRF en los endpoints de descubrimiento —, cripto del vault, módulos puros del engine, lifecycle completo del watcher, resume seguro, regla 1-auto-exit-por-posición, verificación on-chain con LUTs, invariantes del token registry) + typecheck en CI + smoke tests manuales en devnet/mainnet.
 
 1. **Typecheck**: `pnpm typecheck` (= `tsc --noEmit` raíz + web). Verde.
-2. **Tests automatizados**: `pnpm test` (Vitest, ~3s, 163/163 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
+2. **Tests automatizados**: `pnpm test` (Vitest, ~3s, 169/169 verde). Ver [Tests automatizados](#tests-automatizados) abajo.
 3. **Secret scan**: `gitleaks` en CI vía GitHub Action `gitleaks/gitleaks-action@v2`.
 4. **Smoke tests manuales** en devnet (Orca) y mainnet (Orca + Meteora) — documentados abajo desde F0.
 
@@ -21,11 +21,12 @@ pnpm test:watch      # re-corre al guardar
 pnpm test:coverage   # genera coverage v8 (HTML + text)
 ```
 
-### Suites actuales (163 tests · ~3s)
+### Suites actuales (169 tests · ~3s)
 
 | Suite | Tests | Cubre |
 |---|---:|---|
 | `packages/server/src/security/rpc-url.test.ts` | 22 | URL invalid, schemes no-http(s), credenciales embebidas, loopback default + escape hatch con keywords truthy (B-17 ampliado a `true\|1\|yes\|on`), metadata cloud, all-interfaces, IPv6 link-local, LAN privadas permitidas, Tailscale CGNAT, RPCs públicos, case-insensitive, ws(s). Más 8 casos sobre `inferNetworkFromRpcUrl` (B-02 + formato QuickNode `solana-mainnet`/`solana-devnet`, que motivó el aviso `rpcNetworkMismatch` — ADR-043). |
+| `packages/server/src/trpc/routers/positions.test.ts` | 6 | **Defensa SSRF en discovery.** `listOwned` y `getSummary` corren `assertSafeRpcUrl` como primera línea y rechazan con `BAD_REQUEST` (antes de abrir conexión) urls a metadata cloud, loopback y all-interfaces — el hueco que `tasks.create`/`settings.update` ya tenían tapado. La matriz exhaustiva de hosts vive en `rpc-url.test.ts`; aquí se verifica el wiring. |
 | `packages/server/src/security/unlock-limiter.test.ts` | 7 | Sliding window 5 intentos/5min, bloqueo al sexto, expiración por ventana, reset al unlock exitoso, mensaje con segundos restantes, prune parcial. |
 | `packages/server/src/wallet/vault.test.ts` | 19 | **Cripto roundtrip + clasificación B-09.** create→unlock devuelve misma address y mismos 64 bytes; validación de inputs (passphrase <8, secret de longitud/keypair incoherente, vault duplicado); `WrongPassphraseError` (passphrase mala + ciphertext manipulado/GCM fail) vs `VaultCorruptedError` (address alterada, payload de longitud rara, bytes no-keypair — vía forge de un vault con tag GCM válido pero contenido inválido); versión no soportada; `getRawSecret` copia independiente; `lock`/`delete` olvidan la clave. Keypairs ed25519 generadas con `node:crypto` (sin dependencia de web3.js en el server). |
 | `packages/engine/src/core/retry.test.ts` | 20 | `isPermanentSolanaError` (keyword heuristic permanente/transitorio, case-insensitive, inputs no-Error) + `withRetry` (éxito al primer intento, retry-hasta-éxito, agota maxAttempts y lanza el último error, relanza inmediato cuando `retryableErrors`=false, backoff exponencial verificado con cota inferior real-timer). |

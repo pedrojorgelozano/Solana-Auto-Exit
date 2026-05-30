@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-Quality and robustness improvements after v0.3.1, driven by a real user hitting a broken-position-discovery bug. No breaking changes, no schema/migration changes, no new permissions or egress. Tests 154 → 163.
+Quality and robustness improvements after v0.3.1, driven by a real user hitting a broken-position-discovery bug, plus a small security-hardening pass. No breaking changes, no schema/migration changes, no new egress; one unused Tauri shell permission *removed*. Tests 154 → 169.
 
 ### Added
 - **RPC / network mismatch warning on the dashboard.** Changing only the RPC URL in Settings doesn't change the active `network`, so pasting a devnet endpoint (or a provider that restricts `getProgramAccounts`) while the app is on mainnet made discovery query the wrong network and return "0 positions" with no error — the user thought they had nothing. `settings.get` now exposes `rpcNetworkMismatch` (computed via the existing `inferNetworkFromRpcUrl` host heuristic) and the dashboard surfaces a callout when the RPC host looks like a different network than the one selected. Unknown/private hosts return null → no nag for power users running their own node. See ADR-043.
@@ -17,8 +17,15 @@ Quality and robustness improvements after v0.3.1, driven by a real user hitting 
 - **Discovery errors for Meteora are now actionable.** `positions.listOwned` decorates errors that point at a restricted/disabled `getProgramAccounts` (the method Meteora discovery relies on, which some providers like QuickNode's standard plan cap) with a hint to switch to a provider that allows it. Confirmed in the wild: the reporting user sees all their pools after switching to Helius.
 - **Settings/empty-state recommend a free Helius mainnet endpoint.** Strongly, with a signup link — without embedding an API key (the repo is public; a shared key would be scraped and rate-limited for everyone, and would break the "no egress by default" posture). See ADR-043.
 
+### Security
+- **SSRF defense extended to the position-discovery endpoints.** `assertSafeRpcUrl` (blocks cloud-metadata IPs, loopback, all-interfaces, non-http(s)/ws(s) schemes, embedded credentials) was applied on `tasks.create`, `settings.update` and `settings.testRpc`, but `positions.listOwned` / `positions.getSummary` passed the client-supplied `rpcUrl` straight to `adapter.setupRpc`. Since those two queries are read-only and reachable *without* unlocking the vault, they were the one remaining lever to make the server fetch an arbitrary host (e.g. `http://169.254.169.254/...`). Both now run the same guard as their first line and reject an unsafe URL with `BAD_REQUEST` before any connection is opened. New `positions.test.ts` covers it. The threat model is unchanged (single-user, localhost bind) — this closes an internal inconsistency rather than a remotely-reachable hole.
+- **Removed the unused `shell:allow-execute` Tauri capability.** `packages/tauri/capabilities/default.json` granted the webview blanket command execution on top of the scoped `shell:allow-spawn` for the `auto-exit-server` sidecar. The frontend invokes no shell API, and the sidecar is spawned from Rust in `setup()` (which doesn't go through capabilities), so the permission was dead surface area — dropping it shrinks the blast radius of any future frontend compromise. No behavioural change.
+
+### Docs
+- **`.env.example` mainnet-gate comment corrected to opt-OUT.** The note next to `ALLOW_MAINNET_LIVE` still described the old opt-IN semantics ("you need `=true` for the bot to start"), contradicting the actual code (ADR-026: the gate is *open* by default; only `DRY_RUN=true` stops mainnet-live out of the box, and setting the var to `false` is the opt-out hardening for CI/unattended runs). Rewritten so a CLI user builds the correct mental model.
+
 ### Tests
-- **154 → 163.** New `tokens.test.ts` (the first test in the `web` package, 8 tests) asserting token-registry invariants — unique mints/symbols, plausible base58 length (no `0OIl`), decimals 0-18, and the lookup helpers — so a duplicated or mistyped mint can't silently show the wrong symbol on a funded position. Plus a QuickNode endpoint-format case for `inferNetworkFromRpcUrl`.
+- **154 → 169.** New `tokens.test.ts` (the first test in the `web` package, 8 tests) asserting token-registry invariants — unique mints/symbols, plausible base58 length (no `0OIl`), decimals 0-18, and the lookup helpers — so a duplicated or mistyped mint can't silently show the wrong symbol on a funded position. Plus a QuickNode endpoint-format case for `inferNetworkFromRpcUrl`, and `positions.test.ts` (6 tests) asserting the SSRF guard rejects metadata/loopback/all-interfaces URLs on both discovery endpoints.
 
 ## [0.3.1] — 2026-05-29
 

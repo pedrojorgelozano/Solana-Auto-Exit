@@ -104,7 +104,7 @@
 - [ ] Anti-flapping: confirmar el trigger durante N ciclos antes de cerrar.
 - [ ] `EXIT_TOKEN_MINT` con tokens FUERA del pool (vía Jupiter en mainnet,
   multi-hop). Hoy solo mismo pool (ADR-008).
-- [ ] Ampliar cobertura de tests (baseline actual: 163 con Vitest). Las
+- [ ] Ampliar cobertura de tests (baseline actual: 169 con Vitest). Las
   prioridades 1–3 (vault cripto, módulos puros del engine, lifecycle de
   TaskManager) se cerraron el 2026-05-29. Pendientes priorizados:
   adapters Orca + Meteora con SDK mocks (el más delicado: los SDKs no
@@ -135,6 +135,17 @@
 
 Para el detalle de cada cambio, consultar `git log` y los commits referenciados.
 
+- **Hardening de seguridad: SSRF en discovery + permiso Tauri + doc (2026-05-30)**:
+  pase tras una auditoría externa. (1) `positions.listOwned`/`getSummary`
+  pasaban el `rpcUrl` del cliente a `setupRpc` sin `assertSafeRpcUrl` —
+  único hueco SSRF (las otras 3 rutas ya lo aplicaban) y alcanzable sin vault
+  unlocked; ahora corren el guard como primera línea (`BAD_REQUEST` antes de
+  abrir conexión) + nuevo `positions.test.ts` (6 tests). (2) Quitado el permiso
+  `shell:allow-execute` de `capabilities/default.json` — superficie muerta: el
+  frontend no usa shell y el sidecar lo spawnea Rust en `setup()`. (3) Corregido
+  el comentario opt-IN obsoleto de `ALLOW_MAINNET_LIVE` en `.env.example` a la
+  semántica opt-OUT real (ADR-026). Hallazgos de auth-sin-token y supply-chain
+  de la auditoría = trade-offs de diseño ya documentados, sin cambio.
 - **Bug de discovery RPC (QuickNode) + guards (2026-05-29)** ([ADR-043](DECISIONS.md)):
   un usuario en v0.3.1 con QuickNode no encontraba ningún pool (sin error);
   causa = QuickNode restringe `getProgramAccounts` (el método que usa el
