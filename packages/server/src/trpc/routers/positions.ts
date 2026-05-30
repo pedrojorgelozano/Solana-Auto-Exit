@@ -1,6 +1,24 @@
 import { z } from "zod";
 import { router, publicProcedure, TRPCError } from "../init.js";
 import { makeAdapter } from "@solana-auto-exit/engine";
+import { assertSafeRpcUrl } from "../../security/rpc-url.js";
+
+/**
+ * Defensa SSRF: el `rpcUrl` llega directo del cliente y se usa para hacer
+ * fetch desde el server. Misma validación que aplican `tasks.create` y
+ * `settings.update`/`testRpc`; aquí cerramos el mismo hueco para los
+ * endpoints read-only de descubrimiento (alcanzables sin vault unlocked).
+ */
+function assertSafeRpc(rpcUrl: string): void {
+  try {
+    assertSafeRpcUrl(rpcUrl);
+  } catch (err) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: err instanceof Error ? err.message : "Invalid rpcUrl",
+    });
+  }
+}
 
 const baseInput = z.object({
   protocol: z.string().min(1),
@@ -54,6 +72,7 @@ export const positionsRouter = router({
   listOwned: publicProcedure
     .input(baseInput.extend({ owner: z.string().min(32) }))
     .query(async ({ input }) => {
+      assertSafeRpc(input.rpcUrl);
       const adapter = makeAdapter(input.protocol);
       await adapter.setupRpc({
         network: input.network,
@@ -79,6 +98,7 @@ export const positionsRouter = router({
   getSummary: publicProcedure
     .input(baseInput.extend({ ref: positionRefSchema }))
     .query(async ({ input }) => {
+      assertSafeRpc(input.rpcUrl);
       const adapter = makeAdapter(input.protocol);
       await adapter.setupRpc({
         network: input.network,
