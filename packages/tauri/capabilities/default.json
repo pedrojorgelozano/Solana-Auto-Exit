@@ -1,11 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Permisos por defecto del shell Tauri. Suficiente para que la UI ejecute la app y para que el setup() spawn el sidecar del server.",
+  "description": "Permisos por defecto del shell Tauri. El sidecar lo lanza Rust en setup() (no pasa por capabilities), así que aquí solo concedemos spawn con scope al binario 'auto-exit-server' y kill para pararlo al cerrar. NO se concede shell:allow-execute: el frontend no ejecuta comandos arbitrarios.",
   "windows": ["main"],
   "permissions": [
     "core:default",
-    "shell:allow-execute",
     {
       "identifier": "shell:allow-spawn",
       "allow": [
